@@ -1,0 +1,288 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  passwordHash  String
+  role          String    @default("USER") // ADMIN, USER, READONLY
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  contactsCreated Contact[] @relation("ContactCreator")
+  contactsUpdated Contact[] @relation("ContactUpdater")
+  tasksAssigned   Task[]
+  mailCases       MailCase[]
+  writtenQuestions WrittenQuestion[]
+  importLogs      ImportLog[]
+  auditLogs       AuditLog[]
+  attachmentsUploaded Attachment[]
+  statuses        EmployeeStatus[] @relation("UserStatuses")
+  notifications   Notification[]
+}
+
+model Contact {
+  id                String    @id @default(cuid())
+  firstName         String
+  lastName          String
+  phone             String? // Fixe
+  mobilePhone       String? // Portable
+  email             String?
+  birthDate         DateTime?
+  gender            String? // H, F, Autre
+  
+  streetNumber      String?
+  streetName        String?
+  postalCode        String?
+  city              String?
+  address           String? // legacy or full address
+  
+  territorySector   String?
+  supportLevel      String? // e.g. "1", "2", "3", "4", "5"
+  
+  type              String    // ELECTEUR, ELU, ASSO, PARTENAIRE, PRESSE, AUTRE
+  source            String?   // PERMANENCE, COURRIER, EVENEMENT, TERRAIN, AUTRE
+  newsletter        Boolean   @default(false)
+  whatsappStatus    String?   // NON, ENVOYE, REJOINT
+  linkedinUrl       String?
+  notes             String?
+  lastInteraction   DateTime?
+  
+  createdById       String
+  createdBy         User      @relation("ContactCreator", fields: [createdById], references: [id])
+  updatedById       String?
+  updatedBy         User?     @relation("ContactUpdater", fields: [updatedById], references: [id])
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  archivedAt        DateTime?
+
+  tags              ContactTag[]
+  links             GlobalLink[]  @relation("ContactLinks")
+  duplicatesLeft    DuplicateCandidate[] @relation("Contact1")
+  duplicatesRight   DuplicateCandidate[] @relation("Contact2")
+}
+
+model Tag {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  color       String?
+  
+  contacts    ContactTag[]
+}
+
+model ContactTag {
+  contactId   String
+  tagId       String
+  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag         Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([contactId, tagId])
+}
+
+model Task {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  priority        String    @default("NORMALE") // HAUTE, NORMALE, BASSE
+  status          String    @default("A_FAIRE") // A_FAIRE, EN_COURS, EN_ATTENTE, TERMINEE, ANNULEE
+  dueDate         DateTime?
+  expectedDeliverable String?
+  
+  assigneeId      String?
+  assignee        User?     @relation(fields: [assigneeId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  
+  subtasks        Subtask[]
+  comments        TaskComment[]
+  links           GlobalLink[] @relation("TaskLinks")
+  attachments     Attachment[] @relation("TaskAttachments")
+}
+
+model Subtask {
+  id          String    @id @default(cuid())
+  taskId      String
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title       String
+  isCompleted Boolean   @default(false)
+}
+
+model TaskComment {
+  id          String    @id @default(cuid())
+  taskId      String
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  content     String
+  createdAt   DateTime  @default(now())
+}
+
+model MailCase {
+  id              String    @id @default(cuid())
+  reference       String    @unique // COU-2026-0042
+  type            String    @default("ENTRANT") // ENTRANT, SORTANT
+  receiveDate     DateTime
+  channel         String    // POSTAL, MAIL, AUTRE
+  senderName      String?
+  city            String?
+  subject         String
+  category        String?
+  urgency         String    @default("NORMALE")
+  status          String    @default("RECU") // RECU, LU, EN_TRAITEMENT, REPONDU, CLASSE, ENVOYE
+  content         String?
+  notes           String?
+  
+  responseDueDate  DateTime?
+  responseSentDate DateTime?
+  
+  parentMailCaseId String?
+  parentMailCase   MailCase?  @relation("MailReplies", fields: [parentMailCaseId], references: [id])
+  replies          MailCase[] @relation("MailReplies")
+  
+  assigneeId      String?
+  assignee        User?     @relation(fields: [assigneeId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  links           GlobalLink[] @relation("MailLinks")
+  attachments     Attachment[] @relation("MailAttachments")
+}
+
+model WrittenQuestion {
+  id              String    @id @default(cuid())
+  anNumber        String?   // numéro AN
+  title           String
+  type            String    // QE, QAG, AMENDEMENT
+  ministry        String?
+  theme           String?
+  depositDate     DateTime?
+  responseDate    DateTime?
+  status          String    @default("DEPOSEE") // DEPOSEE, EN_ATTENTE, REPONSE_RECUE, RETOUR_EFFECTUE
+  concernedPerson String?
+  feedbackNeeded  Boolean   @default(false)
+  content         String?
+  responseContent String?
+  notes           String?
+  
+  assigneeId      String?
+  assignee        User?     @relation(fields: [assigneeId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  links           GlobalLink[] @relation("QuestionLinks")
+  attachments     Attachment[] @relation("QuestionAttachments")
+}
+
+model EmployeeStatus {
+  id          String    @id @default(cuid())
+  employeeId  String
+  employee    User      @relation("UserStatuses", fields: [employeeId], references: [id], onDelete: Cascade)
+  date        DateTime  // Stockée à 00:00:00
+  status      String    // PARIS, CIRCO, TELETRAVAIL, DEPLACEMENT, CONGE, MALADIE, ABSENT
+  notes       String?
+  
+  @@unique([employeeId, date])
+}
+
+// GlobalLink permet de lier des entités entre elles (ex: un Contact avec une Tâche)
+model GlobalLink {
+  id              String    @id @default(cuid())
+  contactId       String?
+  contact         Contact?  @relation("ContactLinks", fields: [contactId], references: [id])
+  taskId          String?
+  task            Task?     @relation("TaskLinks", fields: [taskId], references: [id])
+  mailCaseId      String?
+  mailCase        MailCase? @relation("MailLinks", fields: [mailCaseId], references: [id])
+  questionId      String?
+  question        WrittenQuestion? @relation("QuestionLinks", fields: [questionId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+}
+
+model ImportLog {
+  id          String    @id @default(cuid())
+  filename    String
+  importDate  DateTime  @default(now())
+  status      String    // SUCCESS, FAILED, PARTIAL
+  rowsImported Int      @default(0)
+  
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+model DuplicateCandidate {
+  id          String    @id @default(cuid())
+  contact1Id  String
+  contact1    Contact   @relation("Contact1", fields: [contact1Id], references: [id])
+  contact2Id  String
+  contact2    Contact   @relation("Contact2", fields: [contact2Id], references: [id])
+  reason      String    // "NOM_EMAIL", "NOM_PHONE"
+  status      String    @default("PENDING") // PENDING, RESOLVED
+  
+  createdAt   DateTime  @default(now())
+}
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  action      String    // CREATE, UPDATE, ARCHIVE, DELETE
+  entityType  String    // Contact, Task, etc.
+  entityId    String
+  oldValues   String?   // JSON
+  newValues   String?   // JSON
+  
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  
+  createdAt   DateTime  @default(now())
+}
+
+model Attachment {
+  id          String    @id @default(cuid())
+  filename    String
+  filepath    String
+  mimeType    String?
+  size        Int?
+  
+  taskId      String?
+  task        Task?     @relation("TaskAttachments", fields: [taskId], references: [id], onDelete: Cascade)
+  
+  mailCaseId  String?
+  mailCase    MailCase? @relation("MailAttachments", fields: [mailCaseId], references: [id], onDelete: Cascade)
+  
+  questionId  String?
+  question    WrittenQuestion? @relation("QuestionAttachments", fields: [questionId], references: [id], onDelete: Cascade)
+  
+  uploadedById String
+  uploadedBy   User      @relation(fields: [uploadedById], references: [id])
+  
+  createdAt   DateTime  @default(now())
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String    // OVERDUE, DUE_TOMORROW, ASSIGNED, STATUS_CHANGE, COMMENT_ADDED
+  title       String
+  message     String
+  relatedType String?   // ex: "Task"
+  relatedId   String?   // ex: id de la tâche
+  severity    String    @default("INFO") // INFO, WARNING, URGENT
+  readAt      DateTime?
+  
+  createdAt   DateTime  @default(now())
+}
