@@ -5,28 +5,33 @@ import prisma from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 
 export async function authenticate(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+  try {
+    const email = formData.get('email') as string
+    const password = formData.get('password') as string
 
-  if (!email || !password) {
-    return { error: 'Veuillez remplir tous les champs.' }
+    if (!email || !password) {
+      return { error: 'Veuillez remplir tous les champs.' }
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email }
+    })
+
+    if (!user) {
+      return { error: 'Identifiants incorrects.' }
+    }
+
+    const isValid = await bcrypt.compare(password, user.passwordHash)
+
+    if (!isValid) {
+      return { error: 'Identifiants incorrects.' }
+    }
+
+    await login(user.id, user.role)
+    
+    return { success: true }
+  } catch (error: any) {
+    console.error('Authentication Error:', error)
+    return { error: error.message || 'Erreur interne du serveur.' }
   }
-
-  const user = await prisma.user.findUnique({
-    where: { email }
-  })
-
-  if (!user) {
-    return { error: 'Identifiants incorrects.' }
-  }
-
-  const isValid = await bcrypt.compare(password, user.passwordHash)
-
-  if (!isValid) {
-    return { error: 'Identifiants incorrects.' }
-  }
-
-  await login(user.id, user.role)
-  
-  return { success: true }
 }

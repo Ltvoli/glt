@@ -5,6 +5,7 @@ const prisma = new PrismaClient()
 
 async function main() {
   const users = [
+    { name: 'SuperAdmin', email: 'superadmin@tivoli.fr', role: 'SUPERADMIN' },
     { name: 'Lionel Tivoli', email: 'lionel@tivoli.fr', role: 'ADMIN' },
     { name: 'Magali', email: 'magali@tivoli.fr', role: 'ADMIN' },
     { name: 'Andréa', email: 'andrea@tivoli.fr', role: 'USER' },

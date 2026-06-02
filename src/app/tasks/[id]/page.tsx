@@ -6,6 +6,8 @@ import SubtasksList from './subtasks-list'
 import TaskComments from './task-comments'
 import TaskAttachments from './task-attachments'
 
+import PrintButton from '@/components/PrintButton'
+
 export default async function TaskDetailPage({
   params,
 }: {
@@ -19,7 +21,8 @@ export default async function TaskDetailPage({
       assignee: true,
       subtasks: true,
       attachments: true,
-      comments: { orderBy: { createdAt: 'desc' } }
+      comments: { orderBy: { createdAt: 'desc' } },
+      tags: { include: { tag: true } }
     }
   })
 
@@ -31,8 +34,9 @@ export default async function TaskDetailPage({
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }} className="hide-on-print">
         <Link href="/tasks" className="button outline">Retour</Link>
+        <PrintButton />
         <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>
           {task.title}
         </h1>

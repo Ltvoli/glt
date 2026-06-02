@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: tivoli_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tivoli_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tivoli_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-tivoli_db}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tivoli_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-tivoli_user}:${POSTGRES_PASSWORD:-tivoli_pass}@db:5432/${POSTGRES_DB:-tivoli_db}?schema=public
+      - JWT_SECRET=${JWT_SECRET:-super-secret-jwt-key}
+      - NODE_ENV=production
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

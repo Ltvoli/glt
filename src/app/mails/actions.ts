@@ -1,12 +1,10 @@
 'use server'
 
 import prisma from '@/lib/prisma'
-import { getSession } from '@/lib/session'
+import { requireWriteAccess } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
-import { join } from 'path'
+import { logAudit } from '@/lib/audit'
 
 // Utility to generate unique reference e.g., COU-2026-0042
 async function generateReference() {
@@ -29,11 +27,16 @@ async function generateReference() {
 }
 
 export async function createMail(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
-  const session = await getSession()
-  if (!session?.userId) return { error: 'Non autorisé' }
+  let session
+  try {
+    session = await requireWriteAccess()
+  } catch (e: any) {
+    return { error: e.message }
+  }
 
   const subject = formData.get('subject') as string
   const senderName = formData.get('senderName') as string
+  const recipientName = formData.get('recipientName') as string
   const city = formData.get('city') as string
   const channel = formData.get('channel') as string
   const category = formData.get('category') as string
@@ -41,20 +44,30 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
   const notes = formData.get('notes') as string
   const content = formData.get('content') as string
   const receiveDateStr = formData.get('receiveDate') as string
+  const sentDateStr = formData.get('sentDate') as string
   const assigneeId = formData.get('assigneeId') as string
   const contactId = formData.get('contactId') as string
   const taskId = formData.get('taskId') as string
   const type = formData.get('type') as string || 'ENTRANT'
   const parentMailCaseId = formData.get('parentMailCaseId') as string
 
-  if (!subject || !channel || !receiveDateStr) {
-    return { error: 'Le sujet, le canal et la date sont obligatoires.' }
+  if (!subject || !channel) {
+    return { error: 'Le sujet et le canal sont obligatoires.' }
   }
 
-  let receiveDate = new Date(receiveDateStr)
+  const receiveDate = receiveDateStr ? new Date(receiveDateStr) : null
+  const sentDate = sentDateStr ? new Date(sentDateStr) : null
+  
+  if (type === 'ENTRANT' && !receiveDate) {
+    return { error: 'La date de réception est obligatoire pour un courrier entrant.' }
+  }
+  if (type === 'SORTANT' && !sentDate) {
+    return { error: 'La date d\'envoi est obligatoire pour un courrier sortant.' }
+  }
+
   let responseDueDate = null
   
-  if (type === 'ENTRANT') {
+  if (type === 'ENTRANT' && receiveDate) {
     responseDueDate = new Date(receiveDate)
     let addedDays = 0
     while (addedDays < 5) {
@@ -75,11 +88,13 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
         type,
         subject,
         senderName: senderName || null,
+        recipientName: recipientName || null,
         city: city || null,
         channel,
         category: category || null,
         urgency: urgency || 'NORMALE',
         receiveDate,
+        sentDate,
         content: content || null,
         notes: notes || null,
         assigneeId: assigneeId || null,
@@ -108,35 +123,33 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
       })
     }
 
-    await prisma.auditLog.create({
-      data: {
-        action: 'CREATE',
-        entityType: 'MailCase',
-        entityId: newMail.id,
-        userId: session.userId,
-        newValues: JSON.stringify(newMail)
-      }
-    })
+    await logAudit('CREATE', 'MailCase', newMail.id, session.userId, newMail)
     // Handle optional attachment upload
     const attachmentFile = formData.get('attachment') as File | null
     if (attachmentFile && attachmentFile.size > 0) {
       const bytes = await attachmentFile.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
-      const uploadDir = join(process.cwd(), 'uploads')
-      if (!existsSync(uploadDir)) {
-        await mkdir(uploadDir, { recursive: true })
+      const uniqueFilename = Date.now() + '-' + Math.round(Math.random() * 1E9) + '-' + attachmentFile.name
+
+      // Upload vers Supabase Storage
+      const { supabase } = await import('@/lib/supabase')
+      const { data: uploadData, error: uploadError } = await supabase
+        .storage
+        .from('crm-attachments')
+        .upload(uniqueFilename, buffer, {
+          contentType: attachmentFile.type,
+          upsert: false
+        })
+
+      if (uploadError) {
+        throw new Error(`Erreur Supabase: ${uploadError.message}`)
       }
-
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-      const filepath = join(uploadDir, uniqueSuffix + '-' + attachmentFile.name)
-
-      await writeFile(filepath, buffer)
 
       await prisma.attachment.create({
         data: {
           filename: attachmentFile.name,
-          filepath: filepath,
+          filepath: uploadData.path,
           mimeType: attachmentFile.type,
           size: attachmentFile.size,
           mailCaseId: newMail.id,
@@ -154,8 +167,7 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
 }
 
 export async function updateMailStatus(mailId: string, status: string) {
-  const session = await getSession()
-  if (!session?.userId) throw new Error('Non autorisé')
+  const session = await requireWriteAccess()
 
   const mail = await prisma.mailCase.findUnique({ where: { id: mailId } })
   if (!mail) throw new Error('Courrier introuvable')
@@ -165,16 +177,7 @@ export async function updateMailStatus(mailId: string, status: string) {
     data: { status }
   })
 
-  await prisma.auditLog.create({
-    data: {
-      action: 'UPDATE_STATUS',
-      entityType: 'MailCase',
-      entityId: mailId,
-      userId: session.userId,
-      oldValues: JSON.stringify({ status: mail.status }),
-      newValues: JSON.stringify({ status })
-    }
-  })
+  await logAudit('UPDATE_STATUS', 'MailCase', mailId, session.userId, { status }, { status: mail.status })
 
   revalidatePath(`/mails/${mailId}`)
   revalidatePath('/mails')

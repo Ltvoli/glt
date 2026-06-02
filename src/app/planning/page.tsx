@@ -1,108 +1,100 @@
 import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
+import PlanningGrid from './PlanningGrid'
+import { calculateCounters, getReferencePeriodStart, getDefaultDayType } from '@/lib/planning-utils'
+import { isWeekend, isHoliday } from '@/lib/holidays'
 
-// Fonction utilitaire pour obtenir les dates de la semaine en cours (Lundi à Vendredi)
-function getCurrentWeekDates() {
-  const curr = new Date()
-  const week = []
-  
-  // Si on est dimanche (0), reculer de 6 jours pour trouver le lundi, sinon reculer de (jour - 1)
-  const first = curr.getDate() - (curr.getDay() === 0 ? 6 : curr.getDay() - 1)
-  const firstDay = new Date(curr.setDate(first))
-  
-  for (let i = 0; i < 5; i++) { // Lundi à Vendredi
-    const d = new Date(firstDay)
-    d.setDate(d.getDate() + i)
-    // Normaliser à minuit UTC pour correspondre à la BDD
-    week.push(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())))
-  }
-  return week
-}
-
-export default async function PlanningPage() {
+export default async function PlanningPage({ searchParams }: { searchParams: Promise<{ month?: string, year?: string }> }) {
   const session = await getSession()
   if (!session?.userId) redirect('/login')
 
-  const weekDates = getCurrentWeekDates()
-  const startOfWeek = weekDates[0]
-  const endOfWeek = weekDates[4]
+  const { month, year } = await searchParams
+  
+  const today = new Date()
+  const currentMonth = month ? parseInt(month) : today.getUTCMonth()
+  const currentYear = year ? parseInt(year) : today.getUTCFullYear()
 
-  const users = await prisma.user.findMany({
+  const startOfMonth = new Date(Date.UTC(currentYear, currentMonth, 1))
+  const endOfMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0))
+
+  const currentUser = await prisma.user.findUnique({ where: { id: session.userId } })
+  const isMagaliOrAdmin = currentUser?.role === 'ADMIN' // On simplifie pour l'exemple
+
+  const usersData = await prisma.user.findMany({
     orderBy: { name: 'asc' },
     include: {
+      employeeSetting: true,
       statuses: {
         where: {
-          date: {
-            gte: startOfWeek,
-            lte: endOfWeek
-          }
+          date: { gte: new Date(Date.UTC(currentYear - 2, 0, 1)) } // Charger large pour les calculs annuels
         }
       }
     }
   })
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PARIS': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#dbeafe', color: '#2563eb', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>PARIS</span>
-      case 'CIRCO': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#fef08a', color: '#854d0e', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>CIRCO</span>
-      case 'TELETRAVAIL': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#e2e8f0', color: '#475569', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>TÉLÉTRAVAIL</span>
-      case 'DEPLACEMENT': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#ffedd5', color: '#c2410c', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>DÉPLACEMENT</span>
-      case 'CONGE': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#dcfce3', color: '#16a34a', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>CONGÉ</span>
-      case 'MALADIE': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>MALADIE</span>
-      case 'ABSENT': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#f1f5f9', color: '#94a3b8', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>ABSENT</span>
-      default: return null
-    }
-  }
+  const daysInMonth = endOfMonth.getUTCDate()
 
-  const daysOfWeek = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi']
+  const formattedUsers = usersData.map(user => {
+    const settings = user.employeeSetting || { annualWorkingDays: 218, referencePeriodStartMonth: 6, referencePeriodStartDay: 1 }
+    const refStart = getReferencePeriodStart(startOfMonth, settings.referencePeriodStartMonth, settings.referencePeriodStartDay)
+    
+    // Convertir les statuts en format utils
+    const mappedStatuses = user.statuses.map(s => ({ date: s.date, dayType: s.dayType }))
+
+    // Compteurs annuels
+    // Pour simplifier et être précis, on calcule les jours écoulés entre refStart et le 31 mai suivant.
+    const refEnd = new Date(Date.UTC(refStart.getUTCFullYear() + 1, refStart.getUTCMonth(), refStart.getUTCDate() - 1))
+    
+    // Le calcul se fait sur toute la période de référence
+    const yearCounters = calculateCounters(refStart, refEnd, mappedStatuses)
+    
+    // Compteurs du mois
+    const monthCounters = calculateCounters(startOfMonth, endOfMonth, mappedStatuses)
+
+    // Calendrier du mois courant pour l'affichage
+    const monthCalendar = []
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(Date.UTC(currentYear, currentMonth, d))
+      const time = date.getTime()
+      const dbStatus = user.statuses.find(s => s.date.getTime() === time)
+      const isWE = isWeekend(date)
+      const isHol = isHoliday(date)
+      
+      monthCalendar.push({
+        dateStr: date.toISOString(),
+        dayType: dbStatus ? dbStatus.dayType : getDefaultDayType(date),
+        isHoliday: isHol,
+        isWeekend: isWE,
+        notes: dbStatus?.notes || null
+      })
+    }
+
+    const remaining = settings.annualWorkingDays - yearCounters.worked
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      counters: {
+        workedMonth: monthCounters.worked,
+        workedYear: yearCounters.worked,
+        paidLeaveYear: yearCounters.paidLeave,
+        annualDays: settings.annualWorkingDays,
+        remaining
+      },
+      monthCalendar
+    }
+  })
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <div>
-          <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Planning de l'Équipe</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Semaine du {startOfWeek.toLocaleDateString('fr-FR')} au {endOfWeek.toLocaleDateString('fr-FR')}</p>
-        </div>
-        <Link href="/planning/edit" className="button outline">
-          Gérer le planning
-        </Link>
-      </div>
-
-      <div className="card" style={{ overflowX: 'auto' }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th style={{ width: '20%' }}>Collaborateur</th>
-              {weekDates.map((date, i) => (
-                <th key={i} style={{ textAlign: 'center', width: '16%' }}>
-                  {daysOfWeek[i]} <br/>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>
-                    {date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                  </span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(user => (
-              <tr key={user.id}>
-                <td style={{ fontWeight: 500 }}>{user.name}</td>
-                {weekDates.map((date, i) => {
-                  // Chercher le statut pour ce jour
-                  const statusObj = user.statuses.find(s => s.date.getTime() === date.getTime())
-                  return (
-                    <td key={i} style={{ textAlign: 'center' }}>
-                      {statusObj ? getStatusBadge(statusObj.status) : <span style={{ color: 'var(--border)' }}>-</span>}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <PlanningGrid 
+      users={formattedUsers} 
+      currentYear={currentYear} 
+      currentMonth={currentMonth} 
+      isMagaliOrAdmin={isMagaliOrAdmin}
+    />
   )
 }
+

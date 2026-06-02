@@ -82,6 +82,16 @@ export default function KanbanBoard({ initialColumns }: { initialColumns: Record
                       {task.title}
                     </a>
                   </div>
+                  
+                  {task.tags && task.tags.length > 0 && (
+                    <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                      {task.tags.map((t: any) => (
+                        <span key={t.tag.id} style={{ fontSize: '0.65rem', backgroundColor: '#e2e8f0', padding: '0.125rem 0.375rem', borderRadius: '4px' }}>
+                          {t.tag.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
                     <span>{task.assignee?.name || 'Non assigné'}</span>

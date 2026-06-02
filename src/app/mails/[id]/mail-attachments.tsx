@@ -16,7 +16,8 @@ export default function MailAttachments({ mailId, initialAttachments }: { mailId
 
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('mailCaseId', mailId) // Link to mail case instead of task
+    formData.append('entityType', 'mail') // Link to mail case instead of task
+    formData.append('entityId', mailId)
 
     try {
       const res = await fetch('/api/upload', {

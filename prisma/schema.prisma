@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -15,7 +15,7 @@ model User {
   email         String    @unique
   name          String
   passwordHash  String
-  role          String    @default("USER") // ADMIN, USER, READONLY
+  role          String    @default("USER") // SUPERADMIN, ADMIN, USER, READONLY
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   
@@ -24,11 +24,13 @@ model User {
   tasksAssigned   Task[]
   mailCases       MailCase[]
   writtenQuestions WrittenQuestion[]
+  questionsCreated WrittenQuestion[] @relation("QuestionCreator")
   importLogs      ImportLog[]
   auditLogs       AuditLog[]
   attachmentsUploaded Attachment[]
   statuses        EmployeeStatus[] @relation("UserStatuses")
   notifications   Notification[]
+  employeeSetting EmployeeSetting?
 }
 
 model Contact {
@@ -71,14 +73,17 @@ model Contact {
   links             GlobalLink[]  @relation("ContactLinks")
   duplicatesLeft    DuplicateCandidate[] @relation("Contact1")
   duplicatesRight   DuplicateCandidate[] @relation("Contact2")
+
+  @@index([lastName])
+  @@index([email])
 }
 
 model Tag {
   id          String    @id @default(cuid())
   name        String    @unique
   color       String?
-  
   contacts    ContactTag[]
+  tasks       TaskTag[]
 }
 
 model ContactTag {
@@ -88,6 +93,15 @@ model ContactTag {
   tag         Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
   
   @@id([contactId, tagId])
+}
+
+model TaskTag {
+  taskId      String
+  tagId       String
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag         Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([taskId, tagId])
 }
 
 model Task {
@@ -111,6 +125,10 @@ model Task {
   comments        TaskComment[]
   links           GlobalLink[] @relation("TaskLinks")
   attachments     Attachment[] @relation("TaskAttachments")
+  tags            TaskTag[]
+
+  @@index([status])
+  @@index([assigneeId])
 }
 
 model Subtask {
@@ -133,9 +151,11 @@ model MailCase {
   id              String    @id @default(cuid())
   reference       String    @unique // COU-2026-0042
   type            String    @default("ENTRANT") // ENTRANT, SORTANT
-  receiveDate     DateTime
+  receiveDate     DateTime?
+  sentDate        DateTime?
   channel         String    // POSTAL, MAIL, AUTRE
   senderName      String?
+  recipientName   String?
   city            String?
   subject         String
   category        String?
@@ -159,6 +179,10 @@ model MailCase {
   
   links           GlobalLink[] @relation("MailLinks")
   attachments     Attachment[] @relation("MailAttachments")
+
+  @@index([reference])
+  @@index([status])
+  @@index([assigneeId])
 }
 
 model WrittenQuestion {
@@ -173,6 +197,8 @@ model WrittenQuestion {
   status          String    @default("DEPOSEE") // DEPOSEE, EN_ATTENTE, REPONSE_RECUE, RETOUR_EFFECTUE
   concernedPerson String?
   feedbackNeeded  Boolean   @default(false)
+  followUpDescription String?
+  followUpDueDate DateTime?
   content         String?
   responseContent String?
   notes           String?
@@ -180,11 +206,19 @@ model WrittenQuestion {
   assigneeId      String?
   assignee        User?     @relation(fields: [assigneeId], references: [id])
   
+  createdById     String?
+  createdBy       User?     @relation("QuestionCreator", fields: [createdById], references: [id])
+  
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  archivedAt      DateTime?
   
   links           GlobalLink[] @relation("QuestionLinks")
   attachments     Attachment[] @relation("QuestionAttachments")
+
+  @@index([anNumber])
+  @@index([status])
+  @@index([assigneeId])
 }
 
 model EmployeeStatus {
@@ -193,9 +227,24 @@ model EmployeeStatus {
   employee    User      @relation("UserStatuses", fields: [employeeId], references: [id], onDelete: Cascade)
   date        DateTime  // Stockée à 00:00:00
   status      String    // PARIS, CIRCO, TELETRAVAIL, DEPLACEMENT, CONGE, MALADIE, ABSENT
+  dayType     String    @default("worked") // worked, off, paid_leave
   notes       String?
+  updatedById String?
   
   @@unique([employeeId, date])
+  @@index([date])
+}
+
+model EmployeeSetting {
+  id                          String    @id @default(cuid())
+  userId                      String    @unique
+  user                        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  annualWorkingDays           Int       @default(218)
+  referencePeriodStartMonth   Int       @default(6) // Juin par défaut
+  referencePeriodStartDay     Int       @default(1)
+  
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 }
 
 // GlobalLink permet de lier des entités entre elles (ex: un Contact avec une Tâche)
@@ -248,6 +297,9 @@ model AuditLog {
   user        User      @relation(fields: [userId], references: [id])
   
   createdAt   DateTime  @default(now())
+
+  @@index([entityId])
+  @@index([entityType])
 }
 
 model Attachment {

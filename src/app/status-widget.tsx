@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useTransition, useState } from 'react'
 import { upsertEmployeeStatus } from './planning/actions'
 
 const STATUSES = [
@@ -14,12 +14,18 @@ const STATUSES = [
 
 export default function StatusWidget({ currentStatus }: { currentStatus?: string }) {
   const [isPending, startTransition] = useTransition()
+  const [statusState, setStatusState] = useState<'idle'|'success'|'error'>('idle')
 
   const handleStatusUpdate = (status: string) => {
     startTransition(async () => {
-      // Pour aujourd'hui
-      const today = new Date().toISOString()
-      await upsertEmployeeStatus(today, status)
+      try {
+        const today = new Date().toISOString()
+        await upsertEmployeeStatus(today, status)
+        setStatusState('success')
+        setTimeout(() => setStatusState('idle'), 2000)
+      } catch (e) {
+        setStatusState('error')
+      }
     })
   }
 
@@ -28,6 +34,9 @@ export default function StatusWidget({ currentStatus }: { currentStatus?: string
       <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>
         Où travaillez-vous aujourd'hui ?
       </h3>
+      {isPending && <span style={{ color: 'var(--text-muted)' }}>Chargement...</span>}
+      {statusState === 'error' && <span style={{ color: 'var(--danger)' }}>Erreur d&apos;état</span>}
+      {statusState === 'success' && <span style={{ color: 'var(--success)' }}>Enregistré</span>}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
         {STATUSES.map(s => {
           const isSelected = currentStatus === s.value

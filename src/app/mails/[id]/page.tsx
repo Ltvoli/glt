@@ -2,9 +2,10 @@ import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Package, Mail, AlertCircle, Clock, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Package, Mail, AlertCircle, Clock, Printer } from 'lucide-react'
 import MailStatusForm from './mail-status-form'
 import MailAttachments from './mail-attachments'
+import PrintButton from '@/components/PrintButton'
 
 export default async function MailDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -33,7 +34,14 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '2rem' }}>
+      <style>{`
+        @media print {
+          nav, header, .no-print { display: none !important; }
+          body { background: white !important; }
+          .card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+        }
+      `}</style>
+      <div className="no-print" style={{ marginBottom: '2rem' }}>
         <Link href="/mails" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', textDecoration: 'none', marginBottom: '1rem' }}>
           <ArrowLeft size={16} /> Retour aux courriers
         </Link>
@@ -67,14 +75,17 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
-          <div className="card">
+          <div className="card" style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', top: '1rem', right: '1rem' }} className="no-print">
+              <PrintButton />
+            </div>
             <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Détails du courrier</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
               <div>
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>{mail.type === 'ENTRANT' ? 'Date de réception' : 'Date d\'envoi'}</p>
                 <p style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <Clock size={16} color="var(--text-muted)" />
-                  {new Date(mail.receiveDate).toLocaleDateString('fr-FR')}
+                  {mail.type === 'ENTRANT' && mail.receiveDate ? new Date(mail.receiveDate).toLocaleDateString('fr-FR') : mail.sentDate ? new Date(mail.sentDate).toLocaleDateString('fr-FR') : '-'}
                 </p>
               </div>
               {mail.responseDueDate && (
@@ -92,10 +103,17 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
                   {mail.channel === 'POSTAL' ? 'Courrier Postal' : mail.channel === 'MAIL' ? 'Email' : 'Autre'}
                 </p>
               </div>
-              <div>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Expéditeur (Saisi manuellement)</p>
-                <p style={{ fontWeight: 500 }}>{mail.senderName || '-'}</p>
-              </div>
+              {mail.type === 'ENTRANT' ? (
+                <div>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Expéditeur</p>
+                  <p style={{ fontWeight: 500 }}>{mail.senderName || '-'}</p>
+                </div>
+              ) : (
+                <div>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Destinataire</p>
+                  <p style={{ fontWeight: 500 }}>{mail.recipientName || '-'}</p>
+                </div>
+              )}
               <div>
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Commune</p>
                 <p style={{ fontWeight: 500 }}>{mail.city || '-'}</p>

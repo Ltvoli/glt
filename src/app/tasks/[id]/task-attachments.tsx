@@ -16,7 +16,8 @@ export default function TaskAttachments({ taskId, initialAttachments }: { taskId
 
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('taskId', taskId)
+    formData.append('entityType', 'task')
+    formData.append('entityId', taskId)
 
     try {
       const res = await fetch('/api/upload', {

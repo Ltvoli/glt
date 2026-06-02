@@ -36,6 +36,13 @@ export async function processImport(formData: FormData) {
           const gender = row['Genre'] || row['genre'] || row['sexe']
           const supportLevel = row['Niveau de Soutien'] || row['niveau_soutien'] || row['support_level']
           const birthDateStr = row['Date de naissance'] || row['date_naissance'] || row['birthdate']
+          
+          const tagsStr = row['Tags'] || row['tags'] || row['mots_cles'] || ''
+          const linkedinUrl = row['LinkedIn'] || row['linkedin'] || null
+          const territorySector = row['Secteur'] || row['secteur'] || row['canton'] || null
+          const notes = row['Notes'] || row['notes'] || null
+          const newsletterStr = row['Newsletter'] || row['newsletter']
+          const newsletter = newsletterStr ? (newsletterStr.toLowerCase() === 'oui' || newsletterStr.toLowerCase() === 'true' || newsletterStr === '1') : false
 
           let birthDate = null
           if (birthDateStr) {
@@ -77,24 +84,46 @@ export async function processImport(formData: FormData) {
             birthDate,
             type: 'ELECTEUR',
             source: 'QOMON',
+            territorySector,
+            linkedinUrl,
+            notes,
+            newsletter,
             createdById: session.userId
           }
 
-          if (potentialDuplicates.length > 0) {
-            const newContact = await prisma.contact.create({ data: dataToInsert })
+          let insertedContact = null
 
-            await prisma.duplicateCandidate.create({
-              data: {
-                contact1Id: potentialDuplicates[0].id,
-                contact2Id: newContact.id,
-                reason: potentialDuplicates[0].email === email ? 'NOM_EMAIL' : 'NOM_PHONE'
-              }
-            })
-            
+          if (potentialDuplicates.length > 0) {
+            insertedContact = await prisma.contact.create({ data: dataToInsert })
+
+            for (const dup of potentialDuplicates) {
+              await prisma.duplicateCandidate.create({
+                data: {
+                  contact1Id: dup.id,
+                  contact2Id: insertedContact.id,
+                  reason: dup.email === email ? 'NOM_EMAIL' : 'NOM_PHONE'
+                }
+              })
+            }
             duplicates++
           } else {
-            await prisma.contact.create({ data: dataToInsert })
+            insertedContact = await prisma.contact.create({ data: dataToInsert })
             created++
+          }
+
+          // Traitement des tags pour ce contact importé
+          if (insertedContact && tagsStr) {
+            const tagNames = tagsStr.split(',').map((t: string) => t.trim()).filter((t: string) => t)
+            for (const tagName of tagNames) {
+              const tag = await prisma.tag.upsert({
+                where: { name: tagName },
+                update: {},
+                create: { name: tagName, color: '#e2e8f0' }
+              })
+              await prisma.contactTag.create({
+                data: { contactId: insertedContact.id, tagId: tag.id }
+              })
+            }
           }
         }
 

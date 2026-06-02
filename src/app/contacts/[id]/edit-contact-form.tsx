@@ -64,6 +64,10 @@ export default function EditContactForm({ contact }: { contact: any }) {
               <input type="tel" id="phone" name="phone" className="form-control" defaultValue={contact.phone || ''} />
             </div>
           </div>
+          <div className="form-group">
+            <label htmlFor="linkedinUrl">LinkedIn (URL)</label>
+            <input type="url" id="linkedinUrl" name="linkedinUrl" className="form-control" defaultValue={contact.linkedinUrl || ''} placeholder="https://linkedin.com/in/..." />
+          </div>
         </div>
 
         <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Adresse</h3>
@@ -85,6 +89,10 @@ export default function EditContactForm({ contact }: { contact: any }) {
           <div className="form-group">
             <label htmlFor="city">Ville</label>
             <input type="text" id="city" name="city" className="form-control" defaultValue={contact.city || ''} />
+          </div>
+          <div className="form-group">
+            <label htmlFor="territorySector">Secteur / Canton</label>
+            <input type="text" id="territorySector" name="territorySector" className="form-control" defaultValue={contact.territorySector || ''} placeholder="Ex: Canton de Grasse-1" />
           </div>
         </div>
 
@@ -112,6 +120,43 @@ export default function EditContactForm({ contact }: { contact: any }) {
               <option value="5">5 - Militant / Très favorable</option>
             </select>
           </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+          <div className="form-group">
+            <label htmlFor="source">Source d&apos;acquisition</label>
+            <select id="source" name="source" className="form-control" defaultValue={contact.source || 'PERMANENCE'}>
+              <option value="PERMANENCE">Permanence</option>
+              <option value="COURRIER">Courrier</option>
+              <option value="EVENEMENT">Événement</option>
+              <option value="TERRAIN">Terrain / Porte à porte</option>
+              <option value="QOMON">Import Qomon</option>
+              <option value="AUTRE">Autre</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="whatsappStatus">Statut WhatsApp</label>
+            <select id="whatsappStatus" name="whatsappStatus" className="form-control" defaultValue={contact.whatsappStatus || 'NON'}>
+              <option value="NON">Non invité</option>
+              <option value="ENVOYE">Invitation envoyée</option>
+              <option value="REJOINT">A rejoint le groupe</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+          <label htmlFor="tags">Tags (séparés par des virgules)</label>
+          <input type="text" id="tags" name="tags" className="form-control" defaultValue={contact.tags?.map((ct: any) => ct.tag.name).join(', ') || ''} placeholder="Ex: Chasseur, Retraité, Buraliste..." />
+        </div>
+
+        <div className="form-group" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <input type="checkbox" id="newsletter" name="newsletter" value="true" defaultChecked={contact.newsletter} />
+          <label htmlFor="newsletter" style={{ margin: 0 }}>Abonné à la Newsletter (Consentement RGPD validé)</label>
+        </div>
+
+        <div className="form-group" style={{ marginBottom: '2rem' }}>
+          <label htmlFor="notes">Notes internes</label>
+          <textarea id="notes" name="notes" className="form-control" rows={4} defaultValue={contact.notes || ''} placeholder="Informations complémentaires, historique de la relation..."></textarea>
         </div>
 
         {state.error && (

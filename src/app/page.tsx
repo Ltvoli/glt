@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import StatusWidget from './status-widget'
-import { AlertCircle, CalendarDays, CheckCircle2, Clock } from 'lucide-react'
+import { AlertCircle, CalendarDays, CheckCircle2, Clock, Mail, HelpCircle } from 'lucide-react'
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   const session = await getSession()
@@ -62,6 +62,36 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const lateMailsCount = await prisma.mailCase.count({
     where: { ...baseWhere, status: { notIn: ['REPONDU', 'CLASSE'] }, responseDueDate: { lt: new Date() } }
   })
+  const urgentMailsCount = await prisma.mailCase.count({
+    where: { ...baseWhere, status: { notIn: ['REPONDU', 'CLASSE'] }, urgency: 'HAUTE' }
+  })
+  const receivedThisWeekCount = await prisma.mailCase.count({
+    where: { ...baseWhere, receiveDate: { gte: startOfWeek } }
+  })
+  const answeredThisWeekCount = await prisma.mailCase.count({
+    where: { ...baseWhere, status: 'REPONDU', updatedAt: { gte: startOfWeek } }
+  })
+
+  // --- STATISTIQUES QE ---
+  const qeDepositedCount = await prisma.writtenQuestion.count({
+    where: { ...baseWhere, status: { in: ['DEPOSEE', 'EN_ATTENTE'] }, archivedAt: null }
+  })
+  const qePendingCount = await prisma.writtenQuestion.count({
+    where: { ...baseWhere, status: 'EN_ATTENTE', archivedAt: null }
+  })
+  
+  const sixtyDaysAgo = new Date()
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+  const qeLateCount = await prisma.writtenQuestion.count({
+    where: { ...baseWhere, status: 'EN_ATTENTE', depositDate: { lt: sixtyDaysAgo }, archivedAt: null }
+  })
+
+  const qeAnsweredCount = await prisma.writtenQuestion.count({
+    where: { ...baseWhere, status: { in: ['REPONSE_RECUE', 'RETOUR_EFFECTUE'] }, archivedAt: null }
+  })
+  const qeFollowUpCount = await prisma.writtenQuestion.count({
+    where: { ...baseWhere, status: 'REPONSE_RECUE', followUpDescription: { not: null }, archivedAt: null }
+  })
 
   // Taux de complétion simple
   const totalRelevant = completedThisWeekCount + totalActive
@@ -87,17 +117,56 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       ...activeTasksWhere,
       dueDate: { gte: todayStart, lte: next7DaysEnd }
     },
-    include: { assignee: true },
-    orderBy: { dueDate: 'asc' }
+    include: { assignee: true }
   })
 
+  const agendaMails = await prisma.mailCase.findMany({
+    where: {
+      ...baseWhere,
+      status: { notIn: ['REPONDU', 'CLASSE'] },
+      responseDueDate: { gte: todayStart, lte: next7DaysEnd }
+    },
+    include: { assignee: true }
+  })
+
+  const agendaQEs = await prisma.writtenQuestion.findMany({
+    where: {
+      ...baseWhere,
+      status: 'REPONSE_RECUE',
+      followUpDescription: { not: null },
+      followUpDueDate: { gte: todayStart, lte: next7DaysEnd },
+      archivedAt: null
+    },
+    include: { assignee: true }
+  })
+
+  // Fusion de tous les événements de l'agenda
+  type AgendaItem = {
+    id: string;
+    date: Date;
+    title: string;
+    assigneeName: string;
+    type: 'TASK' | 'MAIL' | 'QE';
+    status: string;
+    url: string;
+  }
+
+  const allAgendaItems: AgendaItem[] = [
+    ...agendaTasks.map(t => ({ id: t.id, date: t.dueDate!, title: t.title, assigneeName: t.assignee?.name || 'Non assigné', type: 'TASK' as const, status: t.status, url: `/tasks/${t.id}` })),
+    ...agendaMails.map(m => ({ id: m.id, date: m.responseDueDate!, title: `Courrier: ${m.subject}`, assigneeName: m.assignee?.name || 'Non assigné', type: 'MAIL' as const, status: 'À traiter', url: `/mails/${m.id}` })),
+    ...agendaQEs.map(q => ({ id: q.id, date: q.followUpDueDate!, title: `QE Retour: ${q.title}`, assigneeName: q.assignee?.name || 'Non assigné', type: 'QE' as const, status: 'Retour à faire', url: `/qe/${q.id}` }))
+  ]
+
+  // Tri global par date
+  allAgendaItems.sort((a, b) => a.date.getTime() - b.date.getTime())
+
   // Groupement par date pour l'agenda
-  const agendaGrouped = agendaTasks.reduce((acc, task) => {
-    const dateKey = new Date(task.dueDate!).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const agendaGrouped = allAgendaItems.reduce((acc, item) => {
+    const dateKey = item.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
     if (!acc[dateKey]) acc[dateKey] = []
-    acc[dateKey].push(task)
+    acc[dateKey].push(item)
     return acc
-  }, {} as Record<string, typeof agendaTasks>)
+  }, {} as Record<string, AgendaItem[]>)
 
   // Widget statut du jour
   const todayUTC = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
@@ -145,13 +214,65 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <Link href="/mails?filter=late" style={{ textDecoration: 'none' }} className="card">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderTop: '4px solid var(--danger)', height: '100%', paddingTop: '1rem' }}>
             <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--danger)' }}>{lateMailsCount}</div>
-            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Courriers en retard</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>En retard</div>
+          </div>
+        </Link>
+        <Link href="/mails?filter=urgent" style={{ textDecoration: 'none' }} className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderTop: '4px solid var(--danger)', height: '100%', paddingTop: '1rem' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--danger)' }}>{urgentMailsCount}</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Urgents</div>
           </div>
         </Link>
         <Link href="/mails?filter=pending" style={{ textDecoration: 'none' }} className="card">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderTop: '4px solid var(--warning)', height: '100%', paddingTop: '1rem' }}>
             <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--warning)' }}>{pendingMailsCount}</div>
-            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Courriers à traiter</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>À traiter</div>
+          </div>
+        </Link>
+        <Link href="/mails?filter=entrant" style={{ textDecoration: 'none' }} className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderTop: '4px solid var(--primary)', height: '100%', paddingTop: '1rem' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--primary)' }}>{receivedThisWeekCount}</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Reçus (semaine)</div>
+          </div>
+        </Link>
+        <Link href="/mails?filter=mine" style={{ textDecoration: 'none' }} className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderTop: '4px solid var(--success)', height: '100%', paddingTop: '1rem' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--success)' }}>{answeredThisWeekCount}</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Répondus (semaine)</div>
+          </div>
+        </Link>
+      </div>
+
+      <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem' }}>Questions Écrites (QE)</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        <Link href="/qe?filter=pending" style={{ textDecoration: 'none' }} className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderTop: '4px solid var(--text-muted)', height: '100%', paddingTop: '1rem' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{qeDepositedCount}</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Déposées</div>
+          </div>
+        </Link>
+        <Link href="/qe?filter=pending" style={{ textDecoration: 'none' }} className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderTop: '4px solid var(--warning)', height: '100%', paddingTop: '1rem' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--warning)' }}>{qePendingCount}</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>En attente</div>
+          </div>
+        </Link>
+        <Link href="/qe?filter=pending" style={{ textDecoration: 'none' }} className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderTop: '4px solid var(--danger)', height: '100%', paddingTop: '1rem' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--danger)' }}>{qeLateCount}</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Sans réponse &gt;60j</div>
+          </div>
+        </Link>
+        <Link href="/qe?filter=answered" style={{ textDecoration: 'none' }} className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderTop: '4px solid var(--primary)', height: '100%', paddingTop: '1rem' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--primary)' }}>{qeAnsweredCount}</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Réponses reçues</div>
+          </div>
+        </Link>
+        <Link href="/qe?filter=answered" style={{ textDecoration: 'none' }} className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderTop: '4px solid var(--success)', height: '100%', paddingTop: '1rem' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--success)' }}>{qeFollowUpCount}</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Retours à faire</div>
           </div>
         </Link>
       </div>
@@ -220,14 +341,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     {dateLabel}
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {tasks.map(task => (
-                      <Link key={task.id} href={`/tasks/${task.id}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: '#f8fafc', borderRadius: '4px', textDecoration: 'none', color: 'inherit' }}>
+                    {tasks.map(item => (
+                      <Link key={`${item.type}-${item.id}`} href={item.url} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: '#f8fafc', borderRadius: '4px', textDecoration: 'none', color: 'inherit' }}>
                         <div>
-                          <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{task.title}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{task.assignee?.name || 'Non assigné'}</div>
+                          <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                            {item.type === 'MAIL' && <Mail size={12} style={{ display: 'inline', marginRight: '4px', color: 'var(--warning)' }} />}
+                            {item.type === 'QE' && <HelpCircle size={12} style={{ display: 'inline', marginRight: '4px', color: 'var(--danger)' }} />}
+                            {item.title}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.assigneeName}</div>
                         </div>
                         <span style={{ fontSize: '0.75rem', padding: '0.125rem 0.5rem', backgroundColor: '#e2e8f0', borderRadius: '4px', height: 'fit-content' }}>
-                          {task.status}
+                          {item.status}
                         </span>
                       </Link>
                     ))}

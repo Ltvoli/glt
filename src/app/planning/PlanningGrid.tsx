@@ -1,0 +1,232 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, ArrowRight, Settings } from 'lucide-react'
+import Link from 'next/link'
+import { updateEmployeeDayType } from './actions'
+
+type UserData = {
+  id: string
+  name: string
+  email: string
+  role: string
+  counters: { workedMonth: number; workedYear: number; paidLeaveYear: number; annualDays: number; remaining: number }
+  monthCalendar: { dateStr: string; dayType: string; isHoliday: boolean; isWeekend: boolean; notes: string | null }[]
+}
+
+export default function PlanningGrid({
+  users,
+  currentYear,
+  currentMonth,
+  isMagaliOrAdmin
+}: {
+  users: UserData[]
+  currentYear: number
+  currentMonth: number
+  isMagaliOrAdmin: boolean
+}) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  
+  // Selection
+  const [selectedCell, setSelectedCell] = useState<{ userId: string; dateStr: string; dayType: string; notes: string } | null>(null)
+
+  const monthDate = new Date(Date.UTC(currentYear, currentMonth, 1))
+  const monthName = monthDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+  
+  // Nombres de jours dans le mois
+  const daysInMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate()
+  const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+
+  const navigateMonth = (offset: number) => {
+    const d = new Date(Date.UTC(currentYear, currentMonth + offset, 1))
+    router.push(`/planning?year=${d.getUTCFullYear()}&month=${d.getUTCMonth()}`)
+  }
+
+  const navigateToday = () => {
+    const today = new Date()
+    router.push(`/planning?year=${today.getUTCFullYear()}&month=${today.getUTCMonth()}`)
+  }
+
+  const handleCellClick = (user: UserData, dayData: UserData['monthCalendar'][0]) => {
+    if (!isMagaliOrAdmin) return // Mode lecture seule
+    setSelectedCell({
+      userId: user.id,
+      dateStr: dayData.dateStr,
+      dayType: dayData.dayType,
+      notes: dayData.notes || ''
+    })
+  }
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedCell) return
+
+    startTransition(async () => {
+      await updateEmployeeDayType(selectedCell.userId, selectedCell.dateStr, selectedCell.dayType, selectedCell.notes)
+      setSelectedCell(null)
+    })
+  }
+
+  const getCellColor = (dayType: string, isWeekend: boolean, isHoliday: boolean) => {
+    if (dayType === 'worked') return '#dcfce3' // Vert
+    if (dayType === 'paid_leave') return '#fee2e2' // Rouge
+    if (dayType === 'off') {
+      if (isHoliday) return '#fef08a' // Jaune pour jour férié
+      if (isWeekend) return '#e2e8f0' // Gris pour WE
+      return '#ffffff' // Blanc pour off normal
+    }
+    return '#ffffff'
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+        <div>
+          <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Planning des Salariés</h1>
+          <p style={{ color: 'var(--text-muted)' }}>Suivi des jours travaillés et congés.</p>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <a href={`/api/export/planning?year=${currentYear}&month=${currentMonth}`} className="button outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            Exporter CSV
+          </a>
+          {isMagaliOrAdmin && (
+            <Link href="/planning/settings" className="button outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Settings size={16} /> Paramètres Quotas
+            </Link>
+          )}
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="button outline" onClick={() => navigateMonth(-1)}><ArrowLeft size={16} /></button>
+            <button className="button outline" onClick={navigateToday}>Ce mois-ci</button>
+            <button className="button outline" onClick={() => navigateMonth(1)}><ArrowRight size={16} /></button>
+          </div>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', textTransform: 'capitalize' }}>{monthName}</h2>
+          <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#dcfce3', border: '1px solid #ccc' }}></div> Travaillé</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#fee2e2', border: '1px solid #ccc' }}></div> Congé</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#ffffff', border: '1px solid #ccc' }}></div> Non Travaillé</span>
+          </div>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table" style={{ fontSize: '0.875rem', minWidth: '1200px' }}>
+            <thead>
+              <tr>
+                <th style={{ minWidth: '200px', position: 'sticky', left: 0, backgroundColor: 'white', zIndex: 10 }}>Collaborateur</th>
+                <th style={{ textAlign: 'center', borderRight: '2px solid var(--border)' }}>Compteurs</th>
+                {daysArray.map(day => {
+                  const d = new Date(Date.UTC(currentYear, currentMonth, day))
+                  const isWE = d.getUTCDay() === 0 || d.getUTCDay() === 6
+                  return (
+                    <th key={day} style={{ textAlign: 'center', width: '30px', padding: '0.5rem 0.25rem', backgroundColor: isWE ? '#f8fafc' : 'transparent' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{d.toLocaleDateString('fr-FR', { weekday: 'narrow' })}</div>
+                      <div>{day}</div>
+                    </th>
+                  )
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(user => {
+                const c = user.counters
+                const showAlert = c.remaining <= 5
+
+                return (
+                  <tr key={user.id}>
+                    <td style={{ position: 'sticky', left: 0, backgroundColor: 'white', zIndex: 10, fontWeight: 500, borderRight: '1px solid var(--border)' }}>
+                      {user.name}
+                    </td>
+                    <td style={{ borderRight: '2px solid var(--border)', padding: '0.5rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Mois:</span>
+                          <strong>{c.workedMonth}j</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: showAlert ? 'var(--danger)' : 'inherit' }}>
+                          <span style={{ color: showAlert ? 'var(--danger)' : 'var(--text-muted)' }}>Reste:</span>
+                          <strong style={{ color: showAlert ? 'var(--danger)' : 'inherit' }}>{c.remaining}j</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>CP An:</span>
+                          <strong>{c.paidLeaveYear}j</strong>
+                        </div>
+                      </div>
+                    </td>
+                    {user.monthCalendar.map((dayData, i) => (
+                      <td 
+                        key={i} 
+                        style={{ 
+                          padding: 0, 
+                          border: '1px solid var(--border)',
+                          backgroundColor: getCellColor(dayData.dayType, dayData.isWeekend, dayData.isHoliday),
+                          cursor: isMagaliOrAdmin ? 'pointer' : 'default'
+                        }}
+                        onClick={() => handleCellClick(user, dayData)}
+                        title={dayData.isHoliday ? 'Jour Férié' : dayData.notes || ''}
+                      >
+                        <div style={{ width: '100%', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {dayData.notes && <span style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: 'var(--text-muted)', position: 'absolute', top: 2, right: 2 }}></span>}
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* MODAL EDITION CELLULE */}
+      {selectedCell && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div className="card" style={{ width: '400px', backgroundColor: 'white' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem' }}>
+              Modifier le statut <br/>
+              <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>
+                {new Date(selectedCell.dateStr).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+            </h3>
+            
+            <form onSubmit={handleUpdate}>
+              <div className="form-group">
+                <label>Statut</label>
+                <select 
+                  className="form-control" 
+                  value={selectedCell.dayType} 
+                  onChange={e => setSelectedCell({ ...selectedCell, dayType: e.target.value })}
+                >
+                  <option value="worked">Travaillé (Vert)</option>
+                  <option value="off">Non travaillé (Blanc)</option>
+                  <option value="paid_leave">Congé Payé (Rouge)</option>
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label>Note optionnelle</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Ex: RTT, Récupération, Matin uniquement..."
+                  value={selectedCell.notes}
+                  onChange={e => setSelectedCell({ ...selectedCell, notes: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
+                <button type="button" className="button outline" onClick={() => setSelectedCell(null)} disabled={isPending}>Annuler</button>
+                <button type="submit" className="button primary" disabled={isPending}>{isPending ? 'Enregistrement...' : 'Enregistrer'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

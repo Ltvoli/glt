@@ -68,6 +68,16 @@ export default function EditTaskForm({ task, users }: { task: any, users: any[] 
         </div>
       </div>
 
+      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+        <label htmlFor="expectedDeliverable">Livrable attendu</label>
+        <input type="text" id="expectedDeliverable" name="expectedDeliverable" className="form-control" defaultValue={task.expectedDeliverable || ''} placeholder="ex: Rapport PDF, Note de synthèse..." />
+      </div>
+
+      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+        <label htmlFor="tags">Tags (séparés par des virgules)</label>
+        <input type="text" id="tags" name="tags" className="form-control" defaultValue={task.tags?.map((t: any) => t.tag.name).join(', ') || ''} placeholder="Urgent, Synthèse, RDV..." />
+      </div>
+
       {state.error && (
         <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.875rem' }}>
           {state.error}

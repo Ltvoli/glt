@@ -1,9 +1,10 @@
 'use server'
 
 import prisma from '@/lib/prisma'
-import { getSession } from '@/lib/session'
+import { requireWriteAccess, getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { logAudit } from '@/lib/audit'
 
 export async function updateContact(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
   const session = await getSession()
@@ -23,6 +24,14 @@ export async function updateContact(prevState: any, formData: FormData): Promise
   const streetName = formData.get('streetName') as string
   const postalCode = formData.get('postalCode') as string
   const supportLevel = formData.get('supportLevel') as string
+
+  const territorySector = formData.get('territorySector') as string
+  const source = formData.get('source') as string
+  const whatsappStatus = formData.get('whatsappStatus') as string
+  const newsletter = formData.get('newsletter') === 'true'
+  const linkedinUrl = formData.get('linkedinUrl') as string
+  const notes = formData.get('notes') as string
+  const tagsString = formData.get('tags') as string
 
   if (!id || !firstName || !lastName || !type) {
     return { error: 'Nom, prénom et type sont obligatoires.' }
@@ -56,54 +65,55 @@ export async function updateContact(prevState: any, formData: FormData): Promise
         streetName: streetName || null,
         postalCode: postalCode || null,
         supportLevel: supportLevel || null,
+        territorySector: territorySector || null,
+        source: source || null,
+        whatsappStatus: whatsappStatus || null,
+        newsletter,
+        linkedinUrl: linkedinUrl || null,
+        notes: notes || null,
         updatedById: session.userId,
       }
     })
 
-    await prisma.auditLog.create({
-      data: {
-        action: 'UPDATE',
-        entityType: 'Contact',
-        entityId: id,
-        userId: session.userId,
-        oldValues: JSON.stringify(contact),
-        newValues: JSON.stringify(updatedContact)
+    if (tagsString !== null) {
+      // Nettoyer les tags existants
+      await prisma.contactTag.deleteMany({ where: { contactId: id } })
+      
+      const tagNames = tagsString.split(',').map(t => t.trim()).filter(t => t)
+      for (const tagName of tagNames) {
+        const tag = await prisma.tag.upsert({
+          where: { name: tagName },
+          update: {},
+          create: { name: tagName, color: '#e2e8f0' }
+        })
+        await prisma.contactTag.create({
+          data: { contactId: id, tagId: tag.id }
+        })
       }
-    })
+    }
 
-  } catch (error) {
+    await logAudit('UPDATE', 'Contact', id, session.userId, updatedContact)
+
+    redirect(`/contacts/${id}`)
+  } catch (error: any) {
+    if (error.message === 'NEXT_REDIRECT') throw error
     return { error: 'Erreur lors de la mise à jour.' }
   }
-
-  revalidatePath(`/contacts/${id}`)
-  return { success: true }
 }
 
-export async function archiveContact(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
-  const session = await getSession()
-  if (!session?.userId) return { error: 'Non autorisé' }
+export async function archiveContact(contactId: string) {
+  const session = await requireWriteAccess()
 
-  const id = formData.get('id') as string
+  const contact = await prisma.contact.findUnique({ where: { id: contactId } })
+  if (!contact) throw new Error('Contact introuvable')
 
-  try {
-    await prisma.contact.update({
-      where: { id },
-      data: {
-        archivedAt: new Date()
-      }
-    })
+  await prisma.contact.update({
+    where: { id: contactId },
+    data: { archivedAt: new Date() }
+  })
 
-    await prisma.auditLog.create({
-      data: {
-        action: 'ARCHIVE',
-        entityType: 'Contact',
-        entityId: id,
-        userId: session.userId,
-      }
-    })
-  } catch (error) {
-    return { error: 'Erreur lors de l\'archivage.' }
-  }
+  await logAudit('ARCHIVE', 'Contact', contactId, session.userId)
 
-  redirect('/contacts')
+  revalidatePath('/contacts')
+  revalidatePath(`/contacts/${contactId}`)
 }

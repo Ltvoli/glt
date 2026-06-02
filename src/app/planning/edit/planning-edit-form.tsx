@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition } from 'react'
 import { upsertWeeklyStatus } from '../actions'
 
 const STATUSES = [
@@ -21,10 +21,10 @@ export default function PlanningEditForm({ users, weekDates, allStatuses }: { us
   const [isPending, startTransition] = useTransition()
   const [success, setSuccess] = useState(false)
 
-  // Quand on change d'utilisateur, on met à jour les selects avec ses statuts existants
-  useEffect(() => {
-    if (!selectedUserId) return
+  const [prevUserId, setPrevUserId] = useState(selectedUserId)
 
+  if (selectedUserId !== prevUserId) {
+    setPrevUserId(selectedUserId)
     const newWeekData = weekDates.map(dateStr => {
       const existingStatus = allStatuses.find(s => 
         s.employeeId === selectedUserId && 
@@ -34,7 +34,7 @@ export default function PlanningEditForm({ users, weekDates, allStatuses }: { us
     })
     setWeekData(newWeekData)
     setSuccess(false)
-  }, [selectedUserId, weekDates, allStatuses])
+  }
 
   const handleStatusChange = (index: number, status: string) => {
     const newData = [...weekData]

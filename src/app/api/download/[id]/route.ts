@@ -1,36 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { getSession } from '@/lib/session'
 import { readFile } from 'fs/promises'
-import { existsSync } from 'fs'
+import path from 'path'
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
-  if (!session?.userId) {
-    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-  }
+  if (!session?.userId) return new NextResponse('Non autorisé', { status: 401 })
 
   const { id } = await params
 
   try {
-    const attachment = await prisma.attachment.findUnique({
-      where: { id }
-    })
+    const attachment = await prisma.attachment.findUnique({ where: { id } })
+    if (!attachment) return new NextResponse('Fichier introuvable', { status: 404 })
 
-    if (!attachment || !existsSync(attachment.filepath)) {
-      return NextResponse.json({ error: 'Fichier introuvable' }, { status: 404 })
-    }
+    // Normalement, il faudrait vérifier ici si l'user a le droit de voir la tâche/mail/qe associée
+    // Pour l'instant, on laisse l'accès aux utilisateurs authentifiés
 
-    const fileBuffer = await readFile(attachment.filepath)
+    const filePath = path.join(process.cwd(), attachment.filepath)
+    const buffer = await readFile(filePath)
 
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(buffer, {
       headers: {
         'Content-Type': attachment.mimeType || 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(attachment.filename)}"`,
+        'Content-Disposition': `attachment; filename="${attachment.filename}"`
       }
     })
   } catch (error) {
-    console.error('Erreur download:', error)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    console.error('Download error:', error)
+    return new NextResponse('Erreur lors du téléchargement', { status: 500 })
   }
 }

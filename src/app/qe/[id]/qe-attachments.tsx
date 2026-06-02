@@ -16,7 +16,8 @@ export default function QEAttachments({ qeId, initialAttachments }: { qeId: stri
 
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('questionId', qeId) // Link to QE
+    formData.append('entityType', 'qe') // Link to QE
+    formData.append('entityId', qeId)
 
     try {
       const res = await fetch('/api/upload', {

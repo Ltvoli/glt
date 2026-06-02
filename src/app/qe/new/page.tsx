@@ -18,6 +18,10 @@ export default async function NewQEPage() {
     where: { status: { notIn: ['TERMINEE', 'ANNULEE'] } },
     select: { id: true, title: true }
   })
+  const mails = await prisma.mailCase.findMany({
+    where: { status: { notIn: ['CLASSE'] } },
+    select: { id: true, subject: true, reference: true }
+  })
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -29,7 +33,7 @@ export default async function NewQEPage() {
       </div>
 
       <div className="card">
-        <QEForm users={users} contacts={contacts} tasks={tasks} />
+        <QEForm users={users} contacts={contacts} tasks={tasks} mails={mails} />
       </div>
     </div>
   )

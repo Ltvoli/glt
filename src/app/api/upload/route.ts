@@ -1,57 +1,84 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
-import { existsSync } from 'fs'
+import { requireWriteAccess } from '@/lib/session'
+import { v4 as uuidv4 } from 'uuid'
+import { supabase } from '@/lib/supabase'
+import { logAudit } from '@/lib/audit'
+import path from 'path'
 
-export async function POST(req: NextRequest) {
-  const session = await getSession()
-  if (!session?.userId) {
-    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const BLOCKED_EXTENSIONS = ['.exe', '.sh', '.bat', '.cmd', '.msi', '.vbs']
+
+export async function POST(request: Request) {
+  let session
+  try {
+    session = await requireWriteAccess()
+  } catch (err: any) {
+    return new NextResponse(err.message, { status: 401 })
   }
 
   try {
-    const formData = await req.formData()
-    const file = formData.get('file') as File
-    const taskId = formData.get('taskId') as string | null
-    const mailCaseId = formData.get('mailCaseId') as string | null
-    const questionId = formData.get('questionId') as string | null
+    const formData = await request.formData()
+    const file = formData.get('file') as File | null
+    const entityType = formData.get('entityType') as string
+    const entityId = formData.get('entityId') as string
 
-    if (!file) {
-      return NextResponse.json({ error: 'Aucun fichier fourni' }, { status: 400 })
+    if (!file || !entityType || !entityId) {
+      return new NextResponse('Paramètres manquants', { status: 400 })
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      return new NextResponse('Fichier trop volumineux (10Mo max)', { status: 400 })
+    }
+
+    const ext = path.extname(file.name).toLowerCase()
+    if (BLOCKED_EXTENSIONS.includes(ext)) {
+      return new NextResponse('Type de fichier non autorisé', { status: 400 })
     }
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    const uploadDir = join(process.cwd(), 'uploads')
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true })
+    const uniqueFilename = `${uuidv4()}${ext}`
+    
+    // Upload vers Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase
+      .storage
+      .from('crm-attachments')
+      .upload(uniqueFilename, buffer, {
+        contentType: file.type,
+        upsert: false
+      })
+
+    if (uploadError) {
+      throw new Error(`Erreur Supabase: ${uploadError.message}`)
     }
 
-    // Générer un nom unique pour éviter les écrasements
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-    const filepath = join(uploadDir, uniqueSuffix + '-' + file.name)
+    // Récupération de l'URL publique ou du chemin
+    const filepath = uploadData.path
 
-    await writeFile(filepath, buffer)
+    const attachmentData: any = {
+      filename: file.name,
+      filepath: filepath,
+      mimeType: file.type,
+      size: file.size,
+      uploadedById: session.userId,
+    }
+
+    if (entityType === 'task') attachmentData.taskId = entityId
+    if (entityType === 'mail') attachmentData.mailCaseId = entityId
+    if (entityType === 'qe') attachmentData.questionId = entityId
 
     const attachment = await prisma.attachment.create({
-      data: {
-        filename: file.name,
-        filepath: filepath,
-        mimeType: file.type,
-        size: file.size,
-        taskId: taskId || null,
-        mailCaseId: mailCaseId || null,
-        questionId: questionId || null,
-        uploadedById: session.userId
-      }
+      data: attachmentData
     })
 
-    return NextResponse.json({ success: true, attachment })
-  } catch (error) {
-    console.error('Erreur upload:', error)
-    return NextResponse.json({ error: 'Erreur lors de l\'upload' }, { status: 500 })
+    // Audit log
+    await logAudit('UPLOAD_FILE', 'Attachment', attachment.id, session.userId, { filename: file.name, entityType, entityId })
+
+    return NextResponse.json(attachment)
+  } catch (err) {
+    console.error('Upload Error:', err)
+    return new NextResponse('Erreur Serveur', { status: 500 })
   }
 }

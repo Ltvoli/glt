@@ -139,12 +139,77 @@ export async function GET() {
       }
     }
 
+    // 5. QE en retard (> 60 jours sans réponse)
+    const sixtyDaysAgo = new Date(today)
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+
+    const overdueQEs = await prisma.writtenQuestion.findMany({
+      where: {
+        status: 'EN_ATTENTE',
+        depositDate: { lt: sixtyDaysAgo },
+        assigneeId: { not: null },
+        archivedAt: null
+      }
+    })
+
+    for (const qe of overdueQEs) {
+      if (!qe.assigneeId) continue
+      const existing = await prisma.notification.findFirst({
+        where: { userId: qe.assigneeId, relatedId: qe.id, type: 'QE_OVERDUE', readAt: null }
+      })
+      if (!existing) {
+        await prisma.notification.create({
+          data: {
+            userId: qe.assigneeId,
+            type: 'QE_OVERDUE',
+            title: 'Alerte : QE sans réponse',
+            message: `La question "${qe.title}" est en attente depuis plus de 60 jours.`,
+            relatedType: 'WrittenQuestion',
+            relatedId: qe.id,
+            severity: 'URGENT'
+          }
+        })
+      }
+    }
+
+    // 6. QE - Retours à faire (Réponse reçue)
+    const followUpQEs = await prisma.writtenQuestion.findMany({
+      where: {
+        status: 'REPONSE_RECUE',
+        followUpDescription: { not: null },
+        assigneeId: { not: null },
+        archivedAt: null
+      }
+    })
+
+    for (const qe of followUpQEs) {
+      if (!qe.assigneeId) continue
+      const existing = await prisma.notification.findFirst({
+        where: { userId: qe.assigneeId, relatedId: qe.id, type: 'QE_FOLLOWUP' } // on cherche même les lues pour ne pas spammer tous les jours
+      })
+      if (!existing) {
+        await prisma.notification.create({
+          data: {
+            userId: qe.assigneeId,
+            type: 'QE_FOLLOWUP',
+            title: 'Retour à faire (QE)',
+            message: `Une réponse a été reçue pour "${qe.title}". N'oubliez pas : ${qe.followUpDescription}`,
+            relatedType: 'WrittenQuestion',
+            relatedId: qe.id,
+            severity: 'WARNING'
+          }
+        })
+      }
+    }
+
     return NextResponse.json({ 
       success: true, 
       overdueCount: overdueTasks.length, 
       dueTomorrowCount: dueTomorrowTasks.length,
       overdueMailsCount: overdueMails.length,
-      dueTomorrowMailsCount: dueTomorrowMails.length
+      dueTomorrowMailsCount: dueTomorrowMails.length,
+      overdueQECount: overdueQEs.length,
+      followUpQECount: followUpQEs.length
     })
   } catch (error) {
     console.error(error)

@@ -14,10 +14,18 @@ const navItems = [
   { name: 'Planning', href: '/planning', icon: CalendarDays },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Rapports', href: '/reports/weekly', icon: FileText },
+  { name: 'RGPD & Sécurité', href: '/rgpd', icon: ShieldAlert },
 ]
 
-export default function Sidebar() {
+import { ShieldAlert } from 'lucide-react'
+
+export default function Sidebar({ userRole }: { userRole?: string }) {
   const pathname = usePathname()
+
+  const items = [...navItems]
+  if (userRole === 'SUPERADMIN') {
+    items.push({ name: 'Administration', href: '/admin', icon: ShieldAlert })
+  }
 
   return (
     <aside style={{ 
@@ -38,7 +46,7 @@ export default function Sidebar() {
 
       <nav style={{ flex: 1 }}>
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {navItems.map((item) => {
+          {items.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
             const Icon = item.icon
             return (

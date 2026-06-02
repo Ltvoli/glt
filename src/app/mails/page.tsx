@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma'
 import Link from 'next/link'
-import { Plus, Mail, Package, AlertCircle } from 'lucide-react'
+import { Plus, Mail, Package, AlertCircle, Clock } from 'lucide-react'
 import { getSession } from '@/lib/session'
 
 export default async function MailsPage({
@@ -11,7 +11,7 @@ export default async function MailsPage({
   const session = await getSession()
   const { filter } = await searchParams
   
-  let whereClause: any = {}
+  const whereClause: any = {}
   
   if (filter === 'mine') {
     whereClause.assigneeId = session?.userId
@@ -39,7 +39,7 @@ export default async function MailsPage({
         }
       }
     },
-    orderBy: { receiveDate: 'desc' },
+    orderBy: { createdAt: 'desc' },
   })
 
   const getStatusBadge = (status: string) => {
@@ -57,9 +57,14 @@ export default async function MailsPage({
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Courriers</h1>
-        <Link href="/mails/new" className="button">
-          <Plus size={16} /> Nouveau Courrier
-        </Link>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <a href={`/api/export/mails${filter ? `?filter=${filter}` : ''}`} className="button outline">
+            Exporter CSV
+          </a>
+          <Link href="/mails/new" className="button">
+            <Plus size={16} /> Nouveau Courrier
+          </Link>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
@@ -80,7 +85,7 @@ export default async function MailsPage({
             <tr>
               <th>Référence & Type</th>
               <th>Date</th>
-              <th>Sujet & Expéditeur/Destinataire</th>
+              <th>Sujet & Interlocuteur</th>
               <th>Canal</th>
               <th>Assigné à</th>
               <th>Statut & Échéance</th>
@@ -101,14 +106,14 @@ export default async function MailsPage({
                     <div style={{ fontWeight: 500, color: 'var(--text-muted)' }}>{mail.reference}</div>
                     <div style={{ fontSize: '0.75rem', color: mail.type === 'ENTRANT' ? 'var(--primary)' : 'var(--warning)' }}>{mail.type}</div>
                   </td>
-                  <td>{new Date(mail.receiveDate).toLocaleDateString('fr-FR')}</td>
+                  <td>{mail.type === 'ENTRANT' && mail.receiveDate ? new Date(mail.receiveDate).toLocaleDateString('fr-FR') : mail.sentDate ? new Date(mail.sentDate).toLocaleDateString('fr-FR') : '-'}</td>
                   <td>
                     <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       {mail.urgency === 'HAUTE' && <AlertCircle size={14} color="var(--danger)" />}
                       {mail.subject}
                     </div>
                     <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                      {mail.senderName || 'Inconnu'} {mail.city ? `(${mail.city})` : ''}
+                      {mail.type === 'ENTRANT' ? (mail.senderName || 'Inconnu') : (mail.recipientName || 'Inconnu')} {mail.city ? `(${mail.city})` : ''}
                       {mail.links.some((l: any) => l.contact) && (
                          <span style={{ marginLeft: '0.5rem', color: 'var(--primary)' }}>
                            🔗 Lié à un contact

@@ -1,16 +1,24 @@
 'use server'
 
 import prisma from '@/lib/prisma'
-import { getSession } from '@/lib/session'
+import { requireWriteAccess, getSession } from '@/lib/session'
 import { revalidatePath } from 'next/cache'
+import { logAudit } from '@/lib/audit'
+
+// Déduire le dayType du status classique
+function getDayTypeFromStatus(status: string): string {
+  if (['PARIS', 'CIRCO', 'TELETRAVAIL', 'DEPLACEMENT'].includes(status)) return 'worked'
+  if (['CONGE'].includes(status)) return 'paid_leave'
+  return 'off' // MALADIE, ABSENT ou autre
+}
 
 export async function upsertEmployeeStatus(dateStr: string, status: string, notes?: string) {
-  const session = await getSession()
-  if (!session?.userId) throw new Error('Non autorisé')
+  const session = await requireWriteAccess()
 
   // Normaliser la date à 00:00:00 locale
   const d = new Date(dateStr)
   const normalizedDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+  const dayType = getDayTypeFromStatus(status)
 
   await prisma.employeeStatus.upsert({
     where: {
@@ -21,30 +29,41 @@ export async function upsertEmployeeStatus(dateStr: string, status: string, note
     },
     update: {
       status,
-      notes
+      dayType,
+      notes,
+      updatedById: session.userId
     },
     create: {
       employeeId: session.userId,
       date: normalizedDate,
       status,
-      notes
+      dayType,
+      notes,
+      updatedById: session.userId
     }
   })
 
-  // Revalider le dashboard et la page planning
+  // Audit Log
+  await logAudit('UPDATE', 'EmployeeStatus', `${session.userId}-${normalizedDate.toISOString()}`, session.userId, { status, dayType, notes })
+
   revalidatePath('/')
   revalidatePath('/planning')
 }
 
 export async function upsertWeeklyStatus(userId: string, weekDays: { dateStr: string, status: string }[]) {
-  const session = await getSession()
-  if (!session?.userId) throw new Error('Non autorisé')
+  const session = await requireWriteAccess()
+
+  const currentUser = await prisma.user.findUnique({ where: { id: session.userId } })
+  if (currentUser?.role !== 'ADMIN') {
+    throw new Error('Accès refusé. Seul un administrateur peut modifier le planning.')
+  }
 
   for (const day of weekDays) {
     if (!day.status) continue // Ignorer si pas de statut choisi
 
     const d = new Date(day.dateStr)
     const normalizedDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+    const dayType = getDayTypeFromStatus(day.status)
 
     await prisma.employeeStatus.upsert({
       where: {
@@ -53,14 +72,89 @@ export async function upsertWeeklyStatus(userId: string, weekDays: { dateStr: st
           date: normalizedDate
         }
       },
-      update: { status: day.status },
+      update: { status: day.status, dayType, updatedById: session.userId },
       create: {
         employeeId: userId,
         date: normalizedDate,
-        status: day.status
+        status: day.status,
+        dayType,
+        updatedById: session.userId
       }
     })
   }
 
+  revalidatePath('/planning')
+}
+
+export async function updateEmployeeDayType(employeeId: string, dateStr: string, dayType: string, notes?: string) {
+  const session = await requireWriteAccess()
+
+  const currentUser = await prisma.user.findUnique({ where: { id: session.userId } })
+  
+  // Permissions: Seul un ADMIN (Magali ou Lionel) peut modifier le planning
+  if (currentUser?.role !== 'ADMIN') {
+    throw new Error('Accès refusé. Seul un administrateur peut modifier le planning.')
+  }
+  
+  const d = new Date(dateStr)
+  const normalizedDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+
+  await prisma.employeeStatus.upsert({
+    where: {
+      employeeId_date: { employeeId, date: normalizedDate }
+    },
+    update: {
+      dayType,
+      status: dayType === 'worked' ? 'PRESENCE' : dayType === 'paid_leave' ? 'CONGE' : 'ABSENT',
+      notes,
+      updatedById: session.userId
+    },
+    create: {
+      employeeId,
+      date: normalizedDate,
+      dayType,
+      status: dayType === 'worked' ? 'PRESENCE' : dayType === 'paid_leave' ? 'CONGE' : 'ABSENT',
+      notes,
+      updatedById: session.userId
+    }
+  })
+
+  // Audit Log
+  await prisma.auditLog.create({
+    data: {
+      action: 'UPDATE_DAYTYPE',
+      entityType: 'EmployeeStatus',
+      entityId: `${employeeId}-${normalizedDate.toISOString()}`,
+      userId: session.userId,
+      newValues: JSON.stringify({ dayType, notes })
+    }
+  })
+
+  revalidatePath('/planning')
+}
+
+export async function upsertEmployeeSetting(employeeId: string, annualWorkingDays: number) {
+  const session = await requireWriteAccess()
+
+  const user = await prisma.user.findUnique({ where: { id: session.userId } })
+  if (user?.role !== 'ADMIN') throw new Error('Accès refusé. Seul un administrateur peut modifier ces paramètres.')
+
+  await prisma.employeeSetting.upsert({
+    where: { userId: employeeId },
+    update: { annualWorkingDays },
+    create: { userId: employeeId, annualWorkingDays }
+  })
+
+  await prisma.auditLog.create({
+    data: {
+      action: 'UPDATE_SETTING',
+      entityType: 'EmployeeSetting',
+      entityId: employeeId,
+      userId: session.userId,
+      newValues: JSON.stringify({ annualWorkingDays })
+    }
+  })
+
+  revalidatePath('/planning/settings')
   revalidatePath('/planning')
 }

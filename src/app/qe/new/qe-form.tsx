@@ -29,7 +29,7 @@ const MINISTRIES = [
   "Autre"
 ]
 
-export default function QEForm({ users, contacts, tasks }: { users: any[], contacts: any[], tasks: any[] }) {
+export default function QEForm({ users, contacts, tasks, mails }: { users: {id: string; name: string}[], contacts: {id: string; firstName: string; lastName: string}[], tasks: {id: string; title: string}[], mails?: {id: string; subject: string; reference: string}[] }) {
   const [state, formAction, isPending] = useActionState(createQE, initialState)
 
   return (
@@ -46,8 +46,9 @@ export default function QEForm({ users, contacts, tasks }: { users: any[], conta
           <label htmlFor="type">Type de question *</label>
           <select id="type" name="type" className="form-control" required defaultValue="QE">
             <option value="QE">Question Écrite (QE)</option>
-            <option value="QAG">Question d'Actualité au Gouvernement (QAG)</option>
+            <option value="QAG">Question d&apos;Actualité au Gouvernement (QAG)</option>
             <option value="QOSD">Question Orale Sans Débat (QOSD)</option>
+            <option value="AMENDEMENT">Amendement</option>
           </select>
         </div>
         <div className="form-group">
@@ -61,10 +62,26 @@ export default function QEForm({ users, contacts, tasks }: { users: any[], conta
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div className="form-group">
+          <label htmlFor="anNumber">Numéro AN</label>
+          <input type="text" id="anNumber" name="anNumber" className="form-control" />
+        </div>
         <div className="form-group">
           <label htmlFor="theme">Thématique</label>
-          <input type="text" id="theme" name="theme" className="form-control" placeholder="Ex: Santé publique, Transports..." />
+          <select id="theme" name="theme" className="form-control" defaultValue="">
+            <option value="" disabled>Sélectionner un thème</option>
+            <option value="Agriculture">Agriculture</option>
+            <option value="Environnement">Environnement</option>
+            <option value="Sécurité">Sécurité</option>
+            <option value="Logement">Logement</option>
+            <option value="Transports">Transports</option>
+            <option value="Santé">Santé</option>
+            <option value="Éducation">Éducation</option>
+            <option value="Économie">Économie</option>
+            <option value="Associations">Associations</option>
+            <option value="Autre">Autre</option>
+          </select>
         </div>
         <div className="form-group">
           <label htmlFor="assigneeId">Collaborateur en charge</label>
@@ -74,6 +91,17 @@ export default function QEForm({ users, contacts, tasks }: { users: any[], conta
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
           </select>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div className="form-group">
+          <label htmlFor="followUpDescription">Retour à faire (Optionnel)</label>
+          <input type="text" id="followUpDescription" name="followUpDescription" className="form-control" placeholder="Ex: Prévenir le maire dès réception de la réponse..." />
+        </div>
+        <div className="form-group">
+          <label htmlFor="followUpDueDate">Échéance du retour</label>
+          <input type="date" id="followUpDueDate" name="followUpDueDate" className="form-control" />
         </div>
       </div>
 
@@ -96,7 +124,7 @@ export default function QEForm({ users, contacts, tasks }: { users: any[], conta
       </div>
 
       <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Liaisons (Optionnel)</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
         <div className="form-group">
           <label htmlFor="contactId">Lier à un Contact</label>
           <select id="contactId" name="contactId" className="form-control" defaultValue="">
@@ -105,7 +133,7 @@ export default function QEForm({ users, contacts, tasks }: { users: any[], conta
               <option key={c.id} value={c.id}>{c.lastName} {c.firstName}</option>
             ))}
           </select>
-          <small style={{ color: 'var(--text-muted)' }}>Lier cette question au lanceur d'alerte ou au syndicat concerné.</small>
+          <small style={{ color: 'var(--text-muted)' }}>Lier cette question au lanceur d&apos;alerte.</small>
         </div>
         <div className="form-group">
           <label htmlFor="taskId">Lier à une Tâche</label>
@@ -116,6 +144,16 @@ export default function QEForm({ users, contacts, tasks }: { users: any[], conta
             ))}
           </select>
           <small style={{ color: 'var(--text-muted)' }}>Lier à la tâche de rédaction préparatoire.</small>
+        </div>
+        <div className="form-group">
+          <label htmlFor="mailId">Lier à un Courrier</label>
+          <select id="mailId" name="mailId" className="form-control" defaultValue="">
+            <option value="">Aucun courrier</option>
+            {mails?.map(m => (
+              <option key={m.id} value={m.id}>{m.reference} - {m.subject}</option>
+            ))}
+          </select>
+          <small style={{ color: 'var(--text-muted)' }}>Lier à la demande écrite initiale.</small>
         </div>
       </div>
 

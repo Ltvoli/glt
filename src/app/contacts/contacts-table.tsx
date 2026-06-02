@@ -40,6 +40,7 @@ export default function ContactsTable({ contacts }: { contacts: any[] }) {
     const saved = localStorage.getItem('contactColumns')
     if (saved) {
       try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setVisibleColumns(JSON.parse(saved))
       } catch (e) {
         // Fallback

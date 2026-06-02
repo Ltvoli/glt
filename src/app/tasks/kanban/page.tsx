@@ -12,6 +12,7 @@ export default async function KanbanPage() {
     include: {
       assignee: true,
       subtasks: true,
+      tags: { include: { tag: true } }
     },
     orderBy: { priority: 'asc' } // Tri par défaut (HAUTE, puis NORMALE, puis BASSE)
   })

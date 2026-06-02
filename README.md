@@ -2,6 +2,35 @@
 
 Logiciel interne de gestion pour le bureau parlementaire du député Lionel Tivoli, permettant à l'équipe de centraliser les contacts, tâches, courriers, questions écrites et plannings.
 
+## Modules
+- [x] **Phase 1** : Base de données, Auth, Contacts (Qomon import)
+- [x] **Phase 2** : Tâches, Dashboard 7 jours, Notifications
+- [x] **Phase 3** : Courriers entrants/sortants
+- [x] **Phase 4** : Questions Écrites (QE, QAG, Amendements)
+- [x] **Phase 5** : Agenda, Planning mensuel, Compteurs de jours travaillés et Rapports
+
+### Phase 5 — Agenda, planning salariés et rapports
+- **Calendrier Mensuel** : Affichage interactif avec pré-remplissage automatique des week-ends et des jours fériés français.
+- **Statuts Couleurs** : Vert (Travaillé), Blanc (Non travaillé), Rouge (Congé Payé), Jaune (Jour Férié), Gris (Week-end).
+- **Période Annuelle** : La période de référence pour les quotas court par défaut du **1er Juin au 31 Mai**.
+- **Paramétrage Quotas** : Vue dédiée permettant à un administrateur (Magali / Lionel) de définir le nombre de jours annuels de chaque salarié (ex: 218 jours).
+- **Exports & Rapports** : Une page de "Rapports Hebdomadaires Globaux" agrégeant les KPIs des tâches, courriers, questions écrites et les compteurs du planning (avec support de l'impression PDF/papier).
+- **Permissions** : La saisie et le paramétrage sont restreints à l'administrateur (Magali/Lionel). Les modifications déclenchent une journalisation dans l'AuditLog.
+
+
+## Architecture Cible & Phase 0
+Ce projet est développé selon une méthode stricte détaillée dans le fichier `.antigravity-rules.md`. 
+Le backend repose sur les Server Actions de Next.js, tandis que la base de données actuelle (SQLite + Prisma) a vocation à basculer vers PostgreSQL pour garantir la scalabilité et les sauvegardes automatiques en production. L'authentification est internalisée via JWT (`jose`) et le hashage `bcryptjs`.
+Le projet est protégé par le RGPD via l'utilisation de suppressions logiques (`archivedAt`), de journaux d'audit et d'une validation centralisée.
+
+## Modules Fonctionnels
+- [x] **Phase 1** : Base de données, Auth, Contacts (Qomon import)
+- [x] **Phase 2** : Tâches, Dashboard 7 jours, Notifications
+- [x] **Phase 3** : Courriers entrants/sortants
+- [x] **Phase 4** : Questions Écrites (QE, QAG, Amendements)
+- [x] **Phase 5** : Agenda, Planning mensuel, Compteurs de jours travaillés et Rapports (Vanilla CSS) avec variables CSS
+
+
 ## Stack Technique (Phase 1)
 - **Framework :** Next.js (App Router)
 - **Base de données :** SQLite (via Prisma ORM)

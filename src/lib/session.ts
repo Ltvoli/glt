@@ -28,7 +28,7 @@ export async function login(userId: string, role: string) {
     expires,
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/',
   })
 }
@@ -39,7 +39,7 @@ export async function logout() {
     expires: new Date(0),
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/',
   })
 }
@@ -53,4 +53,11 @@ export async function getSession() {
   } catch (error) {
     return null
   }
+}
+
+export async function requireWriteAccess() {
+  const session = await getSession()
+  if (!session?.userId) throw new Error('Non autorisé')
+  if (session.role === 'READONLY') throw new Error('Accès en lecture seule. Action interdite.')
+  return session
 }
