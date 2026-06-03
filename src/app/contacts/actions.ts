@@ -125,3 +125,28 @@ export async function createContact(prevState: any, formData: FormData): Promise
 
   redirect('/contacts')
 }
+
+export async function archiveContact(contactId: string): Promise<{ error?: string, success?: boolean }> {
+  let session
+  try {
+    session = await requireWriteAccess()
+  } catch (e: any) {
+    return { error: e.message }
+  }
+
+  try {
+    const contact = await prisma.contact.findUnique({ where: { id: contactId } })
+    if (!contact) return { error: 'Contact introuvable.' }
+
+    const archivedContact = await prisma.contact.update({
+      where: { id: contactId },
+      data: { archivedAt: new Date() }
+    })
+
+    await logAudit('ARCHIVE', 'Contact', contactId, session.userId, undefined, { archivedAt: archivedContact.archivedAt })
+    
+    return { success: true }
+  } catch (error) {
+    return { error: 'Erreur lors de l\'archivage du contact.' }
+  }
+}

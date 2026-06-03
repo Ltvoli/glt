@@ -2,12 +2,13 @@
 
 import { useActionState } from 'react'
 import { createContact } from '../actions'
+import TagSelector from '@/components/ui/tag-selector'
 
 const initialState = {
   error: ''
 }
 
-export default function ContactForm() {
+export default function ContactForm({ allTags = [] }: { allTags?: any[] }) {
   const [state, formAction, isPending] = useActionState(createContact, initialState)
 
   return (
@@ -134,8 +135,8 @@ export default function ContactForm() {
       </div>
 
       <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="tags">Tags (séparés par des virgules)</label>
-        <input type="text" id="tags" name="tags" className="form-control" placeholder="Ex: Chasseur, Retraité, Buraliste..." />
+        <label htmlFor="tags">Tags</label>
+        <TagSelector allTags={allTags} name="tags" placeholder="Ex: Chasseur, Retraité, Buraliste..." />
       </div>
 
       <div className="form-group" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

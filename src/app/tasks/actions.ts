@@ -59,6 +59,16 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
       }
     }
 
+    const contactId = formData.get('contactId') as string
+    if (contactId) {
+      await prisma.globalLink.create({
+        data: {
+          taskId: task.id,
+          contactId: contactId
+        }
+      })
+    }
+
     if (assigneeId && assigneeId !== session.userId) {
       await prisma.notification.create({
         data: {

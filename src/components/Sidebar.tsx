@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, CheckSquare, Mail, HelpCircle, CalendarDays, LogOut, Bell, FileText } from 'lucide-react'
+import { LayoutDashboard, Users, CheckSquare, Mail, HelpCircle, CalendarDays, LogOut, Bell, FileText, Settings } from 'lucide-react'
 import { logout } from '@/lib/auth-actions'
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { name: 'Planning', href: '/planning', icon: CalendarDays },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Rapports', href: '/reports/weekly', icon: FileText },
+  { name: 'Tags (Paramètres)', href: '/settings/tags', icon: Settings },
   { name: 'RGPD & Sécurité', href: '/rgpd', icon: ShieldAlert },
 ]
 

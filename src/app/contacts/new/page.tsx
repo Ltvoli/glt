@@ -1,7 +1,10 @@
 import ContactForm from './contact-form'
 import Link from 'next/link'
+import prisma from '@/lib/prisma'
 
-export default function NewContactPage() {
+export default async function NewContactPage() {
+  const allTags = await prisma.tag.findMany({ orderBy: { name: 'asc' } })
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
@@ -10,7 +13,7 @@ export default function NewContactPage() {
       </div>
 
       <div className="card" style={{ maxWidth: '800px' }}>
-        <ContactForm />
+        <ContactForm allTags={allTags} />
       </div>
     </div>
   )

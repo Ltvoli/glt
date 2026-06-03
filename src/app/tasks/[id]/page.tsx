@@ -31,6 +31,7 @@ export default async function TaskDetailPage({
   }
 
   const users = await prisma.user.findMany()
+  const allTags = await prisma.tag.findMany({ orderBy: { name: 'asc' } })
 
   return (
     <div>
@@ -57,7 +58,7 @@ export default async function TaskDetailPage({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div className="card">
             <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Détails de la tâche</h2>
-            <EditTaskForm task={task} users={users} />
+            <EditTaskForm task={task} users={users} allTags={allTags} />
           </div>
 
           <div className="card">

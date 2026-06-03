@@ -2,13 +2,14 @@
 
 import { useActionState } from 'react'
 import { updateTask } from './actions'
+import TagSelector from '@/components/ui/tag-selector'
 
 const initialState = {
   error: '',
   success: false
 }
 
-export default function EditTaskForm({ task, users }: { task: any, users: any[] }) {
+export default function EditTaskForm({ task, users, allTags = [] }: { task: any, users: any[], allTags?: any[] }) {
   const [state, formAction, isPending] = useActionState(updateTask, initialState)
 
   return (
@@ -74,8 +75,13 @@ export default function EditTaskForm({ task, users }: { task: any, users: any[] 
       </div>
 
       <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="tags">Tags (séparés par des virgules)</label>
-        <input type="text" id="tags" name="tags" className="form-control" defaultValue={task.tags?.map((t: any) => t.tag.name).join(', ') || ''} placeholder="Urgent, Synthèse, RDV..." />
+        <label htmlFor="tags">Tags</label>
+        <TagSelector 
+          allTags={allTags} 
+          defaultValue={task.tags?.map((t: any) => t.tag.name).join(', ') || ''} 
+          name="tags" 
+          placeholder="Urgent, Synthèse, RDV..." 
+        />
       </div>
 
       {state.error && (

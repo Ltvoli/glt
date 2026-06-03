@@ -194,7 +194,7 @@ export async function updateQE(qeId: string, formData: FormData): Promise<{ erro
   }
 
   try {
-    await prisma.writtenQuestion.update({
+    const updatedQE = await prisma.writtenQuestion.update({
       where: { id: qeId },
       data: {
         title,

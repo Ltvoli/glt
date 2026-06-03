@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { Settings, Eye, EyeOff } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Settings } from 'lucide-react'
 
 type Column = {
   id: string
@@ -13,10 +13,10 @@ type Column = {
 const ALL_COLUMNS: Column[] = [
   { id: 'firstName', label: 'Prénom', defaultVisible: true },
   { id: 'lastName', label: 'Nom', defaultVisible: true },
-  { id: 'streetNumber', label: 'Numéro', defaultVisible: false },
-  { id: 'streetName', label: 'Rue/voie', defaultVisible: false },
+  { id: 'streetNumber', label: 'Numéro', defaultVisible: true },
+  { id: 'streetName', label: 'Rue/voie', defaultVisible: true },
+  { id: 'postalCode', label: 'Code postal', defaultVisible: true },
   { id: 'city', label: 'Ville', defaultVisible: true },
-  { id: 'postalCode', label: 'Code postal', defaultVisible: false },
   { id: 'email', label: 'Email', defaultVisible: true },
   { id: 'phone', label: 'Téléphone fixe', defaultVisible: false },
   { id: 'mobilePhone', label: 'Portable', defaultVisible: true },
@@ -30,6 +30,7 @@ const ALL_COLUMNS: Column[] = [
 ]
 
 export default function ContactsTable({ contacts }: { contacts: any[] }) {
+  const router = useRouter()
   const [visibleColumns, setVisibleColumns] = useState<string[]>(
     ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.id)
   )
@@ -124,39 +125,45 @@ export default function ContactsTable({ contacts }: { contacts: any[] }) {
       </div>
 
       <div className="card" style={{ overflowX: 'auto' }}>
-        <table className="table" style={{ whiteSpace: 'nowrap' }}>
+        <table className="table" style={{ whiteSpace: 'nowrap', width: '100%' }}>
           <thead>
             <tr>
               {ALL_COLUMNS.filter(c => visibleColumns.includes(c.id)).map(col => (
                 <th key={col.id}>{col.label}</th>
               ))}
-              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {contacts.length === 0 ? (
               <tr>
-                <td colSpan={visibleColumns.length + 1} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                <td colSpan={visibleColumns.length} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                   Aucun contact trouvé.
                 </td>
               </tr>
             ) : (
               contacts.map(contact => (
-                <tr key={contact.id}>
+                <tr 
+                  key={contact.id} 
+                  onClick={() => router.push(`/contacts/${contact.id}`)}
+                  style={{ cursor: 'pointer' }}
+                  className="hoverable-row"
+                >
                   {ALL_COLUMNS.filter(c => visibleColumns.includes(c.id)).map(col => (
                     <td key={col.id}>{renderCell(contact, col.id)}</td>
                   ))}
-                  <td>
-                    <Link href={`/contacts/${contact.id}`} className="button outline" style={{ padding: '0.25rem 0.5rem' }}>
-                      <Eye size={14} /> Voir
-                    </Link>
-                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+      
+      {/* Petit style en ligne pour le survol de la ligne */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .hoverable-row:hover {
+          background-color: #f1f5f9;
+        }
+      `}} />
     </div>
   )
 }

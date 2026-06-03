@@ -2,16 +2,18 @@
 
 import { useActionState } from 'react'
 import { createTask } from '../actions'
+import TagSelector from '@/components/ui/tag-selector'
 
 const initialState = {
   error: ''
 }
 
-export default function TaskForm({ users }: { users: any[] }) {
+export default function TaskForm({ users, contactId, allTags = [] }: { users: any[], contactId?: string, allTags?: any[] }) {
   const [state, formAction, isPending] = useActionState(createTask, initialState)
 
   return (
     <form action={formAction}>
+      {contactId && <input type="hidden" name="contactId" value={contactId} />}
       <div className="form-group">
         <label htmlFor="title">Titre de la tâche *</label>
         <input type="text" id="title" name="title" className="form-control" required />
@@ -64,8 +66,8 @@ export default function TaskForm({ users }: { users: any[] }) {
       </div>
 
       <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="tags">Tags (séparés par des virgules)</label>
-        <input type="text" id="tags" name="tags" className="form-control" placeholder="Urgent, Synthèse, RDV..." />
+        <label htmlFor="tags">Tags</label>
+        <TagSelector allTags={allTags} name="tags" placeholder="Urgent, Synthèse, RDV..." />
       </div>
 
       {state.error && (

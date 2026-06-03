@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import { createQE } from '../actions'
 
 const initialState = {
@@ -31,14 +31,73 @@ const MINISTRIES = [
 
 export default function QEForm({ users, contacts, tasks, mails }: { users: {id: string; name: string}[], contacts: {id: string; firstName: string; lastName: string}[], tasks: {id: string; title: string}[], mails?: {id: string; subject: string; reference: string}[] }) {
   const [state, formAction, isPending] = useActionState(createQE, initialState)
+  
+  const [anNumber, setAnNumber] = useState('')
+  const [legislature, setLegislature] = useState('17')
+  const [isScraping, setIsScraping] = useState(false)
+  const [scrapeError, setScrapeError] = useState('')
+
+  // Controlled inputs for scraped data
+  const [title, setTitle] = useState('')
+  const [ministry, setMinistry] = useState('')
+  const [content, setContent] = useState('')
+
+  const handleScrape = async () => {
+    if (!anNumber) return
+    setIsScraping(true)
+    setScrapeError('')
+    try {
+      const res = await fetch(`/api/qe/scrape?number=${anNumber}&legislature=${legislature}`)
+      if (!res.ok) {
+        throw new Error(await res.text())
+      }
+      const data = await res.json()
+      setTitle(data.title || '')
+      
+      // Auto select ministry if it matches
+      if (data.ministry) {
+        const matched = MINISTRIES.find(m => m.toLowerCase().includes(data.ministry.toLowerCase()) || data.ministry.toLowerCase().includes(m.toLowerCase()))
+        if (matched) setMinistry(matched)
+        else setMinistry('Autre') // Or custom logic
+      }
+      
+      setContent(data.text || '')
+    } catch (err: any) {
+      setScrapeError(err.message)
+    } finally {
+      setIsScraping(false)
+    }
+  }
 
   return (
     <form action={formAction}>
-      <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Informations principales</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Informations principales</h3>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <select value={legislature} onChange={e => setLegislature(e.target.value)} className="form-control" style={{ width: 'auto', padding: '0.25rem' }}>
+            <option value="17">17ème législature</option>
+            <option value="16">16ème législature</option>
+            <option value="15">15ème législature</option>
+          </select>
+          <input 
+            type="text" 
+            placeholder="N° (ex: 1234)" 
+            className="form-control" 
+            style={{ width: '120px', padding: '0.25rem' }} 
+            value={anNumber}
+            onChange={e => setAnNumber(e.target.value)}
+          />
+          <button type="button" className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }} onClick={handleScrape} disabled={isScraping || !anNumber}>
+            {isScraping ? 'Recherche...' : 'Auto-compléter (AN)'}
+          </button>
+        </div>
+      </div>
+      
+      {scrapeError && <div style={{ color: 'var(--danger)', fontSize: '0.875rem', marginBottom: '1rem' }}>{scrapeError}</div>}
       
       <div className="form-group" style={{ marginBottom: '1.5rem' }}>
         <label htmlFor="title">Titre de la question *</label>
-        <input type="text" id="title" name="title" className="form-control" required placeholder="Ex: Conséquences de la réforme X sur le territoire..." />
+        <input type="text" id="title" name="title" className="form-control" required placeholder="Ex: Conséquences de la réforme X sur le territoire..." value={title} onChange={e => setTitle(e.target.value)} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
@@ -53,7 +112,7 @@ export default function QEForm({ users, contacts, tasks, mails }: { users: {id: 
         </div>
         <div className="form-group">
           <label htmlFor="ministry">Ministère interrogé *</label>
-          <select id="ministry" name="ministry" className="form-control" required defaultValue="">
+          <select id="ministry" name="ministry" className="form-control" required value={ministry} onChange={e => setMinistry(e.target.value)}>
             <option value="" disabled>Sélectionner un ministère</option>
             {MINISTRIES.map(m => (
               <option key={m} value={m}>{m}</option>
@@ -65,7 +124,7 @@ export default function QEForm({ users, contacts, tasks, mails }: { users: {id: 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
         <div className="form-group">
           <label htmlFor="anNumber">Numéro AN</label>
-          <input type="text" id="anNumber" name="anNumber" className="form-control" />
+          <input type="text" id="anNumber" name="anNumber" className="form-control" value={anNumber} onChange={e => setAnNumber(e.target.value)} />
         </div>
         <div className="form-group">
           <label htmlFor="theme">Thématique</label>
@@ -109,7 +168,7 @@ export default function QEForm({ users, contacts, tasks, mails }: { users: {id: 
 
       <div className="form-group" style={{ marginBottom: '1.5rem' }}>
         <label htmlFor="content">Texte de la question</label>
-        <textarea id="content" name="content" className="form-control" rows={10} placeholder="Rédigez le contenu de la question ici..."></textarea>
+        <textarea id="content" name="content" className="form-control" rows={10} placeholder="Rédigez le contenu de la question ici..." value={content} onChange={e => setContent(e.target.value)}></textarea>
       </div>
 
       <div className="form-group" style={{ marginBottom: '1.5rem' }}>

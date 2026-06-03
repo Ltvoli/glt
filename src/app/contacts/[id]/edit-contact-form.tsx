@@ -1,16 +1,16 @@
 'use client'
 
 import { useActionState } from 'react'
-import { updateContact, archiveContact } from './actions'
+import { updateContact } from './actions'
+import TagSelector from '@/components/ui/tag-selector'
 
 const initialState = {
   error: '',
   success: false
 }
 
-export default function EditContactForm({ contact }: { contact: any }) {
+export default function EditContactForm({ contact, allTags = [] }: { contact: any, allTags?: any[] }) {
   const [state, formAction, isPending] = useActionState(updateContact, initialState)
-  const [archiveState, archiveAction, isArchiving] = useActionState(archiveContact, initialState)
 
   return (
     <div>
@@ -145,9 +145,14 @@ export default function EditContactForm({ contact }: { contact: any }) {
         </div>
 
         <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-          <label htmlFor="tags">Tags (séparés par des virgules)</label>
-          <input type="text" id="tags" name="tags" className="form-control" defaultValue={contact.tags?.map((ct: any) => ct.tag.name).join(', ') || ''} placeholder="Ex: Chasseur, Retraité, Buraliste..." />
-        </div>
+        <label htmlFor="tags">Tags</label>
+        <TagSelector 
+          allTags={allTags} 
+          defaultValue={contact.tags?.map((ct: any) => ct.tag.name).join(', ') || ''} 
+          name="tags" 
+          placeholder="Ex: Chasseur, Retraité, Buraliste..." 
+        />
+      </div>
 
         <div className="form-group" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <input type="checkbox" id="newsletter" name="newsletter" value="true" defaultChecked={contact.newsletter} />
@@ -177,19 +182,6 @@ export default function EditContactForm({ contact }: { contact: any }) {
           </button>
         </div>
       </form>
-
-      <div style={{ marginTop: '3rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--danger)', marginBottom: '1rem' }}>Zone de danger</h3>
-        <form action={archiveAction}>
-          <input type="hidden" name="id" value={contact.id} />
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-            L'archivage permet de cacher ce contact sans le supprimer définitivement de la base de données.
-          </p>
-          <button type="submit" className="button danger" disabled={isArchiving}>
-            {isArchiving ? 'Archivage...' : 'Archiver ce contact'}
-          </button>
-        </form>
-      </div>
     </div>
   )
 }

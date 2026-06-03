@@ -7,7 +7,7 @@ const initialState = {
   error: ''
 }
 
-export default function MailForm({ users, contacts, tasks, initialParentId, initialSubject }: { users: any[], contacts: any[], tasks: any[], initialParentId?: string, initialSubject?: string }) {
+export default function MailForm({ users, contacts, tasks, initialParentId, initialSubject, initialContactId }: { users: any[], contacts: any[], tasks: any[], initialParentId?: string, initialSubject?: string, initialContactId?: string }) {
   const [state, formAction, isPending] = useActionState(createMail, initialState)
   const [mailType, setMailType] = useState(initialParentId ? 'SORTANT' : 'ENTRANT')
 
@@ -107,7 +107,7 @@ export default function MailForm({ users, contacts, tasks, initialParentId, init
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
         <div className="form-group">
           <label htmlFor="contactId">Lier à un Contact</label>
-          <select id="contactId" name="contactId" className="form-control" defaultValue="">
+          <select id="contactId" name="contactId" className="form-control" defaultValue={initialContactId || ""}>
             <option value="">Aucun contact</option>
             {contacts.map(c => (
               <option key={c.id} value={c.id}>{c.lastName} {c.firstName}</option>

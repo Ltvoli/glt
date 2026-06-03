@@ -5,11 +5,11 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import MailForm from './mail-form'
 
-export default async function NewMailPage({ searchParams }: { searchParams: Promise<{ parentMailCaseId?: string, subject?: string }> }) {
+export default async function NewMailPage({ searchParams }: { searchParams: Promise<{ parentMailCaseId?: string, subject?: string, contactId?: string }> }) {
   const session = await getSession()
   if (!session?.userId) redirect('/login')
 
-  const { parentMailCaseId, subject } = await searchParams
+  const { parentMailCaseId, subject, contactId } = await searchParams
 
   const users = await prisma.user.findMany({ select: { id: true, name: true } })
   const contacts = await prisma.contact.findMany({ 
@@ -37,6 +37,7 @@ export default async function NewMailPage({ searchParams }: { searchParams: Prom
           tasks={tasks} 
           initialParentId={parentMailCaseId}
           initialSubject={subject}
+          initialContactId={contactId}
         />
       </div>
     </div>
