@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, CheckSquare, Mail, HelpCircle, CalendarDays, LogOut, Bell, FileText, Settings, ShieldAlert, Folder } from 'lucide-react'
+import { LayoutDashboard, Users, CheckSquare, Mail, HelpCircle, CalendarDays, LogOut, Bell, FileText, Settings, ShieldAlert, Folder, MapPin } from 'lucide-react'
 import { logoutAction as logout } from '@/lib/auth-actions'
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
   { name: 'Questions (QE)', href: '/qe', icon: HelpCircle },
   { name: 'Documents', href: '/documents', icon: Folder },
   { name: 'Planning', href: '/planning', icon: CalendarDays },
+  { name: 'Permanences', href: '/permanences', icon: MapPin },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Rapports', href: '/reports/weekly', icon: FileText },
   { name: 'Tags (Paramètres)', href: '/settings/tags', icon: Settings },
@@ -28,7 +29,8 @@ export default function Sidebar({ userRole, activeModules = [] }: { userRole?: s
     '/mails': 'mailcases',
     '/qe': 'questions',
     '/planning': 'agenda',
-    '/reports/weekly': 'reports'
+    '/reports/weekly': 'reports',
+    '/permanences': 'permanences'
   }
 
   const items = navItems.filter(item => {

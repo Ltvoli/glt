@@ -55,6 +55,12 @@ model User {
   messageTemplates    MessageTemplate[] @relation("TemplateAuthor")
   apiKeys             ApiKey[] @relation("ApiKeyCreator")
   exportBackupLogs    ExportBackupLog[] @relation("ExportBackupUser")
+
+  // Permanence relations
+  ownedPermanences      MobilePermanence[] @relation("PermanenceOwner")
+  validatedPermanences  MobilePermanence[] @relation("PermanenceValidator")
+  permanenceTasks       PermanenceTask[]
+  permanenceSyntheses   PermanenceSynthesis[]
 }
 
 model Contact {
@@ -101,6 +107,7 @@ model Contact {
   duplicatesLeft    DuplicateCandidate[] @relation("Contact1")
   duplicatesRight   DuplicateCandidate[] @relation("Contact2")
   supportLevelHistory ContactSupportLevelHistory[] @relation("SupportLevelHistory")
+  permanenceContacts    PermanenceContact[]
 
   @@index([lastName])
   @@index([email])
@@ -557,4 +564,191 @@ model ExportBackupLog {
   userId      String?
   user        User?     @relation("ExportBackupUser", fields: [userId], references: [id])
   createdAt   DateTime  @default(now())
+}
+
+enum OrgType {
+  COMMERCE
+  ASSOCIATION
+  MAIRIE
+  MEDIA
+  INSTITUTION
+  OTHER
+}
+
+model Organization {
+  id          String    @id @default(cuid())
+  name        String
+  type        OrgType   @default(OTHER)
+  sector      String?
+  address     String?
+  city        String?
+  zipCode     String?
+  phone       String?
+  email       String?
+  website     String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+
+  permanenceOrganizations PermanenceOrganization[]
+}
+
+model Commune {
+  id          String    @id @default(cuid())
+  name        String
+  zipCode     String
+  inseeCode   String?   @unique
+  department  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  permanenceLocations PermanenceLocation[]
+}
+
+enum PermanenceStatus {
+  DRAFT         // Brouillon
+  IN_PROGRESS   // En préparation
+  TO_CORRECT    // À corriger
+  READY         // Prête
+  VALIDATED     // Validée
+  ARCHIVED      // Archivée
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  IMPOSSIBLE
+}
+
+enum CallStatus {
+  NOT_CALLED
+  REACHED
+  ABSENT
+  VOICEMAIL
+  APPOINTMENT_CONFIRMED
+  CALLBACK_REQUESTED
+  REFUSED
+}
+
+enum ContactRole {
+  PHONING
+  ELU
+  INSTITUTIONNEL
+  PRESSE
+  COMMERCANT
+  CITOYEN
+}
+
+model MobilePermanence {
+  id                 String             @id @default(cuid())
+  title              String
+  status             PermanenceStatus   @default(DRAFT)
+  score              Int                @default(0)  // 0-100, calculé côté serveur
+  scheduledStartDate DateTime
+  ownerUserId        String
+  ownerUser          User               @relation("PermanenceOwner", fields: [ownerUserId], references: [id])
+  validationUserId   String?
+  validationUser     User?              @relation("PermanenceValidator", fields: [validationUserId], references: [id])
+  validationComment  String?
+  notes              String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  archivedAt         DateTime?
+
+  locations         PermanenceLocation[]
+  tasks             PermanenceTask[]
+  contacts          PermanenceContact[]
+  organizations     PermanenceOrganization[]
+  synthesis         PermanenceSynthesis?
+}
+
+model PermanenceLocation {
+  id              String    @id @default(cuid())
+  permanenceId    String
+  permanence      MobilePermanence @relation(fields: [permanenceId], references: [id], onDelete: Cascade)
+  communeId       String?
+  commune         Commune?  @relation(fields: [communeId], references: [id])
+  communeName     String    // Dénormalisé pour affichage si commune libre
+  date            DateTime
+  startTime       String?   // "09:00"
+  endTime         String?   // "12:00"
+  address         String?
+  parkingNotes    String?
+  parkingStatus   TaskStatus @default(TODO)
+  mairieContactId String?
+  order           Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model PermanenceTask {
+  id             String    @id @default(cuid())
+  permanenceId   String
+  permanence     MobilePermanence @relation(fields: [permanenceId], references: [id], onDelete: Cascade)
+  section        String    // "communication" | "phoning" | "courrier" | "commercants" | "institutionnel" | "logistique"
+  label          String
+  status         TaskStatus @default(TODO)
+  assigneeUserId String?
+  assigneeUser   User?     @relation(fields: [assigneeUserId], references: [id])
+  dueDate        DateTime?
+  required       Boolean   @default(false)
+  comment        String?
+  order          Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model PermanenceContact {
+  id                       String      @id @default(cuid())
+  permanenceId             String
+  permanence               MobilePermanence @relation(fields: [permanenceId], references: [id], onDelete: Cascade)
+  contactId                String?
+  contact                  Contact?    @relation(fields: [contactId], references: [id])
+  // Champs dénormalisés pour import CSV (contact sans fiche CRM)
+  firstName                String?
+  lastName                 String?
+  phone                    String?
+  email                    String?
+  city                     String?
+  role                     ContactRole @default(PHONING)
+  callStatus               CallStatus  @default(NOT_CALLED)
+  requestSummary           String?
+  requiresDeputyAttention  Boolean     @default(false)
+  createdAt                DateTime    @default(now())
+  updatedAt                DateTime    @updatedAt
+}
+
+model PermanenceOrganization {
+  id                  String       @id @default(cuid())
+  permanenceId        String
+  permanence          MobilePermanence @relation(fields: [permanenceId], references: [id], onDelete: Cascade)
+  organizationId      String?
+  organization        Organization? @relation(fields: [organizationId], references: [id])
+  // Champs dénormalisés si organisation non CRM
+  orgName             String?
+  type                OrgType      @default(COMMERCE)
+  sector              String?
+  attitude            String?      // "favorable" | "neutre" | "defavorable"
+  concern             String?
+  visitRecommended    Boolean      @default(false)
+  visited             Boolean      @default(false)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+}
+
+model PermanenceSynthesis {
+  id               String    @id @default(cuid())
+  permanenceId     String    @unique
+  permanence       MobilePermanence @relation(fields: [permanenceId], references: [id], onDelete: Cascade)
+  attentionPoints  String?
+  merchantProgram  String?
+  phoningTopics    String?
+  recommendations  String?
+  signedByUserId   String?
+  signedByUser     User?     @relation(fields: [signedByUserId], references: [id])
+  signedAt         DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }

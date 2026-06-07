@@ -13,8 +13,8 @@ const modulePathMap: Record<string, string> = {
   '/mails': 'mailcases',
   '/qe': 'questions',
   '/planning': 'agenda',
-  '/reports': 'reports'
-  // /documents and others could be added or considered base features
+  '/reports': 'reports',
+  '/permanences': 'permanences'
 }
 
 export async function middleware(req: NextRequest) {
