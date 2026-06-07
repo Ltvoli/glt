@@ -1,4 +1,3 @@
-import { authenticate } from './actions'
 import { redirect } from 'next/navigation'
 import LoginForm from './login-form'
 

@@ -17,7 +17,7 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
     where: { id },
     include: {
       assignee: { select: { name: true } },
-      attachments: true,
+      documents: true,
       links: {
         include: {
           contact: { select: { id: true, firstName: true, lastName: true } },
@@ -145,7 +145,7 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
           
           <div className="card">
             <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Pièces jointes</h3>
-            <MailAttachments mailId={mail.id} initialAttachments={mail.attachments} />
+            <MailAttachments mailId={mail.id} initialAttachments={mail.documents} />
           </div>
         </div>
 

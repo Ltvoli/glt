@@ -26,11 +26,13 @@ export async function createContact(prevState: any, formData: FormData): Promise
   const streetName = formData.get('streetName') as string
   const postalCode = formData.get('postalCode') as string
   const supportLevel = formData.get('supportLevel') as string
+  const meetingStep = formData.get('meetingStep') as string
 
   const territorySector = formData.get('territorySector') as string
   const source = formData.get('source') as string
   const whatsappStatus = formData.get('whatsappStatus') as string
   const newsletter = formData.get('newsletter') === 'true'
+  const smsConsent = formData.get('smsConsent') === 'true'
   const linkedinUrl = formData.get('linkedinUrl') as string
   const notes = formData.get('notes') as string
   const tagsString = formData.get('tags') as string
@@ -77,7 +79,9 @@ export async function createContact(prevState: any, formData: FormData): Promise
         territorySector: territorySector || null,
         source: source || null,
         whatsappStatus: whatsappStatus || null,
+        meetingStep: meetingStep || null,
         newsletter,
+        smsConsent,
         linkedinUrl: linkedinUrl || null,
         notes: notes || null,
         createdById: session.userId,

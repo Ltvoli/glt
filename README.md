@@ -1,79 +1,152 @@
-# Système de gestion du bureau parlementaire
+# CDC SaaS - Système de Gestion du Bureau Parlementaire (v2)
 
-Logiciel interne de gestion pour le bureau parlementaire du député Lionel Tivoli, permettant à l'équipe de centraliser les contacts, tâches, courriers, questions écrites et plannings.
+Ce projet est le logiciel interne de gestion et de paramétrage du bureau parlementaire du député **Lionel Tivoli**. Il permet à l'équipe de centraliser les contacts, les tâches, les courriers, les questions écrites, les plannings des salariés et d'exporter des rapports d'activité de manière sécurisée et centralisée.
 
-## Modules
-- [x] **Phase 1** : Base de données, Auth, Contacts (Qomon import)
-- [x] **Phase 2** : Tâches, Dashboard 7 jours, Notifications
-- [x] **Phase 3** : Courriers entrants/sortants
-- [x] **Phase 4** : Questions Écrites (QE, QAG, Amendements)
-- [x] **Phase 5** : Agenda, Planning mensuel, Compteurs de jours travaillés et Rapports
+---
 
-### Phase 5 — Agenda, planning salariés et rapports
-- **Calendrier Mensuel** : Affichage interactif avec pré-remplissage automatique des week-ends et des jours fériés français.
-- **Statuts Couleurs** : Vert (Travaillé), Blanc (Non travaillé), Rouge (Congé Payé), Jaune (Jour Férié), Gris (Week-end).
-- **Période Annuelle** : La période de référence pour les quotas court par défaut du **1er Juin au 31 Mai**.
-- **Paramétrage Quotas** : Vue dédiée permettant à un administrateur (Magali / Lionel) de définir le nombre de jours annuels de chaque salarié (ex: 218 jours).
-- **Exports & Rapports** : Une page de "Rapports Hebdomadaires Globaux" agrégeant les KPIs des tâches, courriers, questions écrites et les compteurs du planning (avec support de l'impression PDF/papier).
-- **Permissions** : La saisie et le paramétrage sont restreints à l'administrateur (Magali/Lionel). Les modifications déclenchent une journalisation dans l'AuditLog.
+## 🚀 Stack Technique
 
+* **Framework :** [Next.js 16 (App Router)](https://nextjs.org/)
+* **Base de données :** [PostgreSQL](https://www.postgresql.org/) avec [Prisma ORM 6+](https://www.prisma.io/)
+* **Gestion des sessions & Sécurité :** JWT chiffrés avec [jose](https://github.com/panva/jose) (compatible Edge Runtime) et hashage [bcryptjs](https://github.com/dcodeIO/bcrypt.js)
+* **Interface & Styles :** CSS Modules (Vanilla CSS) avec variables de design système centralisées
+* **Interactions avancées :** Drag & Drop avec `@dnd-kit` (pour l'organisation dynamique des pages) et graphiques avec `Recharts`
 
-## Architecture Cible & Phase 0
-Ce projet est développé selon une méthode stricte détaillée dans le fichier `.antigravity-rules.md`. 
-Le backend repose sur les Server Actions de Next.js, tandis que la base de données actuelle (SQLite + Prisma) a vocation à basculer vers PostgreSQL pour garantir la scalabilité et les sauvegardes automatiques en production. L'authentification est internalisée via JWT (`jose`) et le hashage `bcryptjs`.
-Le projet est protégé par le RGPD via l'utilisation de suppressions logiques (`archivedAt`), de journaux d'audit et d'une validation centralisée.
+---
 
-## Modules Fonctionnels
-- [x] **Phase 1** : Base de données, Auth, Contacts (Qomon import)
-- [x] **Phase 2** : Tâches, Dashboard 7 jours, Notifications
-- [x] **Phase 3** : Courriers entrants/sortants
-- [x] **Phase 4** : Questions Écrites (QE, QAG, Amendements)
-- [x] **Phase 5** : Agenda, Planning mensuel, Compteurs de jours travaillés et Rapports (Vanilla CSS) avec variables CSS
+## 🛠️ Modules Fonctionnels du CRM
 
+1. **👥 Contacts & Électeurs**
+   * Création, édition et filtrage multicritères des fiches de contacts.
+   * Importation de fichiers CSV (Qomon) avec détection intelligente des doublons, validation ou fusion par un administrateur.
+   * *RGPD :* Consentements explicites pour les SMS et newsletters, anonymisation et soft-delete (`archivedAt`).
 
-## Stack Technique (Phase 1)
-- **Framework :** Next.js (App Router)
-- **Base de données :** SQLite (via Prisma ORM)
-- **Authentification :** Sessions JWT chiffrées personnalisées
-- **Style :** CSS Modules (Vanilla CSS) avec variables CSS
+2. **📋 Tâches & Livrables**
+   * Assignation des tâches à un membre de l'équipe avec indicateur de priorité (`HAUTE`, `NORMALE`, `BASSE`).
+   * Décomposition en sous-tâches, commentaires internes et dépôt de livrables attendus.
 
-## Installation locale
+3. **✉️ Courriers Entrants & Sortants**
+   * Enregistrement des courriers (canaux : postal, email, autre) avec génération automatique de références uniques (ex: `COU-2026-0042`).
+   * Association des réponses aux courriers d'origine pour un suivi de discussion clair.
 
-1. **Prérequis :** Node.js 18+ installé sur la machine.
-2. **Cloner / Télécharger** le répertoire.
-3. **Installer les dépendances :**
+4. **🏛️ Questions Écrites (QE, QAG & Amendements)**
+   * Suivi des interventions déposées à l'Assemblée Nationale (numérotation AN, ministère cible, thème, dates clés).
+   * Système d'alertes pour relancer les ministères si la date limite de réponse est dépassée.
+
+5. **📅 Planning & Présences Salariés**
+   * Agenda mensuel interactif pour la saisie des jours travaillés (Paris, Circo, Télétravail, Déplacement) et des absences (Congés, Maladie).
+   * Pré-remplissage automatique des week-ends et des jours fériés français.
+   * Décompte annuel automatique avec quotas personnalisés par salarié (par défaut 218 jours sur la période de référence du 1er juin au 31 mai).
+
+6. **📊 Rapports & KPI**
+   * Dashboard sur 7 jours dynamique et rapports d'activité hebdomadaires complets imprimables (PDF).
+
+---
+
+## 🛡️ Administration & SaaS (Phase 12)
+
+Le système intègre un panneau d'administration centralisé pour piloter l'ensemble de l'instance :
+
+* **RBAC (Role-Based Access Control) Strict :**
+  * Rôles prédéfinis : `SUPERADMIN`, `ADMIN`, `USER`, `READONLY`.
+  * Sécurité renforcée : Un utilisateur standard ne peut pas accéder aux routes `/admin/*`. Un `ADMIN` ne peut pas modifier, archiver ou dégrader un compte `SUPERADMIN`. L'auto-archivage et l'auto-modification de rôle sont impossibles.
+* **Gestion Dynamique des Modules & Pages :**
+  * Activation ou désactivation globale des modules (ex. masquer le module Courriers s'il n'est pas utilisé).
+  * Réorganisation de l'ordre des pages dans la sidebar par **Drag & Drop** via une interface ergonomique (`dnd-kit`).
+* **Paramètres Globaux (Settings) :**
+  * Configuration complète de l'application (nom, fuseau horaire, durée de session JWT, configuration des seuils de verrouillage de sécurité).
+  * Gestion des tables de référence système (types de contacts, origines des courriers).
+* **Journalisation d'Audit & Traçabilité :**
+  * Enregistrement de chaque action métier sensible (connexion, suppression, modification de rôles).
+  * Page de visualisation avec filtrage multicritères et export au format CSV (via `papaparse`).
+
+---
+
+## 💻 Configuration & Installation Locale
+
+### 1. Prérequis
+* [Node.js](https://nodejs.org/) v18+
+* [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/) (pour la base de données locale)
+
+### 2. Variables d'environnement
+Créez un fichier `.env` à la racine du projet en vous inspirant de `.env.example` :
+
+```env
+# URL de connexion PostgreSQL
+DATABASE_URL="postgresql://tivoli_user:tivoli_pass@localhost:5433/tivoli_db?schema=public"
+
+# Variables pour le conteneur PostgreSQL Docker
+POSTGRES_USER=tivoli_user
+POSTGRES_PASSWORD=tivoli_pass
+POSTGRES_DB=tivoli_db
+
+# Clé de chiffrement des sessions JWT
+JWT_SECRET="remplacez_par_une_cle_secrete_longue_en_production"
+```
+
+### 3. Lancement de la Base de Données
+Démarrez le conteneur PostgreSQL local :
+```bash
+docker-compose up -d db
+```
+
+### 4. Installation des Dépendances
+```bash
+npm install
+```
+
+### 5. Application des Migrations et Seeding
+Appliquez les schémas Prisma à la base de données et insérez les données par défaut (rôles, permissions, paramètres, modules et utilisateurs initiaux) :
+
+```bash
+npx prisma migrate dev
+npx prisma db seed
+```
+
+> 💡 **Comptes par défaut créés par le Seed :**
+> * **Super-Administrateur :** `admin@cdc.app` (Mot de passe : `Admin@123456!`)
+> * **Administrateur :** `manager@cdc.app` (Mot de passe : `Manager@123456!`)
+> * **Collaborateur :** `user@cdc.app` (Mot de passe : `User@123456!`)
+> * **Lecteur simple :** `readonly@cdc.app` (Mot de passe : `Readonly@123456!`)
+
+---
+
+## 🛠️ Commandes de Développement
+
+* **Lancer en mode développement :**
+  ```bash
+  npm run dev
+  ```
+  L'application est alors accessible à l'adresse : [http://localhost:3000](http://localhost:3000)
+
+* **Compiler l'application pour la production :**
+  ```bash
+  npm run build
+  ```
+
+* **Lancer l'application compilée :**
+  ```bash
+  npm start
+  ```
+
+* **Accéder au client Prisma Studio (visualisation de la BDD) :**
+  ```bash
+  npx prisma studio
+  ```
+
+---
+
+## 🐳 Déploiement en Production via Docker
+
+Le projet intègre un `Dockerfile` et un service `app` dans le fichier `docker-compose.yml`. Pour lancer l'ensemble de la stack (App + Base de données) en mode production :
+
+1. Ajustez les variables d'environnement dans votre fichier `.env`.
+2. Lancez la commande suivante :
    ```bash
-   npm install
+   docker-compose up -d --build
    ```
-4. **Configurer l'environnement :**
-   Copiez ou créez un fichier `.env` à la racine (généré automatiquement par Prisma normalement) :
-   ```env
-   DATABASE_URL="file:./dev.db"
-   SESSION_SECRET="remplacez_ceci_par_une_cle_secrete_très_longue_en_production"
-   ```
-5. **Initialiser la base de données :**
-   ```bash
-   npx prisma db push
-   npx tsx prisma/seed.ts
-   ```
-   *Note: Le script de seed crée les 5 utilisateurs prévus (Lionel, Magali, Andréa, Franck, Pierre) avec le mot de passe temporaire `password123`.*
 
-6. **Lancer le serveur de développement :**
-   ```bash
-   npm run dev
-   ```
-   Rendez-vous sur `http://localhost:3000`.
+---
 
-## Fonctionnalités de la Phase 1 (Actuelles)
-- Authentification sécurisée (login/logout).
-- Tableau de bord avec compteurs.
-- Gestion des contacts (Création, Édition, Archivage soft-delete).
-- Recherche multicritères sur les contacts.
-- Importation CSV Qomon avec détection de doublons basique (nom+tél, nom+email) et mise en attente.
-- Journalisation (Audit Log) de toutes les actions sur les contacts.
-
-## Déploiement en Production
-Pour un hébergement sur un serveur existant (Linux/Windows) :
-1. Construisez l'application : `npm run build`
-2. Lancez le serveur de production : `npm start`
-*Note : Il est fortement recommandé d'utiliser un gestionnaire de processus comme PM2 (`pm2 start npm --name "tivoli-crm" -- start`) et de configurer un reverse proxy Nginx avec un certificat HTTPS (Let's Encrypt) pour respecter le RGPD.*
+## 💾 Sauvegardes
+Un script de sauvegarde de la base de données PostgreSQL est disponible dans `scripts/db-backup.sh`. Il réalise des dumps SQL quotidiens et nettoie automatiquement les fichiers de sauvegarde vieux de plus de 30 jours.

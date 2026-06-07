@@ -17,7 +17,7 @@ export default async function QEDetailPage({ params }: { params: Promise<{ id: s
     where: { id },
     include: {
       assignee: { select: { name: true } },
-      attachments: true,
+      documents: true,
       links: {
         include: {
           contact: { select: { id: true, firstName: true, lastName: true } },
@@ -151,7 +151,7 @@ export default async function QEDetailPage({ params }: { params: Promise<{ id: s
           <div className="card no-print">
             <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Pièces jointes</h3>
             <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Ajoutez ici le brouillon Word, ou le scan du Journal Officiel de la publication.</p>
-            <QEAttachments qeId={qe.id} initialAttachments={qe.attachments} />
+            <QEAttachments qeId={qe.id} initialAttachments={qe.documents} />
           </div>
         </div>
 

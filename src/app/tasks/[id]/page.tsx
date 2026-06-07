@@ -20,7 +20,7 @@ export default async function TaskDetailPage({
     include: { 
       assignee: true,
       subtasks: true,
-      attachments: true,
+      documents: true,
       comments: { orderBy: { createdAt: 'desc' } },
       tags: { include: { tag: true } }
     }
@@ -70,7 +70,7 @@ export default async function TaskDetailPage({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div className="card">
             <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Pièces jointes</h2>
-            <TaskAttachments taskId={task.id} initialAttachments={task.attachments} />
+            <TaskAttachments taskId={task.id} initialAttachments={task.documents} />
           </div>
           
           <div className="card">

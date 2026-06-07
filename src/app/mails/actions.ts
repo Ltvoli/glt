@@ -146,14 +146,20 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
         throw new Error(`Erreur Supabase: ${uploadError.message}`)
       }
 
-      await prisma.attachment.create({
+      const extension = '.' + attachmentFile.name.split('.').pop()
+      await prisma.document.create({
         data: {
-          filename: attachmentFile.name,
-          filepath: uploadData.path,
+          originalName: attachmentFile.name,
+          storageName: uniqueFilename,
+          storagePath: uploadData.path,
           mimeType: attachmentFile.type,
+          extension,
           size: attachmentFile.size,
+          documentType: 'COURRIER',
+          confidentiality: 'INTERNE',
           mailCaseId: newMail.id,
-          uploadedById: session.userId
+          uploadedById: session.userId,
+          title: attachmentFile.name
         }
       })
     }

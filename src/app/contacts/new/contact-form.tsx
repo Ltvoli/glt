@@ -102,12 +102,23 @@ export default function ContactForm({ allTags = [] }: { allTags?: any[] }) {
         <div className="form-group">
           <label htmlFor="supportLevel">Niveau de Soutien</label>
           <select id="supportLevel" name="supportLevel" className="form-control" defaultValue="">
-            <option value="">Non évalué</option>
-            <option value="1">1 - Hostile</option>
-            <option value="2">2 - Indécis penchant hostile</option>
-            <option value="3">3 - Indécis / Neutre</option>
+            <option value="">Sélectionnez un niveau</option>
+            <option value="1">1 - Très défavorable</option>
+            <option value="2">2 - Défavorable</option>
+            <option value="3">3 - Neutre</option>
             <option value="4">4 - Favorable</option>
-            <option value="5">5 - Militant / Très favorable</option>
+            <option value="5">5 - Très favorable</option>
+          </select>
+        </div>
+        <div className="form-group">
+          <label htmlFor="meetingStep">Étape de la rencontre</label>
+          <select id="meetingStep" name="meetingStep" className="form-control" defaultValue="">
+            <option value="">Sélectionnez une étape</option>
+            <option value="Absent">Absent</option>
+            <option value="Accepté">Accepté</option>
+            <option value="Refusé">Refusé</option>
+            <option value="Repassés">Repassés</option>
+            <option value="Pas encore contactés">Pas encore contactés</option>
           </select>
         </div>
       </div>
@@ -141,7 +152,12 @@ export default function ContactForm({ allTags = [] }: { allTags?: any[] }) {
 
       <div className="form-group" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <input type="checkbox" id="newsletter" name="newsletter" value="true" />
-        <label htmlFor="newsletter" style={{ margin: 0 }}>Abonné à la Newsletter (Consentement RGPD validé)</label>
+        <label htmlFor="newsletter" style={{ margin: 0 }}>Abonné à la Newsletter (Consentement RGPD Email validé)</label>
+      </div>
+
+      <div className="form-group" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <input type="checkbox" id="smsConsent" name="smsConsent" value="true" />
+        <label htmlFor="smsConsent" style={{ margin: 0 }}>Consentement SMS (RGPD validé)</label>
       </div>
 
       <div className="form-group" style={{ marginBottom: '2rem' }}>

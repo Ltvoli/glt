@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { requireWriteAccess } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { requirePermission } from '@/lib/permissions'
 import { writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
@@ -93,14 +94,20 @@ export async function createQE(prevState: any, formData: FormData): Promise<{ er
 
       await writeFile(filepath, buffer)
 
-      await prisma.attachment.create({
+      const extension = '.' + attachmentFile.name.split('.').pop()
+      await prisma.document.create({
         data: {
-          filename: attachmentFile.name,
-          filepath: filepath,
+          originalName: attachmentFile.name,
+          storageName: uniqueSuffix + '-' + attachmentFile.name,
+          storagePath: filepath,
           mimeType: attachmentFile.type,
+          extension,
           size: attachmentFile.size,
+          documentType: 'QE',
+          confidentiality: 'INTERNE',
           questionId: newQE.id,
-          uploadedById: session.userId
+          uploadedById: session.userId,
+          title: attachmentFile.name
         }
       })
     }
@@ -235,12 +242,80 @@ export async function archiveQE(qeId: string) {
   await prisma.auditLog.create({
     data: {
       action: isArchived ? 'RESTORE' : 'ARCHIVE',
-      entityType: 'WrittenQuestion',
+      entity: 'WrittenQuestion',
       entityId: qeId,
       userId: session.userId,
     }
   })
 
   revalidatePath(`/qe/${qeId}`)
+  revalidatePath('/qe')
+}
+
+export async function relaunchQe(qeId: string) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_QE')
+
+  const qe = await prisma.writtenQuestion.findUnique({ where: { id: qeId } })
+  if (!qe) throw new Error('QE introuvable')
+
+  // Create a task for the reminder
+  await prisma.task.create({
+    data: {
+      title: `Relance QE: ${qe.title}`,
+      description: `La question écrite ${qe.anNumber || ''} a dépassé les 60 jours sans réponse. Merci de relancer le ministère (${qe.ministry}).`,
+      priority: 'HAUTE',
+      status: 'A_FAIRE',
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Due in 7 days
+      assigneeId: session.userId, // Assign to the person triggering the relaunch
+    }
+  })
+
+  // Update QE status
+  await prisma.writtenQuestion.update({
+    where: { id: qeId },
+    data: {
+      reminderStatus: 'A_RELANCER',
+      followUpAction: 'RELANCE'
+    }
+  })
+
+  revalidatePath('/qe')
+}
+
+export async function redepositQe(qeId: string) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_QE')
+
+  const qe = await prisma.writtenQuestion.findUnique({ where: { id: qeId } })
+  if (!qe) throw new Error('QE introuvable')
+
+  // Create duplicate
+  const newQe = await prisma.writtenQuestion.create({
+    data: {
+      title: `${qe.title} (Redépôt)`,
+      type: qe.type,
+      ministry: qe.ministry,
+      theme: qe.theme,
+      content: qe.content,
+      status: 'BROUILLON',
+      linkedOriginalQeId: qe.id,
+      notes: "Redépôt suite absence de réponse après 60 jours",
+      createdById: session.userId,
+    }
+  })
+
+  // Update original
+  await prisma.writtenQuestion.update({
+    where: { id: qeId },
+    data: {
+      status: 'RETOUR_EFFECTUE',
+      redepositSuggested: true,
+      redepositDate: new Date(),
+      followUpAction: 'REDEPOT',
+      followUpNotes: `Redéposée sous le nouveau brouillon (ID: ${newQe.id})`
+    }
+  })
+
   revalidatePath('/qe')
 }

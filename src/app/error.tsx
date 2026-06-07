@@ -19,7 +19,8 @@ export default function GlobalError({
       <div style={{ maxWidth: '500px', backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', textAlign: 'center' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#dc2626', marginBottom: '1rem' }}>Oups ! Un problème est survenu.</h2>
         <p style={{ color: '#475569', marginBottom: '1.5rem' }}>
-          Une erreur inattendue s'est produite. L'incident a été automatiquement signalé à nos équipes.
+          Une erreur inattendue s'est produite. L'incident a été automatiquement signalé à nos équipes.<br/><br/>
+          <strong>Détails:</strong> {error.message}
         </p>
         
         {error.digest && (

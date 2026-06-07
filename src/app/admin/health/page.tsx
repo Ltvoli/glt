@@ -96,7 +96,7 @@ export default async function AdminHealthPage() {
               {recentErrors.map(err => (
                 <tr key={err.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '0.5rem' }}>{new Date(err.createdAt).toLocaleString('fr-FR')}</td>
-                  <td style={{ padding: '0.5rem' }}>{err.entityType}</td>
+                  <td style={{ padding: '0.5rem' }}>{err.entity}</td>
                   <td style={{ padding: '0.5rem', color: '#dc2626' }}>{err.newValues}</td>
                 </tr>
               ))}

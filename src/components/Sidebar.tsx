@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, CheckSquare, Mail, HelpCircle, CalendarDays, LogOut, Bell, FileText, Settings } from 'lucide-react'
-import { logout } from '@/lib/auth-actions'
+import { LayoutDashboard, Users, CheckSquare, Mail, HelpCircle, CalendarDays, LogOut, Bell, FileText, Settings, ShieldAlert, Folder } from 'lucide-react'
+import { logoutAction as logout } from '@/lib/auth-actions'
 
 const navItems = [
   { name: 'Tableau de bord', href: '/', icon: LayoutDashboard },
@@ -11,6 +11,7 @@ const navItems = [
   { name: 'Tâches', href: '/tasks', icon: CheckSquare },
   { name: 'Courriers', href: '/mails', icon: Mail },
   { name: 'Questions (QE)', href: '/qe', icon: HelpCircle },
+  { name: 'Documents', href: '/documents', icon: Folder },
   { name: 'Planning', href: '/planning', icon: CalendarDays },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Rapports', href: '/reports/weekly', icon: FileText },
@@ -18,13 +19,25 @@ const navItems = [
   { name: 'RGPD & Sécurité', href: '/rgpd', icon: ShieldAlert },
 ]
 
-import { ShieldAlert } from 'lucide-react'
-
-export default function Sidebar({ userRole }: { userRole?: string }) {
+export default function Sidebar({ userRole, activeModules = [] }: { userRole?: string, activeModules?: string[] }) {
   const pathname = usePathname()
 
-  const items = [...navItems]
-  if (userRole === 'SUPERADMIN') {
+  const moduleMap: Record<string, string> = {
+    '/contacts': 'contacts',
+    '/tasks': 'tasks',
+    '/mails': 'mailcases',
+    '/qe': 'questions',
+    '/planning': 'agenda',
+    '/reports/weekly': 'reports'
+  }
+
+  const items = navItems.filter(item => {
+    const mod = moduleMap[item.href]
+    if (mod) return activeModules.includes(mod)
+    return true // Always show items that are not tied to a specific toggleable module
+  })
+
+  if (userRole === 'SUPERADMIN' || userRole === 'ADMIN') {
     items.push({ name: 'Administration', href: '/admin', icon: ShieldAlert })
   }
 
@@ -51,21 +64,34 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
             const Icon = item.icon
             return (
-              <li key={item.name}>
+              <li key={item.name} style={{ margin: '0.25rem 1rem' }}>
                 <Link 
                   href={item.href}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem',
-                    padding: '0.75rem 1.5rem',
-                    backgroundColor: isActive ? 'var(--sidebar-hover)' : 'transparent',
-                    color: isActive ? 'white' : 'var(--text-muted)',
-                    transition: 'background-color 0.2s, color 0.2s',
-                    borderLeft: isActive ? '4px solid var(--primary)' : '4px solid transparent'
+                    padding: '0.6rem 1rem',
+                    backgroundColor: isActive ? 'var(--sidebar-active)' : 'transparent',
+                    color: isActive ? 'white' : '#94a3b8',
+                    transition: 'all 0.2s ease',
+                    borderRadius: '8px',
+                    fontWeight: isActive ? 500 : 400,
+                  }}
+                  onMouseOver={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = 'var(--sidebar-hover)'
+                      e.currentTarget.style.color = '#e2e8f0'
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                      e.currentTarget.style.color = '#94a3b8'
+                    }
                   }}
                 >
-                  <Icon size={20} />
+                  <Icon size={18} />
                   {item.name}
                 </Link>
               </li>
@@ -75,6 +101,41 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
       </nav>
 
       <div style={{ padding: '0 1.5rem', marginTop: 'auto' }}>
+        {(userRole === 'ADMIN' || userRole === 'SUPERADMIN') && (
+          <Link 
+            href="/settings"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              width: '100%',
+              padding: '0.75rem',
+              backgroundColor: pathname.startsWith('/settings') ? 'var(--sidebar-active)' : 'transparent',
+              color: pathname.startsWith('/settings') ? 'white' : 'var(--text-muted)',
+              border: 'none',
+              cursor: 'pointer',
+              textAlign: 'left',
+              borderRadius: '6px',
+              transition: 'background-color 0.2s',
+              marginBottom: '0.5rem',
+              fontWeight: pathname.startsWith('/settings') ? 500 : 400,
+            }}
+            onMouseOver={(e) => {
+              if (!pathname.startsWith('/settings')) {
+                e.currentTarget.style.backgroundColor = 'var(--sidebar-hover)'
+              }
+            }}
+            onMouseOut={(e) => {
+              if (!pathname.startsWith('/settings')) {
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }
+            }}
+          >
+            <Settings size={20} />
+            Settings
+          </Link>
+        )}
+
         <button 
           onClick={async () => { await logout() }}
           style={{

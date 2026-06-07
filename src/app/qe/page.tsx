@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma'
 import Link from 'next/link'
-import { Plus, Download } from 'lucide-react'
+import { Plus, Download, AlertTriangle } from 'lucide-react'
+import { relaunchQe, redepositQe } from './actions'
 
 export default async function QEPage({
   searchParams,
@@ -48,12 +49,12 @@ export default async function QEPage({
   }
 
   const getDelayAlert = (status: string, depositDate: Date | null) => {
-    if (status !== 'EN_ATTENTE' || !depositDate) return '-'
+    if (status !== 'EN_ATTENTE' || !depositDate) return { text: '-', isLate: false }
     const daysDiff = Math.floor((new Date().getTime() - depositDate.getTime()) / (1000 * 3600 * 24))
-    if (daysDiff > 60) {
-      return <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>{daysDiff}j (Alerte &gt;60j)</span>
+    if (daysDiff >= 60) {
+      return { text: `${daysDiff}j (Alerte >60j)`, isLate: true }
     }
-    return <span>{daysDiff}j</span>
+    return { text: `${daysDiff}j`, isLate: false }
   }
 
   return (
@@ -135,11 +136,37 @@ export default async function QEPage({
                   <td>{qe.theme || '-'}</td>
                   <td>{qe.depositDate ? new Date(qe.depositDate).toLocaleDateString('fr-FR') : '-'}</td>
                   <td>{getStatusBadge(qe.status)}</td>
-                  <td>{getDelayAlert(qe.status, qe.depositDate)}</td>
                   <td>
-                    <Link href={`/qe/${qe.id}`} className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                      Voir
-                    </Link>
+                    {(() => {
+                      const delay = getDelayAlert(qe.status, qe.depositDate)
+                      if (delay.isLate) {
+                        return <span style={{ color: 'var(--danger)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><AlertTriangle size={14} /> {delay.text}</span>
+                      }
+                      return <span>{delay.text}</span>
+                    })()}
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <Link href={`/qe/${qe.id}`} className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
+                        Voir
+                      </Link>
+                      {getDelayAlert(qe.status, qe.depositDate).isLate && (
+                        <>
+                          <form action={async () => {
+                            'use server'
+                            await relaunchQe(qe.id)
+                          }}>
+                            <button type="submit" className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--warning)', color: 'var(--warning)' }}>Relancer</button>
+                          </form>
+                          <form action={async () => {
+                            'use server'
+                            await redepositQe(qe.id)
+                          }}>
+                            <button type="submit" className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--danger)', color: 'var(--danger)' }}>Redéposer</button>
+                          </form>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))

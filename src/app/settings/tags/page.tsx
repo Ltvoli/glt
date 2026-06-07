@@ -1,35 +1,23 @@
-import prisma from '@/lib/prisma'
-import { getSession } from '@/lib/session'
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import TagList from './tag-list'
+import { requireSettingsAccess } from '@/lib/settings-auth'
+import { getGlobalTags } from './tag-actions'
+import TagEditor from './TagEditor'
 
-export default async function TagsSettingsPage() {
-  const session = await getSession()
-  if (!session?.userId) redirect('/login')
-
-  // Fetch all tags with counts
-  const tags = await prisma.tag.findMany({
-    orderBy: { name: 'asc' },
-    include: {
-      _count: {
-        select: { contacts: true, tasks: true }
-      }
-    }
-  })
+export default async function SettingsTagsPage() {
+  await requireSettingsAccess()
+  
+  const tags = await getGlobalTags()
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
-        <div>
-          <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Gestion des Tags</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Gérez les étiquettes utilisées pour classer vos contacts et vos tâches.</p>
-        </div>
+    <div>
+      <div style={{ marginBottom: '2rem' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Gestion Globale des Tags</h2>
+        <p style={{ color: 'var(--text-muted)' }}>
+          Cette interface vous permet de renommer, recolorer ou supprimer des tags existants sur tout le SaaS.
+          <strong>Attention</strong> : la suppression d'un tag le détachera de tous les contacts et tâches qui lui sont liés.
+        </p>
       </div>
 
-      <div className="card">
-        <TagList initialTags={tags} />
-      </div>
+      <TagEditor tags={tags} />
     </div>
   )
 }

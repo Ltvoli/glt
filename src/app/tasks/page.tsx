@@ -6,9 +6,9 @@ import { getSession } from '@/lib/session'
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string, status?: string, priority?: string, assigneeId?: string, tag?: string }>
+  searchParams: Promise<{ filter?: string, status?: string, priority?: string, assigneeId?: string, tag?: string, sort?: string, order?: 'asc'|'desc' }>
 }) {
-  const { filter, status, priority, assigneeId, tag } = await searchParams
+  const { filter, status, priority, assigneeId, tag, sort, order = 'asc' } = await searchParams
   const session = await getSession()
 
   const whereClause: any = {}
@@ -29,11 +29,20 @@ export default async function TasksPage({
     const start = new Date()
     start.setDate(start.getDate() + 1)
     start.setHours(0, 0, 0, 0)
-    const end = new Date()
-    end.setDate(end.getDate() + 1)
+    const end = new Date(start)
     end.setHours(23, 59, 59, 999)
     whereClause.dueDate = { gte: start, lte: end }
     whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
+  } else if (filter === 'urgent') {
+    const next2Days = new Date()
+    next2Days.setDate(next2Days.getDate() + 2)
+    whereClause.OR = [
+      { priority: 'HAUTE' },
+      { dueDate: { lte: next2Days } }
+    ]
+    whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
+  } else if (filter === 'all') {
+    // "toute l'équipe", don't filter by assignee
   }
 
   if (status) whereClause.status = status
@@ -45,6 +54,14 @@ export default async function TasksPage({
     }
   }
 
+  let orderByClause: any = [{ priority: 'asc' }, { dueDate: 'asc' }]
+  if (sort === 'status') orderByClause = { status: order }
+  else if (sort === 'priority') orderByClause = { priority: order }
+  else if (sort === 'dueDate') orderByClause = { dueDate: order }
+  else if (sort === 'assignee') orderByClause = { assignee: { name: order } }
+  else if (sort === 'createdAt') orderByClause = { createdAt: order }
+  else if (sort === 'updatedAt') orderByClause = { updatedAt: order }
+
   const tasks = await prisma.task.findMany({
     where: whereClause,
     include: {
@@ -52,10 +69,7 @@ export default async function TasksPage({
       subtasks: true,
       tags: { include: { tag: true } }
     },
-    orderBy: [
-      { priority: 'asc' },
-      { dueDate: 'asc' }
-    ]
+    orderBy: orderByClause
   })
 
   const users = await prisma.user.findMany()
@@ -89,15 +103,21 @@ export default async function TasksPage({
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-        <Link href="/tasks" className={`button ${!filter && !status && !priority && !assigneeId && !tag ? '' : 'outline'}`}>Toutes les tâches</Link>
+        <Link href="/tasks?filter=all" className={`button ${filter === 'all' || (!filter && !status) ? '' : 'outline'}`}>Toute l'équipe</Link>
         <Link href="/tasks?filter=mine" className={`button ${filter === 'mine' ? '' : 'outline'}`}>Mes tâches</Link>
-        <Link href="/tasks?status=A_FAIRE" className={`button ${status === 'A_FAIRE' ? '' : 'outline'}`}>À faire</Link>
-        <Link href="/tasks?filter=overdue" className={`button ${filter === 'overdue' ? '' : 'outline'}`} style={{ borderColor: 'var(--danger)', color: filter === 'overdue' ? 'white' : 'var(--danger)', backgroundColor: filter === 'overdue' ? 'var(--danger)' : 'transparent' }}>En retard</Link>
-        <Link href="/tasks?filter=today" className={`button ${filter === 'today' ? '' : 'outline'}`} style={{ borderColor: 'var(--warning)', color: filter === 'today' ? 'white' : 'var(--warning)', backgroundColor: filter === 'today' ? 'var(--warning)' : 'transparent' }}>Aujourd&apos;hui</Link>
+        <Link href="/tasks?status=EN_ATTENTE" className={`button ${status === 'EN_ATTENTE' ? '' : 'outline'}`}>En attente</Link>
+        <Link href="/tasks?status=EN_COURS" className={`button ${status === 'EN_COURS' ? '' : 'outline'}`}>En cours</Link>
+        <Link href="/tasks?status=TERMINEE" className={`button ${status === 'TERMINEE' ? '' : 'outline'}`}>Terminées</Link>
+        <Link href="/tasks?filter=urgent" className={`button ${filter === 'urgent' ? '' : 'outline'}`} style={{ borderColor: 'var(--danger)', color: filter === 'urgent' ? 'white' : 'var(--danger)', backgroundColor: filter === 'urgent' ? 'var(--danger)' : 'transparent' }}>Urgentes</Link>
+        <Link href="/tasks?filter=overdue" className={`button ${filter === 'overdue' ? '' : 'outline'}`}>En retard</Link>
+        <Link href="/tasks?filter=today" className={`button ${filter === 'today' ? '' : 'outline'}`}>Aujourd'hui</Link>
         <Link href="/tasks?filter=tomorrow" className={`button ${filter === 'tomorrow' ? '' : 'outline'}`}>Demain</Link>
         
         <div style={{ marginLeft: 'auto' }}>
-          <Link href="/tasks/kanban" className="button outline" style={{ backgroundColor: '#f8fafc', color: 'var(--foreground)' }}>
+          <Link href="/tasks" className="button outline" style={{ color: 'var(--danger)' }}>
+            Réinitialiser filtres
+          </Link>
+          <Link href="/tasks/kanban" className="button outline" style={{ backgroundColor: '#f8fafc', color: 'var(--foreground)', marginLeft: '1rem' }}>
             Vue Kanban
           </Link>
         </div>
@@ -124,8 +144,28 @@ export default async function TasksPage({
           <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Tag</label>
           <input type="text" name="tag" defaultValue={tag || ''} className="form-control" style={{ padding: '0.25rem' }} placeholder="Rechercher..." />
         </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Trier par</label>
+          <select name="sort" defaultValue={sort || ''} className="form-control" style={{ padding: '0.25rem' }}>
+            <option value="">Défaut (Priorité)</option>
+            <option value="status">État</option>
+            <option value="dueDate">Échéance</option>
+            <option value="assignee">Responsable</option>
+            <option value="createdAt">Création</option>
+            <option value="updatedAt">Modification</option>
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Ordre</label>
+          <select name="order" defaultValue={order || 'asc'} className="form-control" style={{ padding: '0.25rem' }}>
+            <option value="asc">Croissant</option>
+            <option value="desc">Décroissant</option>
+          </select>
+        </div>
+        {filter && <input type="hidden" name="filter" value={filter} />}
+        {status && <input type="hidden" name="status" value={status} />}
         <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-          <button type="submit" className="button" style={{ padding: '0.25rem 1rem' }}>Filtrer</button>
+          <button type="submit" className="button" style={{ padding: '0.25rem 1rem' }}>Filtrer & Trier</button>
         </div>
       </form>
 

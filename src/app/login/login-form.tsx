@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState } from 'react'
-import { authenticate } from './actions'
+import { loginAction } from '@/lib/auth-actions'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
@@ -11,7 +11,7 @@ const initialState = {
 }
 
 export default function LoginForm() {
-  const [state, formAction, isPending] = useActionState(authenticate, initialState)
+  const [state, formAction, isPending] = useActionState(loginAction as any, initialState)
   const router = useRouter()
 
   useEffect(() => {

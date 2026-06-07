@@ -20,7 +20,7 @@ export default function QEAttachments({ qeId, initialAttachments }: { qeId: stri
     formData.append('entityId', qeId)
 
     try {
-      const res = await fetch('/api/upload', {
+      const res = await fetch('/api/documents/upload', {
         method: 'POST',
         body: formData
       })
@@ -47,18 +47,20 @@ export default function QEAttachments({ qeId, initialAttachments }: { qeId: stri
             <div key={att.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: '#f8fafc', borderRadius: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
                 <Paperclip size={16} color="var(--text-muted)" />
-                <span style={{ fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {att.filename}
-                </span>
+                <div>
+                  <a 
+                    href={`/api/documents/${att.id}/download`} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    style={{ fontWeight: 500, color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                  >
+                    <Download size={14} /> {att.originalName}
+                  </a>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>
+                    {(att.size / 1024).toFixed(1)} KB • {new Date(att.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
               </div>
-              <a 
-                href={`/api/download/${att.id}`} 
-                className="button outline" 
-                style={{ padding: '0.25rem 0.5rem' }}
-                title="Télécharger"
-              >
-                <Download size={14} />
-              </a>
             </div>
           ))
         )}

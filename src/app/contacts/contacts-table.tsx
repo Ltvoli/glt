@@ -23,6 +23,7 @@ const ALL_COLUMNS: Column[] = [
   { id: 'birthDate', label: 'Date de naissance', defaultVisible: false },
   { id: 'gender', label: 'Genre', defaultVisible: false },
   { id: 'supportLevel', label: 'Niveau de Soutien', defaultVisible: false },
+  { id: 'meetingStep', label: 'Étape de la rencontre', defaultVisible: false },
   { id: 'tags', label: 'Tags', defaultVisible: false },
   { id: 'updatedAt', label: 'Mis à jour le', defaultVisible: false },
   { id: 'createdBy', label: 'Créé par', defaultVisible: false },
@@ -74,6 +75,7 @@ export default function ContactsTable({ contacts }: { contacts: any[] }) {
       case 'birthDate': return contact.birthDate ? new Date(contact.birthDate).toLocaleDateString('fr-FR') : '-'
       case 'gender': return contact.gender || '-'
       case 'supportLevel': return contact.supportLevel ? `Niveau ${contact.supportLevel}` : '-'
+      case 'meetingStep': return contact.meetingStep || '-'
       case 'tags': return contact.tags?.map((t: any) => t.tag.name).join(', ') || '-'
       case 'updatedAt': return new Date(contact.updatedAt).toLocaleDateString('fr-FR')
       case 'createdBy': return contact.createdBy?.name || '-'

@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma'
 import { requireWriteAccess, getSession } from '@/lib/session'
+import { requirePermission } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
 import { logAudit } from '@/lib/audit'
 
@@ -52,11 +53,7 @@ export async function upsertEmployeeStatus(dateStr: string, status: string, note
 
 export async function upsertWeeklyStatus(userId: string, weekDays: { dateStr: string, status: string }[]) {
   const session = await requireWriteAccess()
-
-  const currentUser = await prisma.user.findUnique({ where: { id: session.userId } })
-  if (currentUser?.role !== 'ADMIN') {
-    throw new Error('Accès refusé. Seul un administrateur peut modifier le planning.')
-  }
+  requirePermission(session.role, 'MANAGE_PLANNING')
 
   for (const day of weekDays) {
     if (!day.status) continue // Ignorer si pas de statut choisi
@@ -88,13 +85,7 @@ export async function upsertWeeklyStatus(userId: string, weekDays: { dateStr: st
 
 export async function updateEmployeeDayType(employeeId: string, dateStr: string, dayType: string, notes?: string) {
   const session = await requireWriteAccess()
-
-  const currentUser = await prisma.user.findUnique({ where: { id: session.userId } })
-  
-  // Permissions: Seul un ADMIN (Magali ou Lionel) peut modifier le planning
-  if (currentUser?.role !== 'ADMIN') {
-    throw new Error('Accès refusé. Seul un administrateur peut modifier le planning.')
-  }
+  requirePermission(session.role, 'MANAGE_PLANNING')
   
   const d = new Date(dateStr)
   const normalizedDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
@@ -123,7 +114,7 @@ export async function updateEmployeeDayType(employeeId: string, dateStr: string,
   await prisma.auditLog.create({
     data: {
       action: 'UPDATE_DAYTYPE',
-      entityType: 'EmployeeStatus',
+      entity: 'EmployeeStatus',
       entityId: `${employeeId}-${normalizedDate.toISOString()}`,
       userId: session.userId,
       newValues: JSON.stringify({ dayType, notes })
@@ -135,9 +126,7 @@ export async function updateEmployeeDayType(employeeId: string, dateStr: string,
 
 export async function upsertEmployeeSetting(employeeId: string, annualWorkingDays: number) {
   const session = await requireWriteAccess()
-
-  const user = await prisma.user.findUnique({ where: { id: session.userId } })
-  if (user?.role !== 'ADMIN') throw new Error('Accès refusé. Seul un administrateur peut modifier ces paramètres.')
+  requirePermission(session.role, 'EDIT_QUOTAS')
 
   await prisma.employeeSetting.upsert({
     where: { userId: employeeId },
@@ -148,7 +137,7 @@ export async function upsertEmployeeSetting(employeeId: string, annualWorkingDay
   await prisma.auditLog.create({
     data: {
       action: 'UPDATE_SETTING',
-      entityType: 'EmployeeSetting',
+      entity: 'EmployeeSetting',
       entityId: employeeId,
       userId: session.userId,
       newValues: JSON.stringify({ annualWorkingDays })

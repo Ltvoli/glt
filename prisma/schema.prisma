@@ -10,14 +10,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  SUPERADMIN
+  ADMIN
+  USER
+  READONLY
+}
+
+enum SettingType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+  SECRET
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
   name          String
   passwordHash  String
-  role          String    @default("USER") // SUPERADMIN, ADMIN, USER, READONLY
+  role          Role      @default(USER)
+  isActive      Boolean   @default(true)
+  avatarUrl     String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  archivedAt    DateTime?
   
   contactsCreated Contact[] @relation("ContactCreator")
   contactsUpdated Contact[] @relation("ContactUpdater")
@@ -27,10 +45,16 @@ model User {
   questionsCreated WrittenQuestion[] @relation("QuestionCreator")
   importLogs      ImportLog[]
   auditLogs       AuditLog[]
-  attachmentsUploaded Attachment[]
+  documentsUploaded Document[] @relation("UserDocuments")
   statuses        EmployeeStatus[] @relation("UserStatuses")
   notifications   Notification[]
   employeeSetting EmployeeSetting?
+  
+  // Settings Phase 11.6 relations
+  supportLevelChanges ContactSupportLevelHistory[] @relation("UserSupportLevelChanges")
+  messageTemplates    MessageTemplate[] @relation("TemplateAuthor")
+  apiKeys             ApiKey[] @relation("ApiKeyCreator")
+  exportBackupLogs    ExportBackupLog[] @relation("ExportBackupUser")
 }
 
 model Contact {
@@ -51,10 +75,12 @@ model Contact {
   
   territorySector   String?
   supportLevel      String? // e.g. "1", "2", "3", "4", "5"
+  meetingStep       String? // Absent, Accepté, Refusé, Repassés, Pas encore contactés
   
   type              String    // ELECTEUR, ELU, ASSO, PARTENAIRE, PRESSE, AUTRE
   source            String?   // PERMANENCE, COURRIER, EVENEMENT, TERRAIN, AUTRE
-  newsletter        Boolean   @default(false)
+  newsletter        Boolean   @default(false) // Consentement Email
+  smsConsent        Boolean   @default(false) // Consentement SMS (RGPD)
   whatsappStatus    String?   // NON, ENVOYE, REJOINT
   linkedinUrl       String?
   notes             String?
@@ -71,8 +97,10 @@ model Contact {
 
   tags              ContactTag[]
   links             GlobalLink[]  @relation("ContactLinks")
+  documents         Document[]    @relation("ContactDocuments")
   duplicatesLeft    DuplicateCandidate[] @relation("Contact1")
   duplicatesRight   DuplicateCandidate[] @relation("Contact2")
+  supportLevelHistory ContactSupportLevelHistory[] @relation("SupportLevelHistory")
 
   @@index([lastName])
   @@index([email])
@@ -124,7 +152,7 @@ model Task {
   subtasks        Subtask[]
   comments        TaskComment[]
   links           GlobalLink[] @relation("TaskLinks")
-  attachments     Attachment[] @relation("TaskAttachments")
+  documents       Document[]   @relation("TaskDocuments")
   tags            TaskTag[]
 
   @@index([status])
@@ -178,7 +206,7 @@ model MailCase {
   updatedAt       DateTime  @updatedAt
   
   links           GlobalLink[] @relation("MailLinks")
-  attachments     Attachment[] @relation("MailAttachments")
+  documents       Document[]   @relation("MailDocuments")
 
   @@index([reference])
   @@index([status])
@@ -203,6 +231,15 @@ model WrittenQuestion {
   responseContent String?
   notes           String?
   
+  responseDeadlineDate DateTime?
+  responseReceivedDate DateTime?
+  reminderStatus       String?
+  redepositSuggested   Boolean   @default(false)
+  redepositDate        DateTime?
+  linkedOriginalQeId   String?
+  followUpAction       String?
+  followUpNotes        String?
+  
   assigneeId      String?
   assignee        User?     @relation(fields: [assigneeId], references: [id])
   
@@ -214,7 +251,7 @@ model WrittenQuestion {
   archivedAt      DateTime?
   
   links           GlobalLink[] @relation("QuestionLinks")
-  attachments     Attachment[] @relation("QuestionAttachments")
+  documents       Document[]   @relation("QuestionDocuments")
 
   @@index([anNumber])
   @@index([status])
@@ -287,41 +324,107 @@ model DuplicateCandidate {
 
 model AuditLog {
   id          String    @id @default(cuid())
-  action      String    // CREATE, UPDATE, ARCHIVE, DELETE
-  entityType  String    // Contact, Task, etc.
-  entityId    String
-  oldValues   String?   // JSON
-  newValues   String?   // JSON
+  action      String    // ex: "user.create", "module.disable"
+  entity      String    @map("entityType") // ex: "User", "Module", "Contact"
+  entityId    String?
   
-  userId      String
-  user        User      @relation(fields: [userId], references: [id])
+  oldValues   String?   // JSON legacy
+  newValues   String?   // JSON legacy
+  details     Json?
+  ip          String?
+  
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
   
   createdAt   DateTime  @default(now())
 
   @@index([entityId])
-  @@index([entityType])
+  @@index([entity])
 }
 
-model Attachment {
-  id          String    @id @default(cuid())
-  filename    String
-  filepath    String
-  mimeType    String?
-  size        Int?
+model Permission {
+  id              String           @id @default(cuid())
+  key             String           @unique  // ex: "contacts.read", "users.delete"
+  label           String
+  module          String           // ex: "contacts", "admin"
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  role         Role
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([role, permissionId])
+}
+
+model Module {
+  id        String   @id @default(cuid())
+  key       String   @unique  // "contacts" | "tasks" | "mailcases" | "questions" | "agenda" | "reports"
+  label     String
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  pages     Page[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Page {
+  id           String   @id @default(cuid())
+  slug         String   @unique  // ex: "/contacts", "/contacts/new"
+  label        String
+  icon         String?
+  moduleId     String
+  module       Module   @relation(fields: [moduleId], references: [id])
+  permission   String?  // clé de permission requise pour accéder, nullable = public authed
+  order        Int      @default(0)
+  isVisible    Boolean  @default(true)  // visible dans la sidebar
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  archivedAt   DateTime?
+}
+
+model Setting {
+  key       String      @id   // ex: "app.name", "auth.session_ttl"
+  value     String
+  type      SettingType @default(STRING)
+  category  String      // ex: "general", "auth", "email", "rgpd"
+  label     String
+  updatedAt DateTime    @updatedAt
+}
+
+model Document {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  documentType    String    @default("AUTRE") // PDF, WORD, COURRIER, QE, NOTE, AUTRE
+  originalName    String
+  storageName     String
+  extension       String
+  mimeType        String
+  size            Int
+  storagePath     String
+  fileHash        String?
   
-  taskId      String?
-  task        Task?     @relation("TaskAttachments", fields: [taskId], references: [id], onDelete: Cascade)
+  contactId       String?
+  contact         Contact?  @relation("ContactDocuments", fields: [contactId], references: [id], onDelete: Cascade)
+  taskId          String?
+  task            Task?     @relation("TaskDocuments", fields: [taskId], references: [id], onDelete: Cascade)
+  mailCaseId      String?
+  mailCase        MailCase? @relation("MailDocuments", fields: [mailCaseId], references: [id], onDelete: Cascade)
+  questionId      String?
+  question        WrittenQuestion? @relation("QuestionDocuments", fields: [questionId], references: [id], onDelete: Cascade)
   
-  mailCaseId  String?
-  mailCase    MailCase? @relation("MailAttachments", fields: [mailCaseId], references: [id], onDelete: Cascade)
+  tags            String?   // JSON array
+  status          String    @default("VALIDATED") // DRAFT, PENDING, VALIDATED, REJECTED
+  confidentiality String    @default("INTERNE") // INTERNE, RESTREINT, SENSIBLE, CONFIDENTIEL
   
-  questionId  String?
-  question    WrittenQuestion? @relation("QuestionAttachments", fields: [questionId], references: [id], onDelete: Cascade)
+  uploadedById    String
+  uploadedBy      User      @relation("UserDocuments", fields: [uploadedById], references: [id])
   
-  uploadedById String
-  uploadedBy   User      @relation(fields: [uploadedById], references: [id])
-  
-  createdAt   DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  archivedAt      DateTime?
 }
 
 model Notification {
@@ -336,5 +439,122 @@ model Notification {
   severity    String    @default("INFO") // INFO, WARNING, URGENT
   readAt      DateTime?
   
+  createdAt   DateTime  @default(now())
+}
+
+// ==========================================
+// MODELS FOR SETTINGS (PHASE 11.6)
+// ==========================================
+
+model AppSetting {
+  id           String    @id @default(cuid())
+  key          String    @unique
+  value        String?
+  type         String    @default("STRING") // STRING, BOOLEAN, NUMBER, JSON
+  category     String    // GENERAL, SECURITY, RGPD
+  label        String?
+  description  String?
+  isSensitive  Boolean   @default(false)
+  updatedById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model ModuleSetting {
+  id           String    @id @default(cuid())
+  moduleName   String    @unique // CONTACTS, TASKS, MAILS
+  displayName  String
+  icon         String?
+  order        Int       @default(0)
+  isActive     Boolean   @default(true)
+  visibleRoles String    // JSON array: '["ADMIN", "SUPERADMIN"]'
+  updatedAt    DateTime  @updatedAt
+}
+
+model SystemList {
+  id          String    @id @default(cuid())
+  category    String    // CONTACT_TYPE, CONTACT_SOURCE, SUPPORT_LEVEL, MAIL_CATEGORY
+  value       String
+  color       String?
+  order       Int       @default(0)
+  isActive    Boolean   @default(true)
+  isSensitive Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  
+  @@unique([category, value])
+  @@index([category])
+}
+
+model ContactSupportLevelHistory {
+  id              String    @id @default(cuid())
+  contactId       String
+  contact         Contact   @relation("SupportLevelHistory", fields: [contactId], references: [id], onDelete: Cascade)
+  previousLevel   String?
+  newLevel        String?
+  changedById     String
+  user            User      @relation("UserSupportLevelChanges", fields: [changedById], references: [id])
+  reason          String?
+  createdAt       DateTime  @default(now())
+  
+  @@index([contactId])
+}
+
+model MessageTemplate {
+  id          String    @id @default(cuid())
+  name        String
+  channel     String    // EMAIL, SMS, WHATSAPP
+  subject     String?
+  content     String
+  variables   String    // JSON array of allowed variables
+  isActive    Boolean   @default(true)
+  authorId    String
+  author      User      @relation("TemplateAuthor", fields: [authorId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Integration {
+  id          String    @id @default(cuid())
+  provider    String    @unique // BREVO, WHATSAPP, GCAL
+  isActive    Boolean   @default(false)
+  settings    String?   // JSON
+  secrets     String?   // JSON
+  lastTestAt  DateTime?
+  logs        String?
+  updatedAt   DateTime  @updatedAt
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  keyHash     String    @unique
+  prefix      String
+  scopes      String    // JSON array
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdById String
+  creator     User      @relation("ApiKeyCreator", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+}
+
+model AutomationRule {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  isActive    Boolean   @default(false)
+  frequency   String    // Cron expression
+  lastRunAt   DateTime?
+  nextRunAt   DateTime?
+  lastStatus  String?
+}
+
+model ExportBackupLog {
+  id          String    @id @default(cuid())
+  type        String    // EXPORT_CONTACTS, BACKUP_DB
+  status      String    // SUCCESS, FAILED
+  details     String?
+  userId      String?
+  user        User?     @relation("ExportBackupUser", fields: [userId], references: [id])
   createdAt   DateTime  @default(now())
 }

@@ -27,7 +27,7 @@ export default async function ContactDetailPage({
 
   const [auditLogs, linkedTasks, linkedMails, linkedQEs, allTags] = await Promise.all([
     prisma.auditLog.findMany({
-      where: { entityType: 'Contact', entityId: id },
+      where: { entity: 'Contact', entityId: id },
       orderBy: { createdAt: 'desc' },
       include: { user: { select: { name: true } } }
     }),

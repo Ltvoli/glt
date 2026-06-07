@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import PlanningGrid from './PlanningGrid'
 import { calculateCounters, getReferencePeriodStart, getDefaultDayType } from '@/lib/planning-utils'
 import { isWeekend, isHoliday } from '@/lib/holidays'
+import { hasPermission } from '@/lib/permissions'
 
 export default async function PlanningPage({ searchParams }: { searchParams: Promise<{ month?: string, year?: string }> }) {
   const session = await getSession()
@@ -19,7 +20,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
   const endOfMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0))
 
   const currentUser = await prisma.user.findUnique({ where: { id: session.userId } })
-  const isMagaliOrAdmin = currentUser?.role === 'ADMIN' // On simplifie pour l'exemple
+  const isMagaliOrAdmin = currentUser ? hasPermission(currentUser.role, 'MANAGE_PLANNING') : false
 
   const usersData = await prisma.user.findMany({
     orderBy: { name: 'asc' },
