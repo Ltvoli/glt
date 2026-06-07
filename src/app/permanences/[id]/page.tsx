@@ -236,16 +236,12 @@ export default async function PermanenceDashboardPage({
         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--foreground)', marginBottom: '1rem' }}>Préparation par Section</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {sectionStats.map(sec => (
-            <Link key={sec.key} href={`/permanences/${permanence.id}/${sec.key}`} className="card" style={{ 
+            <Link key={sec.key} href={`/permanences/${permanence.id}/${sec.key}`} className="card card-interactive" style={{ 
               padding: '1.5rem', 
               display: 'flex', 
               flexDirection: 'column', 
-              justifyContent: 'space-between',
-              transition: 'transform 0.2s',
-              cursor: 'pointer'
+              justifyContent: 'space-between'
             }}
-            onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-            onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
             >
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
@@ -272,18 +268,14 @@ export default async function PermanenceDashboardPage({
           ))}
 
           {/* SYNTHESE DEPUTE LINK */}
-          <Link href={`/permanences/${permanence.id}/synthese`} className="card" style={{ 
+          <Link href={`/permanences/${permanence.id}/synthese`} className="card card-interactive" style={{ 
             padding: '1.5rem', 
             gridColumn: 'span 1',
             display: 'flex', 
             flexDirection: 'column', 
             justifyContent: 'space-between',
-            border: '2px dashed var(--primary)',
-            transition: 'transform 0.2s',
-            cursor: 'pointer'
+            border: '2px dashed var(--primary)'
           }}
-          onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-          onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
           >
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
