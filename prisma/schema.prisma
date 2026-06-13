@@ -596,6 +596,18 @@ model ContactSupportLevelHistory {
   @@index([contactId])
 }
 
+model DocumentTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  entityType      String   @default("MAIL") // CONTACT, MAIL, QE, PERMANENCE
+  originalName    String
+  storageName     String
+  storagePath     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
 model MessageTemplate {
   id        String   @id @default(cuid())
   name      String

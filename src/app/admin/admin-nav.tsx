@@ -9,7 +9,8 @@ import {
   Tags, 
   HeartHandshake, 
   Webhook,
-  Database
+  Database,
+  FileText
 } from 'lucide-react'
 
 type AdminNavProps = {
@@ -45,6 +46,11 @@ export default function AdminNav({ dbRole }: AdminNavProps) {
       name: 'Niveaux de soutien',
       href: '/admin/support-levels',
       icon: HeartHandshake
+    },
+    {
+      name: 'Modèles (Publipostage)',
+      href: '/admin/templates/docs',
+      icon: FileText
     },
     {
       name: 'Intégrations & API',

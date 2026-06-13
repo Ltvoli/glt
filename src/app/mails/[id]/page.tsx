@@ -6,6 +6,7 @@ import { ArrowLeft, Package, Mail, AlertCircle, Clock, Printer } from 'lucide-re
 import MailStatusForm from './mail-status-form'
 import MailAttachments from './mail-attachments'
 import PrintButton from '@/components/PrintButton'
+import GenerateLetterButton from '@/components/GenerateLetterButton'
 
 export default async function MailDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -34,6 +35,8 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
   const linkedContacts = mail.links.filter(l => l.contact).map(l => l.contact)
   const linkedTasks = mail.links.filter(l => l.task).map(l => l.task)
 
+  const templates = await prisma.documentTemplate.findMany({ where: { entityType: 'MAIL' }, select: { id: true, name: true } })
+
   return (
     <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
       <style>{`
@@ -60,7 +63,8 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
             <p style={{ color: 'var(--text-muted)' }}>Référence : {mail.reference} • {mail.type}</p>
           </div>
           
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <Link href={`/tasks/new?title=Répondre au courrier : ${encodeURIComponent(mail.subject)}&dueDate=${mail.responseDueDate ? new Date(mail.responseDueDate).toISOString().split('T')[0] : ''}&mailId=${mail.id}`} className="button outline">
               Créer une tâche
             </Link>
@@ -69,8 +73,14 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
                 Rédiger une réponse
               </Link>
             )}
+            <PrintButton />
+            <Link href={`/mails/${id}/edit`} className="button outline">Modifier</Link>
             <MailStatusForm mailId={mail.id} currentStatus={mail.status} dictionary={dictionary} />
           </div>
+        </div>
+        
+        <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
+          <GenerateLetterButton entityId={mail.id} entityType="MAIL" templates={templates} />
         </div>
       </div>
 
@@ -78,9 +88,6 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
           <div className="card" style={{ position: 'relative' }}>
-            <div style={{ position: 'absolute', top: '1rem', right: '1rem' }} className="no-print">
-              <PrintButton />
-            </div>
             <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Détails du courrier</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
               <div>

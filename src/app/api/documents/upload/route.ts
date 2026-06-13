@@ -5,7 +5,6 @@ import prisma from '@/lib/prisma'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
-import pdfParse from 'pdf-parse'
 import Tesseract from 'tesseract.js'
 
 const ALLOWED_MIME_TYPES = [
@@ -18,6 +17,7 @@ const ALLOWED_MIME_TYPES = [
 const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
 
 export async function POST(req: NextRequest) {
+  const pdfParse = require('pdf-parse')
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
