@@ -1,4 +1,9 @@
-export type Role = 'SUPERADMIN' | 'ADMIN' | 'MANAGER' | 'USER' | 'READONLY'
+import prisma from '@/lib/prisma'
+import { Role as DbRole } from '@prisma/client'
+
+export type Role = 
+  | 'SUPERADMIN' | 'ADMIN' | 'MANAGER' | 'USER' | 'READONLY'
+  | 'ADMINISTRATEUR' | 'SUPERVISEUR' | 'COORDINATEUR'
 
 export type Permission =
   | 'VIEW_CONTACTS' | 'CREATE_CONTACTS' | 'EDIT_CONTACTS' | 'ARCHIVE_CONTACTS' | 'EXPORT_CONTACTS'
@@ -13,7 +18,8 @@ export type Permission =
   | 'MANAGE_SETTINGS' | 'MANAGE_API'
   | 'VIEW_AUDIT_LOG' | 'MANAGE_BACKUPS' | 'MAINTENANCE_ACCESS'
 
-export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
+// Fallback static permissions
+export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   SUPERADMIN: [
     'VIEW_CONTACTS', 'CREATE_CONTACTS', 'EDIT_CONTACTS', 'ARCHIVE_CONTACTS', 'EXPORT_CONTACTS',
     'VIEW_SENSITIVE_TAGS', 'MANAGE_TAGS',
@@ -32,7 +38,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'MANAGE_TASKS', 'MANAGE_MAILS', 'MANAGE_QE',
     'VIEW_DOCUMENTS', 'UPLOAD_DOCUMENTS', 'DOWNLOAD_DOCUMENTS', 'MANAGE_DOCUMENTS',
     'VIEW_PLANNING', 'MANAGE_PLANNING', 'EDIT_QUOTAS',
-    'MANAGE_USERS', // except superadmin
+    'MANAGE_USERS',
     'MANAGE_SETTINGS',
     'VIEW_AUDIT_LOG'
   ],
@@ -41,23 +47,91 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'VIEW_SENSITIVE_TAGS',
     'MANAGE_TASKS', 'MANAGE_MAILS', 'MANAGE_QE',
     'VIEW_DOCUMENTS', 'UPLOAD_DOCUMENTS', 'DOWNLOAD_DOCUMENTS',
-    'VIEW_PLANNING', 'MANAGE_PLANNING' // only for their team, logic in code
+    'VIEW_PLANNING', 'MANAGE_PLANNING'
   ],
-  USER: [
+  USER: [ // Legacy USER
     'VIEW_CONTACTS', 'CREATE_CONTACTS', 'EDIT_CONTACTS',
     'MANAGE_TASKS', 'MANAGE_MAILS', 'MANAGE_QE',
     'VIEW_DOCUMENTS', 'UPLOAD_DOCUMENTS', 'DOWNLOAD_DOCUMENTS',
-    'VIEW_PLANNING' // only their own planning
+    'VIEW_PLANNING'
   ],
   READONLY: [
     'VIEW_CONTACTS', 'VIEW_DOCUMENTS', 'VIEW_PLANNING'
   ]
 }
 
+// Populate raw roles based on legacy mappings in static definitions
+ROLE_PERMISSIONS.ADMINISTRATEUR = ROLE_PERMISSIONS.SUPERADMIN
+ROLE_PERMISSIONS.SUPERVISEUR = ROLE_PERMISSIONS.ADMIN
+ROLE_PERMISSIONS.COORDINATEUR = ROLE_PERMISSIONS.USER
+// Raw USER gets legacy READONLY permissions
+ROLE_PERMISSIONS.USER_RAW = ROLE_PERMISSIONS.READONLY
+
+// Dynamic cache
+let rolePermissionsCache: Record<string, string[]> | null = null
+
+export async function refreshPermissionsCache() {
+  try {
+    const rolePermissions = await prisma.rolePermission.findMany({
+      include: { permission: true }
+    })
+    
+    const cache: Record<string, string[]> = {
+      ADMINISTRATEUR: [],
+      SUPERVISEUR: [],
+      COORDINATEUR: [],
+      USER: [], // Raw USER
+      SUPERADMIN: [],
+      ADMIN: [],
+      MANAGER: [],
+      READONLY: []
+    }
+    
+    for (const rp of rolePermissions) {
+      const pKey = rp.permission.key
+      const dbRole = rp.role // raw role enum
+      
+      // Add to raw role
+      if (cache[dbRole] && !cache[dbRole].includes(pKey)) {
+        cache[dbRole].push(pKey)
+      }
+      
+      // Map to legacy role for backwards compatibility
+      let legacyRole = 'READONLY'
+      if (dbRole === 'ADMINISTRATEUR') legacyRole = 'SUPERADMIN'
+      else if (dbRole === 'SUPERVISEUR') legacyRole = 'ADMIN'
+      else if (dbRole === 'COORDINATEUR') legacyRole = 'USER'
+      
+      if (cache[legacyRole] && !cache[legacyRole].includes(pKey)) {
+        cache[legacyRole].push(pKey)
+      }
+      
+      // Also copy to MANAGER (legacy) from COORDINATEUR
+      if (dbRole === 'COORDINATEUR') {
+        if (!cache['MANAGER'].includes(pKey)) {
+          cache['MANAGER'].push(pKey)
+        }
+      }
+    }
+    
+    // Raw USER gets the permissions of raw USER in the DB
+    rolePermissionsCache = cache
+  } catch (err) {
+    console.error('Failed to refresh permissions cache:', err)
+  }
+}
+
 export function hasPermission(role: string | undefined | null, permission: Permission): boolean {
   if (!role) return false
-  const r = role as Role
-  return ROLE_PERMISSIONS[r]?.includes(permission) || false
+  
+  if (rolePermissionsCache) {
+    // If role is raw 'USER', look up 'USER', not legacy 'USER' (which maps to COORDINATEUR)
+    return rolePermissionsCache[role]?.includes(permission) || false
+  }
+  
+  // Fallback to static
+  const lookupRole = role === 'USER' ? 'USER_RAW' : role
+  return ROLE_PERMISSIONS[lookupRole]?.includes(permission) || false
 }
 
 export function requirePermission(role: string | undefined | null, permission: Permission) {
@@ -65,3 +139,4 @@ export function requirePermission(role: string | undefined | null, permission: P
     throw new Error(`Accès refusé. Permission requise: ${permission}`)
   }
 }
+

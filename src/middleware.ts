@@ -5,8 +5,6 @@ import { jwtVerify } from 'jose'
 const secretKey = process.env.JWT_SECRET || 'dev-secret-key'
 const key = new TextEncoder().encode(secretKey)
 
-const publicRoutes = ['/login', '/auth/unauthorized']
-
 const modulePathMap: Record<string, string> = {
   '/contacts': 'contacts',
   '/tasks': 'tasks',
@@ -20,7 +18,13 @@ const modulePathMap: Record<string, string> = {
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
-  if (publicRoutes.includes(path)) {
+  // Public routes — no auth required
+  const isPublic =
+    path === '/login' ||
+    path === '/admin-login' ||
+    path === '/auth/unauthorized' ||
+    path.startsWith('/invite/')
+  if (isPublic) {
     return NextResponse.next()
   }
 
@@ -36,24 +40,29 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  // ── /admin routes: require ADMINISTRATEUR, redirect to /admin-login ──
+  if (path.startsWith('/admin')) {
+    if (!sessionPayload || !sessionPayload.sub) {
+      return NextResponse.redirect(new URL('/admin-login', req.nextUrl))
+    }
+    const { role } = sessionPayload as any
+    if (role !== 'ADMINISTRATEUR') {
+      return NextResponse.redirect(new URL('/admin-login', req.nextUrl))
+    }
+    return NextResponse.next()
+  }
+
+  // ── All other routes: require any valid session ──────────────────────
   if (!sessionPayload || !sessionPayload.sub) {
     return NextResponse.redirect(new URL('/login', req.nextUrl))
   }
 
-  const { role, activeModules } = sessionPayload as any
+  const { activeModules } = sessionPayload as any
 
-  // Admin section
-  if (path.startsWith('/admin')) {
-    if (role !== 'SUPERADMIN' && role !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/auth/unauthorized', req.nextUrl))
-    }
-  }
-
-  // Module section
+  // Module section guard
   for (const [routePrefix, moduleKey] of Object.entries(modulePathMap)) {
     if (path.startsWith(routePrefix)) {
-      if (!activeModules.includes(moduleKey)) {
-        // Module inactif -> 404
+      if (!activeModules || !activeModules.includes(moduleKey)) {
         req.nextUrl.pathname = '/404'
         return NextResponse.rewrite(req.nextUrl)
       }
@@ -63,6 +72,8 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next()
 }
 
+
 export const config = {
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }
+

@@ -3,8 +3,48 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import EditContactForm from './edit-contact-form'
 import ArchiveButton from './archive-button'
-import { User, MapPin, Phone, Mail, Building, Clock, CheckSquare, Mail as MailIcon, HelpCircle } from 'lucide-react'
+import { MapPin, Phone, Mail, Building, Clock, CheckSquare, Mail as MailIcon, HelpCircle, Smartphone, ExternalLink, User } from 'lucide-react'
 import PrintButton from '@/components/PrintButton'
+
+// ── Contraste auto pour les tags ────────────────────────────
+function getContrastText(hexColor: string): string {
+  const hex = (hexColor || '#6366f1').replace('#', '')
+  if (hex.length < 6) return '#1e293b'
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#1e293b' : '#ffffff'
+}
+
+// ── Traduction des codes audit ───────────────────────────────
+const AUDIT_LABELS: Record<string, string> = {
+  CONTACT_CREATED:         '✅ Fiche créée',
+  CONTACT_UPDATED:         '✏️ Fiche modifiée',
+  CONTACT_ARCHIVED:        '📦 Contact archivé',
+  CONTACT_RESTORED:        '♻️ Contact restauré',
+  CONTACT_DELETED:         '🗑️ Contact supprimé',
+  TAG_ADDED:               '🏷️ Tag ajouté',
+  TAG_REMOVED:             '🏷️ Tag supprimé',
+  SUPPORT_LEVEL_CHANGED:   '📊 Niveau de soutien modifié',
+  TASK_LINKED:             '🔗 Tâche associée',
+  MAIL_LINKED:             '🔗 Courrier associé',
+  DUPLICATE_MERGED:        '🔀 Doublon fusionné',
+  NOTE_ADDED:              '📝 Note ajoutée',
+}
+
+function auditLabel(action: string): string {
+  return AUDIT_LABELS[action] ?? action.toLowerCase().replace(/_/g, ' ')
+}
+
+// ── Label type contact ───────────────────────────────────────
+const TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+  ELECTEUR:    { label: 'Électeur',   color: '#1d4ed8', bg: '#dbeafe' },
+  ELU:         { label: 'Élu',        color: '#7c3aed', bg: '#ede9fe' },
+  ASSO:        { label: 'Association',color: '#065f46', bg: '#d1fae5' },
+  PARTENAIRE:  { label: 'Partenaire', color: '#92400e', bg: '#fef3c7' },
+  PRESSE:      { label: 'Presse',     color: '#be185d', bg: '#fce7f3' },
+  AUTRE:       { label: 'Autre',      color: '#374151', bg: '#f3f4f6' },
+}
 
 export default async function ContactDetailPage({
   params,
@@ -12,24 +52,23 @@ export default async function ContactDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  
+
   const contact = await prisma.contact.findUnique({
     where: { id, archivedAt: null },
-    include: { 
+    include: {
       createdBy: true,
       tags: { include: { tag: true } }
     }
   })
 
-  if (!contact) {
-    notFound()
-  }
+  if (!contact) notFound()
 
-  const [auditLogs, linkedTasks, linkedMails, linkedQEs, allTags] = await Promise.all([
+  const [auditLogs, linkedTasks, linkedMails, linkedQEs, allTags, supportLevels, dictionary] = await Promise.all([
     prisma.auditLog.findMany({
       where: { entity: 'Contact', entityId: id },
       orderBy: { createdAt: 'desc' },
-      include: { user: { select: { name: true } } }
+      take: 10,
+      include: { user: { select: { firstName: true, lastName: true } } }
     }),
     prisma.task.findMany({
       where: { links: { some: { contactId: id } } },
@@ -46,191 +85,405 @@ export default async function ContactDetailPage({
       orderBy: { createdAt: 'desc' },
       include: { assignee: true }
     }),
-    prisma.tag.findMany({ orderBy: { name: 'asc' } })
+    prisma.tag.findMany({ orderBy: { name: 'asc' } }),
+    prisma.supportLevel.findMany({ orderBy: { order: 'asc' } }),
+    prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } }),
   ])
+
+  // Construire l'adresse complète pour Google Maps et l'affichage
+  const addressParts = [
+    contact.apartment,
+    contact.building,
+    contact.streetNumber ? `${contact.streetNumber} ${contact.streetName || ''}` : contact.streetName,
+    contact.addressComplement,
+    contact.postalCode ? `${contact.postalCode} ${contact.city || ''}` : contact.city
+  ].filter(Boolean)
+  
+  const fullAddress = addressParts.join(', ')
+  const mapsUrl = fullAddress
+    ? `https://maps.google.com/?q=${encodeURIComponent(fullAddress)}`
+    : null
+
+  // Badge niveau de soutien depuis BDD
+  const supportLevelData = supportLevels.find(sl => sl.label === contact.supportLevel)
+
+  const typeData = TYPE_LABELS[contact.type] || TYPE_LABELS['AUTRE']
+
+  // Initiales pour l'avatar
+  const initials = `${contact.firstName?.[0] || ''}${contact.lastName?.[0] || ''}`.toUpperCase()
 
   return (
     <div>
+      {/* ─── Header ─────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }} className="hide-on-print">
-        <Link href="/contacts" className="button outline">Retour</Link>
+        <Link href="/contacts" className="button outline">← Retour</Link>
         <PrintButton />
-        <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>
-          {contact.firstName} {contact.lastName}
-        </h1>
-        <span style={{ 
-          padding: '0.25rem 0.5rem', 
-          backgroundColor: '#eff6ff', 
-          color: 'var(--primary)', 
-          borderRadius: '9999px', 
-          fontSize: '0.875rem', 
-          fontWeight: 500,
-        }}>
-          {contact.type}
-        </span>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+        {/* Avatar */}
+        <div style={{
+          width: '48px', height: '48px', borderRadius: '50%',
+          background: 'linear-gradient(135deg, var(--primary), #7c3aed)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'white', fontWeight: 800, fontSize: '1rem', flexShrink: 0,
+          boxShadow: '0 2px 8px rgba(99,102,241,0.35)',
+        }}>
+          {initials}
+        </div>
+
+        <div>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0, lineHeight: 1.1 }}>
+            {contact.firstName} {contact.lastName}
+            {contact.usageName && (
+              <span style={{ fontSize: '1.2rem', fontWeight: 500, color: '#64748b', marginLeft: '0.5rem' }}>
+                ({contact.usageName})
+              </span>
+            )}
+          </h1>
+          <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+            <span style={{
+              padding: '2px 10px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 600,
+              backgroundColor: typeData.bg, color: typeData.color,
+            }}>
+              {typeData.label}
+            </span>
+            {contact.gender && (
+              <span style={{ padding: '2px 10px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 600, backgroundColor: '#f1f5f9', color: '#64748b' }}>
+                {contact.gender === 'H' ? '♂ Homme' : contact.gender === 'F' ? '♀ Femme' : contact.gender}
+              </span>
+            )}
+            {supportLevelData && (
+              <span style={{
+                padding: '2px 10px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 600,
+                backgroundColor: supportLevelData.color + '22', color: supportLevelData.color,
+                border: `1px solid ${supportLevelData.color}44`,
+              }}>
+                📊 {supportLevelData.label}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <Link href={`/tasks/new?contactId=${contact.id}`} className="button outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <CheckSquare size={16} /> + Tâche
+            <CheckSquare size={15} /> + Tâche
           </Link>
           <Link href={`/mails/new?contactId=${contact.id}`} className="button outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <MailIcon size={16} /> + Courrier
+            <MailIcon size={15} /> + Courrier
           </Link>
           <ArchiveButton contactId={contact.id} />
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
-        
-        {/* Colonne Gauche : Infos & Historique */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div className="card">
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem' }}>Informations</h2>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)' }}>
-                <Phone size={18} />
-                <span style={{ color: 'var(--foreground)' }}>{contact.phone || 'Non renseigné'}</span>
+      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+
+        {/* ═══ COLONNE GAUCHE ═══════════════════════════════════ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+          {/* Carte coordonnées */}
+          <div className="card" style={{ padding: '1.25rem' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <User size={16} style={{ color: 'var(--primary)' }} /> Coordonnées
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+
+              {/* Téléphone fixe */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <Phone size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                {contact.phone ? (
+                  <a href={`tel:${contact.phone}`} className="contact-coord-link">
+                    {contact.phone}
+                  </a>
+                ) : (
+                  <span style={{ color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>Tél. fixe non renseigné</span>
+                )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)' }}>
-                <Phone size={18} />
-                <span style={{ color: 'var(--foreground)' }}>{contact.mobilePhone || 'Mobile: Non renseigné'}</span>
+
+              {/* Portable */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <Smartphone size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                {contact.mobilePhone ? (
+                  <a href={`tel:${contact.mobilePhone}`} className="contact-coord-link">
+                    {contact.mobilePhone}
+                  </a>
+                ) : (
+                  <span style={{ color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>Portable non renseigné</span>
+                )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)' }}>
-                <Mail size={18} />
-                <span style={{ color: 'var(--foreground)' }}>{contact.email || 'Non renseigné'}</span>
+
+              {/* Email */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <Mail size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                {contact.email ? (
+                  <a href={`mailto:${contact.email}`} className="contact-coord-link" style={{ wordBreak: 'break-all' }}>
+                    {contact.email}
+                  </a>
+                ) : (
+                  <span style={{ color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>Email non renseigné</span>
+                )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)' }}>
-                <MapPin size={18} />
-                <span style={{ color: 'var(--foreground)' }}>
-                  {[contact.streetNumber, contact.streetName, contact.postalCode, contact.city].filter(Boolean).join(' ') || 'Non renseigné'}
-                </span>
+
+              {/* Adresse + lien Google Maps */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                <MapPin size={16} style={{ color: '#94a3b8', flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  {fullAddress ? (
+                    <>
+                      <div style={{ color: 'var(--foreground)', fontSize: '0.88rem', fontWeight: 500 }}>{fullAddress}</div>
+                      {mapsUrl && (
+                        <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--primary)', textDecoration: 'none', marginTop: '4px' }}>
+                          <ExternalLink size={11} /> Voir sur Google Maps
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>Adresse non renseignée</span>
+                  )}
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)' }}>
-                <Building size={18} />
-                <span style={{ color: 'var(--foreground)' }}>Secteur: {contact.territorySector || 'Non assigné'}</span>
-              </div>
-              
-              {contact.tags && contact.tags.length > 0 && (
-                <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {contact.tags.map((ct: any) => (
-                    <span key={ct.tag.id} style={{ padding: '0.125rem 0.5rem', backgroundColor: ct.tag.color || '#e2e8f0', borderRadius: '4px', fontSize: '0.75rem', color: '#1e293b' }}>
+
+              {/* Secteur */}
+              {contact.territorySector && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Building size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--foreground)', fontSize: '0.88rem' }}>
+                    Secteur : <strong>{contact.territorySector}</strong>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Tags */}
+            {contact.tags && contact.tags.length > 0 && (
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                {contact.tags.map((ct: any) => {
+                  const bg = ct.tag.color || '#6366f1'
+                  return (
+                    <span key={ct.tag.id} style={{
+                      padding: '3px 9px', borderRadius: '999px', fontSize: '0.73rem',
+                      fontWeight: 600, backgroundColor: bg, color: getContrastText(bg),
+                      whiteSpace: 'nowrap',
+                    }}>
                       {ct.tag.name}
                     </span>
-                  ))}
-                </div>
-              )}
-
-              {contact.notes && (
-                <div style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '8px', fontSize: '0.875rem' }}>
-                  <strong>Notes :</strong><br/>
-                  {contact.notes}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', fontSize: '0.875rem' }}>
-                <Clock size={16} />
-                <span>Créé le {contact.createdAt.toLocaleDateString('fr-FR')} par {contact.createdBy.name}</span>
+                  )
+                })}
               </div>
+            )}
+
+            {/* Créé par */}
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8', fontSize: '0.78rem' }}>
+              <Clock size={13} />
+              <span>
+                Créé le {contact.createdAt.toLocaleDateString('fr-FR')}
+                {contact.createdBy && ` par ${contact.createdBy.firstName} ${contact.createdBy.lastName}`}
+              </span>
             </div>
           </div>
 
-          <div className="card">
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '1rem' }}>Historique (Audit)</h2>
+          {/* Notes */}
+          {contact.notes && (
+            <div className="card" style={{ padding: '1.25rem', background: '#fffbeb', border: '1px solid #fde68a' }}>
+              <h2 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.75rem', color: '#92400e' }}>📝 Notes</h2>
+              <p style={{ fontSize: '0.875rem', color: '#78350f', whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.6 }}>
+                {contact.notes}
+              </p>
+            </div>
+          )}
+
+          {/* Historique */}
+          <div className="card" style={{ padding: '1.25rem' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Clock size={16} style={{ color: 'var(--primary)' }} /> Historique
+            </h2>
             {auditLogs.length > 0 ? (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {auditLogs.slice(0, 5).map((log: any) => (
-                  <li key={log.id} style={{ fontSize: '0.875rem' }}>
-                    <span style={{ fontWeight: 500 }}>{log.user.name}</span> a 
-                    <span style={{ fontWeight: 600, color: 'var(--primary)', margin: '0 0.25rem' }}>{log.action}</span>
-                    le {log.createdAt.toLocaleDateString('fr-FR')} à {log.createdAt.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}
-                  </li>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                {auditLogs.slice(0, 8).map((log: any, i: number) => (
+                  <div key={log.id} style={{
+                    display: 'flex', gap: '0.75rem', paddingBottom: '0.85rem',
+                    borderBottom: i < Math.min(auditLogs.length, 8) - 1 ? '1px solid #f1f5f9' : 'none',
+                    marginBottom: i < Math.min(auditLogs.length, 8) - 1 ? '0.85rem' : 0,
+                  }}>
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
+                      background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '0.8rem',
+                    }}>
+                      {log.user ? `${log.user.firstName?.[0]}${log.user.lastName?.[0]}`.toUpperCase() : '⚙'}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                        {auditLabel(log.action)}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '2px' }}>
+                        {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Système'}
+                        {' · '}
+                        {log.createdAt.toLocaleDateString('fr-FR')} à {log.createdAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             ) : (
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Aucun historique disponible.</p>
+              <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0 }}>Aucun historique disponible.</p>
             )}
           </div>
         </div>
 
-        {/* Colonne Droite : Vision 360 & Modification */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
-          <div className="card">
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <CheckSquare size={20} color="var(--primary)" /> Tâches liées ({linkedTasks.length})
+        {/* ═══ COLONNE DROITE ══════════════════════════════════ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+          {/* Tâches liées */}
+          <div className="card" style={{ padding: '1.25rem' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <CheckSquare size={16} style={{ color: 'var(--primary)' }} />
+              Tâches liées
+              <span style={{ marginLeft: 'auto', fontSize: '0.78rem', background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '999px', fontWeight: 600 }}>
+                {linkedTasks.length}
+              </span>
             </h2>
             {linkedTasks.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {linkedTasks.map(task => (
-                  <Link key={task.id} href={`/tasks/${task.id}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '6px', textDecoration: 'none', color: 'inherit' }}>
+                  <Link key={task.id} href={`/tasks/${task.id}`} className="contact-link-row" style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '0.65rem 0.85rem', borderRadius: '8px',
+                    textDecoration: 'none', color: 'inherit',
+                  }}>
                     <div>
-                      <div style={{ fontWeight: 500 }}>{task.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Assigné à : {task.assignee?.name || 'Non assigné'}</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{task.title}</div>
+                      <div style={{ fontSize: '0.73rem', color: '#94a3b8', marginTop: '2px' }}>
+                        {task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : 'Non assigné'}
+                      </div>
                     </div>
-                    <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', backgroundColor: '#e2e8f0', borderRadius: '4px', height: 'fit-content' }}>
+                    <span style={{
+                      fontSize: '0.73rem', padding: '2px 8px', borderRadius: '999px', fontWeight: 600,
+                      background: task.status === 'DONE' ? '#dcfce7' : task.status === 'IN_PROGRESS' ? '#dbeafe' : '#f1f5f9',
+                      color: task.status === 'DONE' ? '#15803d' : task.status === 'IN_PROGRESS' ? '#1d4ed8' : '#64748b',
+                    }}>
                       {task.status}
                     </span>
                   </Link>
                 ))}
               </div>
             ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Aucune tâche liée à ce contact.</p>
+              <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>Aucune tâche liée</p>
+                <Link href={`/tasks/new?contactId=${contact.id}`} className="button outline" style={{ fontSize: '0.8rem', padding: '5px 14px' }}>
+                  + Créer une tâche
+                </Link>
+              </div>
             )}
           </div>
 
-          <div className="card">
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <MailIcon size={20} color="var(--primary)" /> Courriers liés ({linkedMails.length})
+          {/* Courriers liées */}
+          <div className="card" style={{ padding: '1.25rem' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <MailIcon size={16} style={{ color: 'var(--primary)' }} />
+              Courriers liés
+              <span style={{ marginLeft: 'auto', fontSize: '0.78rem', background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '999px', fontWeight: 600 }}>
+                {linkedMails.length}
+              </span>
             </h2>
             {linkedMails.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {linkedMails.map(mail => (
-                  <Link key={mail.id} href={`/mails/${mail.id}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '6px', textDecoration: 'none', color: 'inherit' }}>
+                  <Link key={mail.id} href={`/mails/${mail.id}`} className="contact-link-row" style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '0.65rem 0.85rem', borderRadius: '8px',
+                    textDecoration: 'none', color: 'inherit',
+                  }}>
                     <div>
-                      <div style={{ fontWeight: 500 }}>{mail.subject}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Type: {mail.type} - {new Date(mail.createdAt).toLocaleDateString('fr-FR')}</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{mail.subject}</div>
+                      <div style={{ fontSize: '0.73rem', color: '#94a3b8', marginTop: '2px' }}>
+                        {mail.type} · {new Date(mail.createdAt).toLocaleDateString('fr-FR')}
+                      </div>
                     </div>
-                    <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', backgroundColor: '#e2e8f0', borderRadius: '4px', height: 'fit-content' }}>
+                    <span style={{ fontSize: '0.73rem', padding: '2px 8px', borderRadius: '999px', fontWeight: 600, background: '#f1f5f9', color: '#64748b' }}>
                       {mail.status}
                     </span>
                   </Link>
                 ))}
               </div>
             ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Aucun courrier lié à ce contact.</p>
+              <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>Aucun courrier lié</p>
+                <Link href={`/mails/new?contactId=${contact.id}`} className="button outline" style={{ fontSize: '0.8rem', padding: '5px 14px' }}>
+                  + Créer un courrier
+                </Link>
+              </div>
             )}
           </div>
 
-          <div className="card">
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <HelpCircle size={20} color="var(--primary)" /> QE liées ({linkedQEs.length})
+          {/* QE liées */}
+          <div className="card" style={{ padding: '1.25rem' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <HelpCircle size={16} style={{ color: 'var(--primary)' }} />
+              Questions Écrites liées
+              <span style={{ marginLeft: 'auto', fontSize: '0.78rem', background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '999px', fontWeight: 600 }}>
+                {linkedQEs.length}
+              </span>
             </h2>
             {linkedQEs.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {linkedQEs.map(qe => (
-                  <Link key={qe.id} href={`/qe/${qe.id}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '6px', textDecoration: 'none', color: 'inherit' }}>
+                  <Link key={qe.id} href={`/qe/${qe.id}`} className="contact-link-row" style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '0.65rem 0.85rem', borderRadius: '8px',
+                    textDecoration: 'none', color: 'inherit',
+                  }}>
                     <div>
-                      <div style={{ fontWeight: 500 }}>{qe.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{qe.ministry || 'Ministère non précisé'}</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{qe.title}</div>
+                      <div style={{ fontSize: '0.73rem', color: '#94a3b8', marginTop: '2px' }}>
+                        {qe.ministry || 'Ministère non précisé'}
+                      </div>
                     </div>
-                    <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', backgroundColor: '#e2e8f0', borderRadius: '4px', height: 'fit-content' }}>
+                    <span style={{ fontSize: '0.73rem', padding: '2px 8px', borderRadius: '999px', fontWeight: 600, background: '#f1f5f9', color: '#64748b' }}>
                       {qe.status}
                     </span>
                   </Link>
                 ))}
               </div>
             ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Aucune QE liée à ce contact.</p>
+              <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0, textAlign: 'center', padding: '1.5rem 0' }}>
+                Aucune question écrite liée
+              </p>
             )}
           </div>
 
-          <div className="card">
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Modifier le contact</h2>
-            <EditContactForm contact={contact} allTags={allTags} />
+          {/* Formulaire d'édition */}
+          <div className="card" style={{ padding: '1.25rem' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem' }}>✏️ Modifier le contact</h2>
+            <EditContactForm contact={contact} allTags={allTags} dictionary={dictionary} />
           </div>
 
         </div>
       </div>
+
+      {/* Styles hover — CSS :hover impossible via onMouse* en Server Component */}
+      <style>{`
+        .contact-link-row {
+          background: #f8fafc;
+          border: 1px solid #f1f5f9;
+          transition: background 0.12s;
+        }
+        .contact-link-row:hover {
+          background: #f1f5f9 !important;
+          border-color: #e2e8f0;
+        }
+        .contact-coord-link {
+          color: var(--foreground);
+          text-decoration: none;
+          font-weight: 500;
+          font-size: 0.9rem;
+          transition: color 0.12s;
+        }
+        .contact-coord-link:hover {
+          color: var(--primary);
+          text-decoration: underline;
+        }
+      `}</style>
     </div>
   )
 }

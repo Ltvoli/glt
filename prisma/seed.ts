@@ -27,7 +27,33 @@ async function main() {
   }
   console.log('Settings seeded.')
 
-  // 2. Modules
+  // 2. Workspace settings singleton
+  await prisma.workspaceSettings.upsert({
+    where: { id: 'singleton' },
+    update: {},
+    create: {
+      id: 'singleton',
+      name: 'Bureau Parlementaire de Lionel Tivoli',
+      logoUrl: null
+    }
+  })
+  console.log('Workspace Settings seeded.')
+
+  // 3. Support levels defaults
+  const supportLevels = [
+    { label: 'Soutien Faible', color: '#94a3b8', order: 0, isDefault: true },
+    { label: 'Soutien Moyen', color: '#3b82f6', order: 1, isDefault: false },
+    { label: 'Soutien Fort', color: '#10b981', order: 2, isDefault: false }
+  ]
+  for (const level of supportLevels) {
+    const existing = await prisma.supportLevel.findFirst({ where: { label: level.label } })
+    if (!existing) {
+      await prisma.supportLevel.create({ data: level })
+    }
+  }
+  console.log('Support Levels seeded.')
+
+  // 4. Modules
   const modulesKeys = ['contacts', 'tasks', 'mailcases', 'questions', 'agenda', 'reports', 'permanences']
   for (let i = 0; i < modulesKeys.length; i++) {
     await prisma.module.upsert({
@@ -38,7 +64,7 @@ async function main() {
   }
   console.log('Modules seeded.')
 
-  // 3. Permissions
+  // 5. Permissions
   const baseActions = ['read', 'create', 'update', 'delete']
   for (const m of modulesKeys) {
     for (const a of baseActions) {
@@ -74,49 +100,44 @@ async function main() {
   }
   console.log('Permissions seeded.')
 
-  // 4. Role Permissions
+  // 6. Role Permissions
   const allPerms = await prisma.permission.findMany()
   
+  // Clear old ones first to avoid duplicate errors
+  await prisma.rolePermission.deleteMany({})
+
   for (const p of allPerms) {
-    // SUPERADMIN gets everything
-    await prisma.rolePermission.upsert({
-      where: { role_permissionId: { role: Role.SUPERADMIN, permissionId: p.id } },
-      update: {},
-      create: { role: Role.SUPERADMIN, permissionId: p.id }
+    // ADMINISTRATEUR gets everything
+    await prisma.rolePermission.create({
+      data: { role: Role.ADMINISTRATEUR, permissionId: p.id }
     })
 
-    // ADMIN gets everything EXCEPT 'permanences.validate'
-    if (p.key !== 'permanences.validate') {
-      await prisma.rolePermission.upsert({
-        where: { role_permissionId: { role: Role.ADMIN, permissionId: p.id } },
-        update: {},
-        create: { role: Role.ADMIN, permissionId: p.id }
+    // SUPERVISEUR gets everything EXCEPT 'permanences.validate' and integrations/admin settings
+    const isSupervisorAllowed = p.key !== 'permanences.validate' && p.module !== 'admin'
+    if (isSupervisorAllowed) {
+      await prisma.rolePermission.create({
+        data: { role: Role.SUPERVISEUR, permissionId: p.id }
       })
     }
 
-    // READONLY gets only read permissions
+    // USER gets only read permissions
     if (p.key.endsWith('.read')) {
-      await prisma.rolePermission.upsert({
-        where: { role_permissionId: { role: Role.READONLY, permissionId: p.id } },
-        update: {},
-        create: { role: Role.READONLY, permissionId: p.id }
+      await prisma.rolePermission.create({
+        data: { role: Role.USER, permissionId: p.id }
       })
     }
 
-    // USER gets standard permissions (non-admin) EXCEPT delete/validate
-    // But USER gets permanences.export
-    const isUserAllowed = (p.module !== 'admin' && !p.key.endsWith('.delete') && p.key !== 'permanences.validate') || p.key === 'permanences.export'
-    if (isUserAllowed) {
-      await prisma.rolePermission.upsert({
-        where: { role_permissionId: { role: Role.USER, permissionId: p.id } },
-        update: {},
-        create: { role: Role.USER, permissionId: p.id }
+    // COORDINATEUR gets standard permissions (non-admin) EXCEPT delete/validate
+    const isCoordinateurAllowed = (p.module !== 'admin' && !p.key.endsWith('.delete') && p.key !== 'permanences.validate') || p.key === 'permanences.export'
+    if (isCoordinateurAllowed) {
+      await prisma.rolePermission.create({
+        data: { role: Role.COORDINATEUR, permissionId: p.id }
       })
     }
   }
   console.log('Role Permissions seeded.')
 
-  // 5. Pages
+  // 7. Pages
   const pages = [
     { slug: '/contacts', label: 'Contacts', moduleId: 'contacts', permission: 'contacts.read', order: 0 },
     { slug: '/tasks', label: 'Tâches', moduleId: 'tasks', permission: 'tasks.read', order: 1 },
@@ -139,12 +160,13 @@ async function main() {
   }
   console.log('Pages seeded.')
 
-  // 6. Users
+  // 8. Users
+  const passwordHash = await bcrypt.hash('Admin@123456!', 10)
   const usersData = [
-    { name: 'SUPERADMIN', email: 'admin@cdc.app', role: Role.SUPERADMIN, rawPass: 'Admin@123456!' },
-    { name: 'ADMIN', email: 'manager@cdc.app', role: Role.ADMIN, rawPass: 'Manager@123456!' },
-    { name: 'USER', email: 'user@cdc.app', role: Role.USER, rawPass: 'User@123456!' },
-    { name: 'READONLY', email: 'readonly@cdc.app', role: Role.READONLY, rawPass: 'Readonly@123456!' },
+    { firstName: 'Lionel', lastName: 'Tivoli', email: 'admin@cdc.app', role: Role.ADMINISTRATEUR, passwordHash },
+    { firstName: 'Magali', lastName: 'Collaborateur', email: 'super@cdc.app', role: Role.SUPERVISEUR, passwordHash },
+    { firstName: 'Pierre', lastName: 'Coordinateur', email: 'user@cdc.app', role: Role.COORDINATEUR, passwordHash },
+    { firstName: 'Sophie', lastName: 'Collaborateur', email: 'readonly@cdc.app', role: Role.USER, passwordHash },
   ]
 
   const seededUsers: Record<string, string> = {}
@@ -152,22 +174,22 @@ async function main() {
   for (const u of usersData) {
     let existing = await prisma.user.findUnique({ where: { email: u.email } })
     if (!existing) {
-      const passwordHash = await bcrypt.hash(u.rawPass, 10)
       existing = await prisma.user.create({
         data: {
-          name: u.name,
+          firstName: u.firstName,
+          lastName: u.lastName,
           email: u.email,
           role: u.role,
-          passwordHash,
+          passwordHash: u.passwordHash,
           isActive: true
         },
       })
-      console.log(`Created user ${u.name}`)
+      console.log(`Created user ${u.firstName} ${u.lastName}`)
     }
     seededUsers[u.role] = existing.id
   }
 
-  // 7. Communes (Top 5 Demonstration)
+  // 9. Communes (Top 5 Demonstration)
   const communesData = [
     { name: 'Nice', zipCode: '06000', inseeCode: '06088', department: 'Alpes-Maritimes' },
     { name: 'Antibes', zipCode: '06600', inseeCode: '06004', department: 'Alpes-Maritimes' },
@@ -188,25 +210,30 @@ async function main() {
   }
   console.log('Communes seeded.')
 
-  // 8. Organizations (3 commerces de démo rattachés à Nice)
+  // 10. Organizations (3 commerces de démo rattachés à Nice)
   const orgsData = [
     { name: 'Boulangerie du Port', type: OrgType.COMMERCE, sector: 'Alimentation', city: 'Nice', zipCode: '06000', notes: 'Très favorable, engagée localement.' },
     { name: 'Café de la Place', type: OrgType.COMMERCE, sector: 'Restauration', city: 'Nice', zipCode: '06000', notes: 'Neutre, préoccupations sur la sécurité.' },
     { name: 'Pharmacie Centrale', type: OrgType.COMMERCE, sector: 'Santé', city: 'Nice', zipCode: '06000', notes: 'Défavorable ou sceptique.' },
   ]
 
-  const seededOrgs: Record<string, string> = {}
-
   for (const o of orgsData) {
-    const existing = await prisma.organization.create({
-      data: o
-    })
-    seededOrgs[o.name] = existing.id
+    const existing = await prisma.organization.findFirst({ where: { name: o.name } })
+    if (!existing) {
+      await prisma.organization.create({
+        data: o
+      })
+    }
   }
   console.log('Organizations seeded.')
 
-  // 9. Permanences Mobiles
-  const adminUserId = seededUsers[Role.SUPERADMIN]
+  // 11. Permanences Mobiles
+  const adminUserId = seededUsers[Role.ADMINISTRATEUR]
+
+  // Clear old ones first to prevent duplicates if seeding multiple times
+  await prisma.mobilePermanence.deleteMany({
+    where: { ownerUserId: adminUserId }
+  })
 
   // A. VALIDATED Permanence
   const permValidated = await prisma.mobilePermanence.create({
@@ -253,7 +280,7 @@ async function main() {
   // Generate all TODO tasks for DRAFT
   await createTodoTasks(permDraft.id)
 
-  // 10. Links/Locations for permanences
+  // 12. Links/Locations for permanences
   await prisma.permanenceLocation.create({
     data: {
       permanenceId: permValidated.id,
@@ -293,7 +320,7 @@ async function main() {
     }
   })
 
-  // 11. Synthesis for VALIDATED
+  // 13. Synthesis for VALIDATED
   await prisma.permanenceSynthesis.create({
     data: {
       permanenceId: permValidated.id,
@@ -346,25 +373,8 @@ async function createCompletedTasks(permanenceId: string, userId: string) {
 
 async function createMixedTasks(permanenceId: string, userId: string) {
   const tasks = getDefaultTasksTemplate()
-  // Total 13 tasks: let's make 8 DONE and 5 TODO (including 2 required)
-  // Let's set statuses
-  let doneCount = 0
   for (let i = 0; i < tasks.length; i++) {
     const t = tasks[i]
-    // Make first 8 DONE, rest TODO
-    // Task 0: communication (required) -> DONE
-    // Task 1: communication (required) -> TODO (required blockage 1)
-    // Task 2: phoning (required) -> DONE
-    // Task 3: phoning (required) -> DONE
-    // Task 4: courrier (required) -> DONE
-    // Task 5: courrier (required) -> DONE
-    // Task 6: commercants (required) -> DONE
-    // Task 7: commercants (required) -> DONE
-    // Task 8: institutionnel (required) -> DONE
-    // Task 9: institutionnel (required) -> TODO (required blockage 2)
-    // Task 10: logistique (required) -> TODO
-    // Task 11: logistique (required) -> TODO
-    // Task 12: logistique (required) -> TODO
     const isDone = i === 0 || i === 2 || i === 3 || i === 4 || i === 5 || i === 6 || i === 7 || i === 8
     await prisma.permanenceTask.create({
       data: {

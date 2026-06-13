@@ -111,15 +111,13 @@ export async function updateEmployeeDayType(employeeId: string, dateStr: string,
   })
 
   // Audit Log
-  await prisma.auditLog.create({
-    data: {
-      action: 'UPDATE_DAYTYPE',
-      entity: 'EmployeeStatus',
-      entityId: `${employeeId}-${normalizedDate.toISOString()}`,
-      userId: session.userId,
-      newValues: JSON.stringify({ dayType, notes })
-    }
-  })
+  await logAudit(
+    'UPDATE_DAYTYPE',
+    'EmployeeStatus',
+    `${employeeId}-${normalizedDate.toISOString()}`,
+    session.userId,
+    { dayType, notes }
+  )
 
   revalidatePath('/planning')
 }
@@ -134,15 +132,13 @@ export async function upsertEmployeeSetting(employeeId: string, annualWorkingDay
     create: { userId: employeeId, annualWorkingDays }
   })
 
-  await prisma.auditLog.create({
-    data: {
-      action: 'UPDATE_SETTING',
-      entity: 'EmployeeSetting',
-      entityId: employeeId,
-      userId: session.userId,
-      newValues: JSON.stringify({ annualWorkingDays })
-    }
-  })
+  await logAudit(
+    'UPDATE_SETTING',
+    'EmployeeSetting',
+    employeeId,
+    session.userId,
+    { annualWorkingDays }
+  )
 
   revalidatePath('/planning/settings')
   revalidatePath('/planning')

@@ -20,6 +20,7 @@ export default async function NewMailPage({ searchParams }: { searchParams: Prom
     where: { status: { notIn: ['TERMINEE', 'ANNULEE'] } },
     select: { id: true, title: true }
   })
+  const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -38,6 +39,7 @@ export default async function NewMailPage({ searchParams }: { searchParams: Prom
           initialParentId={parentMailCaseId}
           initialSubject={subject}
           initialContactId={contactId}
+          dictionary={dictionary}
         />
       </div>
     </div>

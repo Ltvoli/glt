@@ -10,6 +10,7 @@ export default async function NewTaskPage({
   const users = await prisma.user.findMany()
   const allTags = await prisma.tag.findMany({ orderBy: { name: 'asc' } })
   const { contactId } = await searchParams
+  const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
 
   return (
     <div>
@@ -19,7 +20,7 @@ export default async function NewTaskPage({
       </div>
 
       <div className="card" style={{ maxWidth: '800px' }}>
-        <TaskForm users={users} contactId={contactId} allTags={allTags} />
+        <TaskForm users={users} contactId={contactId} allTags={allTags} dictionary={dictionary} />
       </div>
     </div>
   )

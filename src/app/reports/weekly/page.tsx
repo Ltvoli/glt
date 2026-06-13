@@ -2,42 +2,51 @@ import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import PrintButton from './print-button'
+import WeekNavigator from './week-navigator'
 import { calculateCounters, getReferencePeriodStart } from '@/lib/planning-utils'
 
-export default async function WeeklyReportPage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
+export default async function WeeklyReportPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   const session = await getSession()
   if (!session?.userId) redirect('/login')
 
-  const d = new Date()
-  const todayEnd = new Date(d)
-  todayEnd.setHours(23, 59, 59, 999)
+  const { date } = await searchParams
+  const d = date ? new Date(date) : new Date()
   
   const startOfWeek = new Date(d)
   startOfWeek.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1))
   startOfWeek.setHours(0, 0, 0, 0)
+  
+  const endOfWeek = new Date(startOfWeek)
+  endOfWeek.setDate(startOfWeek.getDate() + 6)
+  endOfWeek.setHours(23, 59, 59, 999)
+
+  const prevWeek = new Date(startOfWeek)
+  prevWeek.setDate(prevWeek.getDate() - 7)
+  const nextWeek = new Date(startOfWeek)
+  nextWeek.setDate(nextWeek.getDate() + 7)
 
   // --- STATS TACHES ---
-  const tasksCreatedThisWeek = await prisma.task.count({ where: { createdAt: { gte: startOfWeek } } })
-  const tasksCompletedThisWeek = await prisma.task.count({ where: { completedAt: { gte: startOfWeek }, status: 'TERMINEE' } })
-  const tasksOverdue = await prisma.task.count({ where: { dueDate: { lt: new Date() }, status: { notIn: ['TERMINEE', 'ANNULEE'] } } })
-  const tasksActive = await prisma.task.count({ where: { status: { notIn: ['TERMINEE', 'ANNULEE'] } } })
+  const tasksCreatedThisWeek = await prisma.task.count({ where: { createdAt: { gte: startOfWeek, lte: endOfWeek } } })
+  const tasksCompletedThisWeek = await prisma.task.count({ where: { completedAt: { gte: startOfWeek, lte: endOfWeek }, status: 'TERMINEE' } })
+  const tasksOverdue = await prisma.task.count({ where: { dueDate: { lt: endOfWeek }, status: { notIn: ['TERMINEE', 'ANNULEE'] } } })
+  const tasksActive = await prisma.task.count({ where: { status: { notIn: ['TERMINEE', 'ANNULEE'] }, createdAt: { lte: endOfWeek } } })
 
   // --- STATS COURRIERS ---
-  const mailsReceivedThisWeek = await prisma.mailCase.count({ where: { receiveDate: { gte: startOfWeek } } })
-  const mailsRespondedThisWeek = await prisma.mailCase.count({ where: { status: 'REPONDU', updatedAt: { gte: startOfWeek } } })
-  const mailsOverdue = await prisma.mailCase.count({ where: { responseDueDate: { lt: new Date() }, status: { notIn: ['REPONDU', 'CLASSE'] } } })
+  const mailsReceivedThisWeek = await prisma.mailCase.count({ where: { receiveDate: { gte: startOfWeek, lte: endOfWeek } } })
+  const mailsRespondedThisWeek = await prisma.mailCase.count({ where: { status: 'REPONDU', updatedAt: { gte: startOfWeek, lte: endOfWeek } } })
+  const mailsOverdue = await prisma.mailCase.count({ where: { responseDueDate: { lt: endOfWeek }, status: { notIn: ['REPONDU', 'CLASSE'] }, receiveDate: { lte: endOfWeek } } })
 
   // --- STATS QE ---
-  const qeSubmittedThisWeek = await prisma.writtenQuestion.count({ where: { depositDate: { gte: startOfWeek } } })
-  const qeWaitingAnswer = await prisma.writtenQuestion.count({ where: { status: { in: ['DEPOSEE', 'EN_ATTENTE'] } } })
-  const qeToReturn = await prisma.writtenQuestion.count({ where: { status: 'REPONSE_RECUE', followUpDescription: { not: null }, archivedAt: null } })
+  const qeSubmittedThisWeek = await prisma.writtenQuestion.count({ where: { depositDate: { gte: startOfWeek, lte: endOfWeek } } })
+  const qeWaitingAnswer = await prisma.writtenQuestion.count({ where: { status: { in: ['DEPOSEE', 'EN_ATTENTE'] }, depositDate: { lte: endOfWeek } } })
+  const qeToReturn = await prisma.writtenQuestion.count({ where: { status: 'REPONSE_RECUE', followUpDescription: { not: null }, archivedAt: null, depositDate: { lte: endOfWeek } } })
 
   // --- STATS PLANNING & UTILISATEURS ---
   const users = await prisma.user.findMany({
     include: {
-      tasksAssigned: { where: { status: { notIn: ['TERMINEE', 'ANNULEE'] } } },
-      mailCases: { where: { status: { notIn: ['REPONDU', 'CLASSE'] } } },
-      writtenQuestions: { where: { status: 'REPONSE_RECUE', followUpDescription: { not: null }, archivedAt: null } },
+      tasksAssigned: { where: { status: { notIn: ['TERMINEE', 'ANNULEE'] }, createdAt: { lte: endOfWeek } } },
+      mailCases: { where: { status: { notIn: ['REPONDU', 'CLASSE'] }, receiveDate: { lte: endOfWeek } } },
+      writtenQuestions: { where: { status: 'REPONSE_RECUE', followUpDescription: { not: null }, archivedAt: null, depositDate: { lte: endOfWeek } } },
       employeeSetting: true,
       statuses: {
         where: {
@@ -47,11 +56,11 @@ export default async function WeeklyReportPage({ searchParams }: { searchParams:
     }
   })
 
-  // Répartition par priorité (Tâches)
+  // Répartition par priorité (Tâches actives à la fin de la semaine)
   const priorityGroups = await prisma.task.groupBy({
     by: ['priority'],
     _count: true,
-    where: { status: { notIn: ['TERMINEE', 'ANNULEE'] } }
+    where: { status: { notIn: ['TERMINEE', 'ANNULEE'] }, createdAt: { lte: endOfWeek } }
   })
 
   return (
@@ -59,10 +68,17 @@ export default async function WeeklyReportPage({ searchParams }: { searchParams:
       {/* Entête du rapport */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #e2e8f0', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--foreground)' }}>Rapport Hebdomadaire Global</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1.125rem' }}>
-            Synthèse d&apos;activité du {startOfWeek.toLocaleDateString('fr-FR')} au {todayEnd.toLocaleDateString('fr-FR')}
-          </p>
+          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--foreground)', marginBottom: '0.5rem' }}>Rapport Hebdomadaire Global</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '1.125rem', margin: 0 }}>
+              Synthèse d&apos;activité du {startOfWeek.toLocaleDateString('fr-FR')} au {endOfWeek.toLocaleDateString('fr-FR')}
+            </p>
+            <WeekNavigator 
+              currentDate={startOfWeek.toISOString().split('T')[0]}
+              prevDate={prevWeek.toISOString().split('T')[0]}
+              nextDate={nextWeek.toISOString().split('T')[0]}
+            />
+          </div>
         </div>
         <PrintButton />
       </div>
@@ -141,6 +157,23 @@ export default async function WeeklyReportPage({ searchParams }: { searchParams:
               </tr>
             </tbody>
           </table>
+
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', marginTop: '2rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+            Répartition des Tâches (Actives)
+          </h2>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            {priorityGroups.map(pg => {
+              const pLabel = pg.priority === 'HAUTE' ? 'Haute 🔴' : pg.priority === 'NORMALE' ? 'Normale 🟡' : 'Basse 🟢'
+              const bg = pg.priority === 'HAUTE' ? '#fee2e2' : pg.priority === 'NORMALE' ? '#fef3c7' : '#dcfce7'
+              const color = pg.priority === 'HAUTE' ? '#991b1b' : pg.priority === 'NORMALE' ? '#92400e' : '#166534'
+              return (
+                <div key={pg.priority} style={{ backgroundColor: bg, color: color, padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.875rem' }}>
+                  {pLabel} : {pg._count}
+                </div>
+              )
+            })}
+            {priorityGroups.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Aucune tâche active.</span>}
+          </div>
         </div>
 
         {/* Colonne Droite : Suivi Planning */}

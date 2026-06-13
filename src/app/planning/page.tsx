@@ -22,17 +22,21 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
   const currentUser = await prisma.user.findUnique({ where: { id: session.userId } })
   const isMagaliOrAdmin = currentUser ? hasPermission(currentUser.role, 'MANAGE_PLANNING') : false
 
-  const usersData = await prisma.user.findMany({
-    orderBy: { name: 'asc' },
+  const usersData = (await prisma.user.findMany({
+    where: { archivedAt: null },
+    orderBy: [
+      { lastName: 'asc' },
+      { firstName: 'asc' }
+    ],
     include: {
       employeeSetting: true,
       statuses: {
         where: {
-          date: { gte: new Date(Date.UTC(currentYear - 2, 0, 1)) } // Charger large pour les calculs annuels
+          date: { gte: new Date(Date.UTC(currentYear - 1, 0, 1)) } // Charger depuis le début de l'année précédente pour les compteurs
         }
       }
     }
-  })
+  })) as any[]
 
   const daysInMonth = endOfMonth.getUTCDate()
 
@@ -41,7 +45,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
     const refStart = getReferencePeriodStart(startOfMonth, settings.referencePeriodStartMonth, settings.referencePeriodStartDay)
     
     // Convertir les statuts en format utils
-    const mappedStatuses = user.statuses.map(s => ({ date: s.date, dayType: s.dayType }))
+    const mappedStatuses = user.statuses.map((s: any) => ({ date: s.date, dayType: s.dayType }))
 
     // Compteurs annuels
     // Pour simplifier et être précis, on calcule les jours écoulés entre refStart et le 31 mai suivant.
@@ -58,7 +62,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(Date.UTC(currentYear, currentMonth, d))
       const time = date.getTime()
-      const dbStatus = user.statuses.find(s => s.date.getTime() === time)
+      const dbStatus = user.statuses.find((s: any) => s.date.getTime() === time)
       const isWE = isWeekend(date)
       const isHol = isHoliday(date)
       

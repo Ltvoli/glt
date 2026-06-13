@@ -4,8 +4,9 @@ import prisma from '@/lib/prisma'
 import { getSession, requireWriteAccess } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { logAudit } from '@/lib/audit'
+import { contactSchema } from '@/lib/validations'
 
-export async function createContact(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
+export async function createContact(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean, id?: string }> {
   let session
   try {
     session = await requireWriteAccess()
@@ -15,6 +16,7 @@ export async function createContact(prevState: any, formData: FormData): Promise
 
   const firstName = formData.get('firstName') as string
   const lastName = formData.get('lastName') as string
+  const usageName = formData.get('usageName') as string
   const email = formData.get('email') as string
   const phone = formData.get('phone') as string
   const mobilePhone = formData.get('mobilePhone') as string
@@ -22,8 +24,11 @@ export async function createContact(prevState: any, formData: FormData): Promise
   const city = formData.get('city') as string
   const gender = formData.get('gender') as string
   const birthDateStr = formData.get('birthDate') as string
+  const apartment = formData.get('apartment') as string
+  const building = formData.get('building') as string
   const streetNumber = formData.get('streetNumber') as string
   const streetName = formData.get('streetName') as string
+  const addressComplement = formData.get('addressComplement') as string
   const postalCode = formData.get('postalCode') as string
   const supportLevel = formData.get('supportLevel') as string
   const meetingStep = formData.get('meetingStep') as string
@@ -37,9 +42,17 @@ export async function createContact(prevState: any, formData: FormData): Promise
   const notes = formData.get('notes') as string
   const tagsString = formData.get('tags') as string
 
-  if (!firstName || !lastName || !type) {
-    return { error: 'Nom, prénom et type sont obligatoires.' }
+  const validatedFields = contactSchema.safeParse({
+    firstName, lastName, usageName, email, phone, mobilePhone, type, city, gender,
+    apartment, building, streetNumber, streetName, addressComplement, postalCode,
+    supportLevel, meetingStep, territorySector, source, whatsappStatus, linkedinUrl, notes
+  })
+
+  if (!validatedFields.success) {
+    return { error: validatedFields.error.issues[0].message }
   }
+
+  const validData = validatedFields.data
 
   let birthDate = null
   if (birthDateStr) {
@@ -63,27 +76,31 @@ export async function createContact(prevState: any, formData: FormData): Promise
 
     const newContact = await prisma.contact.create({
       data: {
-        firstName,
-        lastName,
-        email: email || null,
-        phone: phone || null,
-        mobilePhone: mobilePhone || null,
-        type,
-        city: city || null,
-        gender: gender || null,
+        firstName: validData.firstName,
+        lastName: validData.lastName,
+        usageName: validData.usageName || null,
+        email: validData.email || null,
+        phone: validData.phone || null,
+        mobilePhone: validData.mobilePhone || null,
+        type: validData.type,
+        city: validData.city || null,
+        gender: validData.gender || null,
         birthDate,
-        streetNumber: streetNumber || null,
-        streetName: streetName || null,
-        postalCode: postalCode || null,
-        supportLevel: supportLevel || null,
-        territorySector: territorySector || null,
-        source: source || null,
-        whatsappStatus: whatsappStatus || null,
-        meetingStep: meetingStep || null,
+        apartment: validData.apartment || null,
+        building: validData.building || null,
+        streetNumber: validData.streetNumber || null,
+        streetName: validData.streetName || null,
+        addressComplement: validData.addressComplement || null,
+        postalCode: validData.postalCode || null,
+        supportLevel: validData.supportLevel || null,
+        territorySector: validData.territorySector || null,
+        source: validData.source || null,
+        whatsappStatus: validData.whatsappStatus || null,
+        meetingStep: validData.meetingStep || null,
         newsletter,
         smsConsent,
-        linkedinUrl: linkedinUrl || null,
-        notes: notes || null,
+        linkedinUrl: validData.linkedinUrl || null,
+        notes: validData.notes || null,
         createdById: session.userId,
       }
     })
@@ -123,11 +140,10 @@ export async function createContact(prevState: any, formData: FormData): Promise
 
     await logAudit('CREATE', 'Contact', newContact.id, session.userId, newContact)
 
+    return { success: true, id: newContact.id }
   } catch (error) {
     return { error: 'Erreur lors de la création du contact.' }
   }
-
-  redirect('/contacts')
 }
 
 export async function archiveContact(contactId: string): Promise<{ error?: string, success?: boolean }> {
@@ -147,10 +163,80 @@ export async function archiveContact(contactId: string): Promise<{ error?: strin
       data: { archivedAt: new Date() }
     })
 
-    await logAudit('ARCHIVE', 'Contact', contactId, session.userId, undefined, { archivedAt: archivedContact.archivedAt })
+    await logAudit('ARCHIVE', 'Contact', contactId, session.userId, { archivedAt: archivedContact.archivedAt })
     
     return { success: true }
   } catch (error) {
     return { error: 'Erreur lors de l\'archivage du contact.' }
   }
 }
+
+export async function archiveContactsBulk(
+  ids: string[],
+  filterParams: string,
+  allFiltered: boolean
+): Promise<{ error?: string; success?: boolean; count?: number }> {
+  let session
+  try {
+    session = await requireWriteAccess()
+  } catch (e: any) {
+    return { error: e.message }
+  }
+
+  try {
+    let whereClause: any
+
+    if (allFiltered) {
+      // Rebuild where from serialized filter params
+      const sp = new URLSearchParams(filterParams)
+      const andClauses: any[] = []
+      whereClause = { archivedAt: null }
+
+      const nameQ = sp.get('nameQ')
+      if (nameQ) {
+        for (const term of nameQ.split(',').filter(Boolean)) {
+          andClauses.push({ OR: [
+            { firstName: { contains: term, mode: 'insensitive' } },
+            { lastName:  { contains: term, mode: 'insensitive' } },
+          ]})
+        }
+      }
+      const city = sp.get('city')
+      if (city) {
+        const cities = city.split(',').filter(Boolean)
+        if (cities.length === 1) whereClause.city = { equals: cities[0], mode: 'insensitive' }
+        else andClauses.push({ OR: cities.map(c => ({ city: { equals: c, mode: 'insensitive' } })) })
+      }
+      const q = sp.get('q')
+      if (q) {
+        andClauses.push({ OR: [
+          { firstName: { contains: q, mode: 'insensitive' } },
+          { lastName:  { contains: q, mode: 'insensitive' } },
+          { city:      { contains: q, mode: 'insensitive' } },
+        ]})
+      }
+      if (andClauses.length > 0) whereClause.AND = andClauses
+    } else {
+      if (!ids || ids.length === 0) return { error: 'Aucun contact sélectionné.' }
+      whereClause = { id: { in: ids }, archivedAt: null }
+    }
+
+    const result = await prisma.contact.updateMany({
+      where: whereClause,
+      data: { archivedAt: new Date() }
+    })
+
+    await logAudit(
+      'BULK_ARCHIVE',
+      'Contact',
+      null,
+      session.userId,
+      { count: result.count, allFiltered, ids: allFiltered ? [] : ids }
+    )
+
+    return { success: true, count: result.count }
+  } catch (error: any) {
+    return { error: error.message || 'Erreur lors de l\'archivage en masse.' }
+  }
+}
+

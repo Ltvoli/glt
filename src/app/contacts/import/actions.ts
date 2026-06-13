@@ -4,6 +4,104 @@ import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import Papa from 'papaparse'
 
+// ─── Helpers ────────────────────────────────────────────────
+
+/**
+ * Lit une colonne du CSV en essayant plusieurs variantes de noms.
+ * Gère les espaces parasites, la casse, et les accents.
+ */
+function col(row: Record<string, string>, ...keys: string[]): string {
+  for (const key of keys) {
+    // Essai exact
+    if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key].trim()
+    // Essai insensible à la casse
+    const found = Object.keys(row).find(k => k.trim().toLowerCase() === key.toLowerCase())
+    if (found && row[found] !== undefined && row[found] !== null && row[found] !== '') return row[found].trim()
+  }
+  return ''
+}
+
+/**
+ * Convertit CIVILITE Qomon → gender interne.
+ * "M."/"M" → "H"  |  "Mme"/"MME" → "F"  |  reste → null
+ */
+function parseGender(civilite: string): string | null {
+  const c = civilite.trim().toLowerCase()
+  if (c === 'm.' || c === 'm') return 'H'
+  if (c === 'mme' || c === 'mme.') return 'F'
+  return null
+}
+
+/**
+ * Parse une date en plusieurs formats courants (DD/MM/YYYY, YYYY-MM-DD, etc.)
+ */
+function parseDate(raw: string): Date | null {
+  if (!raw) return null
+  // DD/MM/YYYY
+  const dmy = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (dmy) {
+    const d = new Date(`${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`)
+    return isNaN(d.getTime()) ? null : d
+  }
+  // ISO YYYY-MM-DD
+  const iso = new Date(raw)
+  return isNaN(iso.getTime()) ? null : iso
+}
+
+/**
+ * Extrait le numéro de rue et le nom de rue depuis "9 AVENUE MATHIAS DUVA…"
+ * Retourne { streetNumber, streetName }
+ */
+function parseAddress(adresse: string): { streetNumber: string | null; streetName: string | null } {
+  if (!adresse) return { streetNumber: null, streetName: null }
+  const match = adresse.match(/^(\d+[\s\w]*?)\s+(.+)$/)
+  if (match) {
+    return { streetNumber: match[1].trim(), streetName: match[2].trim() }
+  }
+  return { streetNumber: null, streetName: adresse }
+}
+
+/**
+ * Mappe la valeur "Niveau de Soutien" Qomon vers le label BDD correspondant.
+ * Les niveaux BDD sont chargés dynamiquement (admin → Niveaux de soutien).
+ *
+ * Qomon utilise : "Très favorable", "Favorable", "Neutre", "Défavorable",
+ *                 "Très défavorable" (ou chiffres 1-5).
+ */
+function parseSupportLevel(raw: string, dbLevels: { label: string; order: number }[]): string | null {
+  if (!raw) return null
+  const r = raw.trim()
+  if (!r) return null
+
+  const sorted = [...dbLevels].sort((a, b) => a.order - b.order) // du plus faible au plus fort
+  const n = sorted.length
+  if (n === 0) return r // pas de niveaux configurés → stocker brut
+
+  // 1. Correspondance exacte (insensible à la casse)
+  const exact = sorted.find(l => l.label.toLowerCase() === r.toLowerCase())
+  if (exact) return exact.label
+
+  const rLow = r.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+  // 2. Chiffres Qomon (1 = le plus faible, 5 = le plus fort)
+  const num = parseInt(r)
+  if (!isNaN(num) && num >= 1 && num <= 5) {
+    const idx = Math.round(((num - 1) / 4) * (n - 1))
+    return sorted[Math.min(idx, n - 1)].label
+  }
+
+  // 3. Mapping sémantique
+  if (['tres defavorable', 'hostile', 'opposant'].some(v => rLow.includes(v))) return sorted[0].label
+  if (['defavorable', 'reticent'].some(v => rLow.includes(v)) && !rLow.includes('tres')) return sorted[Math.max(0, Math.floor(n * 0.25))].label
+  if (['neutre', 'indecis', 'sans opinion'].some(v => rLow.includes(v)))                  return sorted[Math.round((n - 1) / 2)].label
+  if (['tres favorable', 'militant', 'engage'].some(v => rLow.includes(v)))               return sorted[n - 1].label
+  if (['favorable', 'sympathisant'].some(v => rLow.includes(v)))                           return sorted[Math.min(n - 1, Math.round(n * 0.65))].label
+
+  return r // valeur inconnue → stocker brut
+}
+
+// ─── Action principale ───────────────────────────────────────
+
 export async function processImport(formData: FormData) {
   const session = await getSession()
   if (!session?.userId) return { error: 'Non autorisé' }
@@ -11,136 +109,202 @@ export async function processImport(formData: FormData) {
   const file = formData.get('file') as File
   if (!file) return { error: 'Aucun fichier fourni' }
 
-  const text = await file.text()
-  
+  const forceConsent = formData.get('forceConsent') === 'true'
+
+  // ── Détection d'encodage ────────────────────────────────
+  // Qomon exporte souvent en Windows-1252 (Latin-1) depuis Excel français.
+  // Si le fichier n'est pas du UTF-8 valide, on bascule automatiquement.
+  const buffer = await file.arrayBuffer()
+  let text: string
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(buffer)
+  } catch {
+    // Pas du UTF-8 valide → encodage Windows français (Windows-1252 / ISO-8859-1)
+    text = new TextDecoder('windows-1252').decode(buffer)
+  }
+
   return new Promise<any>((resolve) => {
     Papa.parse(text, {
       header: true,
       skipEmptyLines: true,
+      // Supprime le BOM UTF-8 qu'Excel peut ajouter en tête de fichier
+      transformHeader: (h: string) => h.replace(/^\uFEFF/, '').trim(),
+
       complete: async (results) => {
-        let created = 0
+        let created    = 0
         let duplicates = 0
         let errorsCount = 0
 
-        for (const row of results.data as any[]) {
-          // Mapping très basique - À adapter selon le vrai CSV Qomon
-          const firstName = row['Prénom'] || row['prenom'] || row['first_name']
-          const lastName = row['Nom'] || row['nom'] || row['last_name']
-          const email = row['Email'] || row['email']
-          const phone = row['Téléphone'] || row['Téléphone fixe'] || row['telephone'] || row['phone']
-          const mobilePhone = row['Portable'] || row['portable'] || row['mobile']
-          const streetNumber = row['Numéro'] || row['numero'] || row['street_number']
-          const streetName = row['Rue/voie'] || row['rue'] || row['voie'] || row['street_name']
-          const postalCode = row['Code postal'] || row['code_postal'] || row['cp'] || row['zip']
-          const city = row['Ville'] || row['Commune'] || row['commune'] || row['city']
-          const gender = row['Genre'] || row['genre'] || row['sexe']
-          const supportLevel = row['Niveau de Soutien'] || row['niveau_soutien'] || row['support_level']
-          const birthDateStr = row['Date de naissance'] || row['date_naissance'] || row['birthdate']
-          
-          const tagsStr = row['Tags'] || row['tags'] || row['mots_cles'] || ''
-          const linkedinUrl = row['LinkedIn'] || row['linkedin'] || null
-          const territorySector = row['Secteur'] || row['secteur'] || row['canton'] || null
-          const notes = row['Notes'] || row['notes'] || null
-          const newsletterStr = row['Newsletter'] || row['newsletter']
-          const newsletter = newsletterStr ? (newsletterStr.toLowerCase() === 'oui' || newsletterStr.toLowerCase() === 'true' || newsletterStr === '1') : false
+        const rows = results.data as Record<string, string>[]
 
-          let birthDate = null
-          if (birthDateStr) {
-            const parsed = new Date(birthDateStr)
-            if (!isNaN(parsed.getTime())) birthDate = parsed
-          }
-          
+        // ── Charger les niveaux de soutien configurés en BDD ──
+        const dbSupportLevels = await prisma.supportLevel.findMany({ select: { label: true, order: true } })
+
+        // ── Debug : log colonnes du premier enregistrement ──
+        if (rows.length > 0) {
+          console.log('[Qomon Import] Colonnes détectées :', Object.keys(rows[0]))
+          console.log('[Qomon Import] Niveaux de soutien BDD :', dbSupportLevels.map(l => l.label))
+        }
+
+        for (const row of rows) {
+
+          // ── Lecture des champs Qomon ─────────────────────
+          const civilite   = col(row, 'CIVILITE', 'Civilité', 'civilite')
+          const firstName  = col(row, 'PRENOM',   'Prénom',   'prenom',    'first_name')
+          const lastName   = col(row, 'NOM',      'Nom',      'nom',       'last_name')
+          const email      = col(row, 'EMAIL',    'Email',    'email')
+          const phone      = col(row, 'TELEPHONE','Téléphone','Telephone', 'telephone', 'TÉLÉPHONE')
+          const mobile     = col(row, 'PORTABLE', 'Portable', 'portable',  'Mobile',    'MOBILE')
+          const birthRaw   = col(row, 'DATE DE NAISSANCE', 'Date de naissance', 'DATE_NAISSANCE', 'birthdate', 'date_naissance')
+          const adresse1   = col(row, 'ADRESSE 1', 'ADRESSE1', 'Adresse 1', 'Adresse1', 'adresse1', 'Adresse', 'adresse')
+          const adresse2   = col(row, 'ADRESSE 2', 'ADRESSE2', 'Adresse 2', 'Adresse2', 'adresse2')
+          const postalCode = col(row, 'CODE POSTAL', 'Code postal', 'code_postal', 'CP', 'cp', 'zip')
+          const city       = col(row, 'COMMUNE',  'Ville',    'commune',   'Ville',     'city')
+          const profession = col(row, 'PROFESSION','profession')
+          const tagsRaw    = col(row, 'Tags',      'TAGS',     'tags',      'mots_cles')
+          const newsletter = col(row, 'Newsletter','newsletter','NEWSLETTER')
+          const notes      = col(row, 'Notes',     'NOTES',    'notes')
+          const secteur    = col(row, 'Secteur',   'SECTEUR',  'secteur',   'canton')
+          const supportRaw = col(row, 'Niveau de Soutien', 'NIVEAU DE SOUTIEN', 'niveau_soutien', 'support_level')
+          const supportLevel = parseSupportLevel(supportRaw, dbSupportLevels)
+
+          // ── Validation minimale ──────────────────────────
           if (!firstName || !lastName) {
             errorsCount++
             continue
           }
 
-          // Détection doublons
-          const potentialDuplicates = await prisma.contact.findMany({
-            where: {
-              OR: [
-                { email: email || 'FAKE_EMAIL_NIL' },
-                { phone: phone || 'FAKE_PHONE_NIL' },
-                { mobilePhone: mobilePhone || 'FAKE_MOBILE_NIL' }
-              ],
-              AND: {
-                lastName: { equals: lastName }
-              }
-            }
-          })
+          // ── Transformations ──────────────────────────────
+          const gender    = parseGender(civilite) || null
+          const birthDate = parseDate(birthRaw)
+          const { streetNumber, streetName } = parseAddress(adresse1)
 
+          // ADRESSE 2 → address complement (stocké dans notes si pas de champ dédié)
+          const fullNotes = [
+            notes,
+            adresse2 ? `Complément d'adresse : ${adresse2}` : '',
+            profession ? `Profession : ${profession}` : '',
+          ].filter(Boolean).join('\n') || null
+
+          let hasNewsletter = false
+          let consentDate = null
+          let consentSource = null
+
+          if (forceConsent) {
+            hasNewsletter = true
+            consentDate = new Date()
+            consentSource = 'IMPORT_MASSE'
+          } else {
+            hasNewsletter = newsletter
+              ? (newsletter.toLowerCase() === 'oui' || newsletter.toLowerCase() === 'true' || newsletter === '1')
+              : false
+          }
+
+          // ── Détection doublons ───────────────────────────
+          const orConditions: any[] = []
+          if (email)  orConditions.push({ email })
+          if (phone)  orConditions.push({ phone })
+          if (mobile) orConditions.push({ mobilePhone: mobile })
+
+          const potentialDuplicates = orConditions.length > 0
+            ? await prisma.contact.findMany({
+                where: { OR: orConditions, AND: { lastName: { equals: lastName, mode: 'insensitive' } }, archivedAt: null }
+              })
+            : []
+
+          // ── Données à insérer ────────────────────────────
           const dataToInsert = {
             firstName,
             lastName,
-            email: email || null,
-            phone: phone || null,
-            mobilePhone: mobilePhone || null,
-            streetNumber: streetNumber || null,
-            streetName: streetName || null,
-            postalCode: postalCode || null,
-            city: city || null,
-            gender: gender || null,
-            supportLevel: supportLevel || null,
+            email:        email    || null,
+            phone:        phone    || null,
+            mobilePhone:  mobile   || null,
+            streetNumber: streetNumber,
+            streetName:   streetName,
+            postalCode:   postalCode || null,
+            city:         city       || null,
+            gender,
             birthDate,
-            type: 'ELECTEUR',
-            source: 'QOMON',
-            territorySector,
-            linkedinUrl,
-            notes,
-            newsletter,
-            createdById: session.userId
+            supportLevel: supportLevel || null,
+            territorySector: secteur || null,
+            notes:        fullNotes,
+            newsletter:   hasNewsletter,
+            consentDate:  consentDate,
+            consentSource: consentSource,
+            type:         'ELECTEUR' as const,
+            source:       'QOMON'   as const,
+            createdById:  session.userId,
           }
 
-          let insertedContact = null
+          let insertedContact: any = null
 
-          if (potentialDuplicates.length > 0) {
+          try {
             insertedContact = await prisma.contact.create({ data: dataToInsert })
 
-            for (const dup of potentialDuplicates) {
-              await prisma.duplicateCandidate.create({
-                data: {
-                  contact1Id: dup.id,
-                  contact2Id: insertedContact.id,
-                  reason: dup.email === email ? 'NOM_EMAIL' : 'NOM_PHONE'
-                }
-              })
+            if (potentialDuplicates.length > 0) {
+              for (const dup of potentialDuplicates) {
+                await prisma.duplicateCandidate.create({
+                  data: {
+                    contact1Id: dup.id,
+                    contact2Id: insertedContact.id,
+                    reason: dup.email === email ? 'NOM_EMAIL' : 'NOM_PHONE'
+                  }
+                })
+              }
+              duplicates++
+            } else {
+              created++
             }
-            duplicates++
-          } else {
-            insertedContact = await prisma.contact.create({ data: dataToInsert })
-            created++
+          } catch (insertErr: any) {
+            console.error('[Qomon Import] Erreur insertion :', lastName, firstName, insertErr?.message)
+            errorsCount++
+            continue
           }
 
-          // Traitement des tags pour ce contact importé
-          if (insertedContact && tagsStr) {
-            const tagNames = tagsStr.split(',').map((t: string) => t.trim()).filter((t: string) => t)
+          // ── Tags ─────────────────────────────────────────
+          if (insertedContact && tagsRaw) {
+            const tagNames = tagsRaw
+              .split(/[,;|]/)
+              .map((t: string) => t.trim())
+              .filter((t: string) => t.length > 0)
+
             for (const tagName of tagNames) {
-              const tag = await prisma.tag.upsert({
-                where: { name: tagName },
-                update: {},
-                create: { name: tagName, color: '#e2e8f0' }
-              })
-              await prisma.contactTag.create({
-                data: { contactId: insertedContact.id, tagId: tag.id }
-              })
+              try {
+                const tag = await prisma.tag.upsert({
+                  where:  { name: tagName },
+                  update: {},
+                  create: { name: tagName, color: '#6366f1' }
+                })
+                await prisma.contactTag.upsert({
+                  where:  { contactId_tagId: { contactId: insertedContact.id, tagId: tag.id } },
+                  update: {},
+                  create: { contactId: insertedContact.id, tagId: tag.id }
+                })
+              } catch { /* Tag déjà existant ou autre */ }
             }
           }
         }
 
-        // Log the import
-        await prisma.importLog.create({
-          data: {
-            filename: file.name,
-            status: 'SUCCESS',
-            rowsImported: created + duplicates,
-            userId: session.userId
-          }
-        })
+        // ── Log import ───────────────────────────────────
+        try {
+          await prisma.importLog.create({
+            data: {
+              filename:     file.name,
+              status:       errorsCount > 0 && created === 0 ? 'ERROR' : 'SUCCESS',
+              rowsImported: created + duplicates,
+              userId:       session.userId,
+            }
+          })
+        } catch { /* importLog non critique */ }
+
+        console.log(`[Qomon Import] Résultat → créés: ${created}, doublons: ${duplicates}, erreurs: ${errorsCount}`)
 
         resolve({ created, duplicates, errors: errorsCount })
       },
-      error: () => {
-        resolve({ error: 'Erreur lors du parsing du fichier CSV' })
+
+      error: (err: any) => {
+        console.error('[Qomon Import] Parsing error:', err)
+        resolve({ error: 'Erreur lors de la lecture du fichier CSV. Vérifiez l\'encodage (UTF-8).' })
       }
     })
   })

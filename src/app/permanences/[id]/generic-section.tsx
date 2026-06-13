@@ -34,11 +34,15 @@ export default async function GenericSection({ permanenceId, sectionKey, section
   const completedTasks = permanence.tasks.filter(t => t.status === 'DONE').length
   const completionPercent = totalTasks === 0 ? 100 : Math.round((completedTasks / totalTasks) * 100)
 
-  const users = await prisma.user.findMany({
+  const usersData = await prisma.user.findMany({
     where: { isActive: true },
-    select: { id: true, name: true },
-    orderBy: { name: 'asc' }
+    select: { id: true, firstName: true, lastName: true },
+    orderBy: [
+      { firstName: 'asc' },
+      { lastName: 'asc' }
+    ]
   })
+  const users = usersData.map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }))
 
   const isReadOnly = session.role === 'READONLY'
 

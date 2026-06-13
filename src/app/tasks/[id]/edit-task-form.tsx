@@ -9,7 +9,7 @@ const initialState = {
   success: false
 }
 
-export default function EditTaskForm({ task, users, allTags = [] }: { task: any, users: any[], allTags?: any[] }) {
+export default function EditTaskForm({ task, users, allTags = [], dictionary = [] }: { task: any, users: any[], allTags?: any[], dictionary?: any[] }) {
   const [state, formAction, isPending] = useActionState(updateTask, initialState)
 
   return (
@@ -30,20 +30,18 @@ export default function EditTaskForm({ task, users, allTags = [] }: { task: any,
         <div className="form-group">
           <label htmlFor="priority">Priorité</label>
           <select id="priority" name="priority" className="form-control" defaultValue={task.priority}>
-            <option value="HAUTE">Haute</option>
-            <option value="NORMALE">Normale</option>
-            <option value="BASSE">Basse</option>
+            {dictionary.filter(d => d.type === 'TASK_PRIORITY').map(d => (
+              <option key={d.code} value={d.code}>{d.label}</option>
+            ))}
           </select>
         </div>
 
         <div className="form-group">
           <label htmlFor="status">Statut</label>
           <select id="status" name="status" className="form-control" defaultValue={task.status}>
-            <option value="A_FAIRE">À faire</option>
-            <option value="EN_COURS">En cours</option>
-            <option value="EN_ATTENTE">En attente</option>
-            <option value="TERMINEE">Terminée</option>
-            <option value="ANNULEE">Annulée</option>
+            {dictionary.filter(d => d.type === 'TASK_STATUS').map(d => (
+              <option key={d.code} value={d.code}>{d.label}</option>
+            ))}
           </select>
         </div>
 

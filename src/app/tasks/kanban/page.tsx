@@ -4,11 +4,46 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import KanbanBoard from './kanban-board'
 
-export default async function KanbanPage() {
+export default async function KanbanPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>
+}) {
+  const { filter } = await searchParams
   const session = await getSession()
   if (!session?.userId) redirect('/login')
 
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+  const whereClause: any = {
+    OR: [
+      { status: { notIn: ['TERMINEE', 'ANNULEE'] } },
+      { 
+        status: { in: ['TERMINEE', 'ANNULEE'] },
+        updatedAt: { gte: sevenDaysAgo }
+      }
+    ]
+  }
+
+  if (filter === 'mine') {
+    whereClause.assigneeId = session.userId
+  } else if (filter === 'urgent') {
+    const next2Days = new Date()
+    next2Days.setDate(next2Days.getDate() + 2)
+    whereClause.OR = [
+      { priority: 'HAUTE' },
+      { dueDate: { lte: next2Days } }
+    ]
+    // Conserver la règle de rétention dans le cas du filtre 'urgent' :
+    whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
+  } else if (filter === 'overdue') {
+    whereClause.dueDate = { lt: new Date() }
+    whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
+  }
+
   const tasks = await prisma.task.findMany({
+    where: whereClause,
     include: {
       assignee: true,
       subtasks: true,
@@ -34,6 +69,13 @@ export default async function KanbanPage() {
           <Link href="/tasks" className="button outline">Vue Liste</Link>
           <Link href="/tasks/new" className="button">Nouvelle Tâche</Link>
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <Link href="/tasks/kanban?filter=all" className={`button ${filter === 'all' || !filter ? '' : 'outline'}`}>Toute l'équipe</Link>
+        <Link href="/tasks/kanban?filter=mine" className={`button ${filter === 'mine' ? '' : 'outline'}`}>Mes tâches</Link>
+        <Link href="/tasks/kanban?filter=urgent" className={`button ${filter === 'urgent' ? '' : 'outline'}`} style={{ borderColor: 'var(--danger)', color: filter === 'urgent' ? 'white' : 'var(--danger)', backgroundColor: filter === 'urgent' ? 'var(--danger)' : 'transparent' }}>Urgentes</Link>
+        <Link href="/tasks/kanban?filter=overdue" className={`button ${filter === 'overdue' ? '' : 'outline'}`}>En retard</Link>
       </div>
 
       <div style={{ flex: 1, overflow: 'hidden' }}>

@@ -10,13 +10,17 @@ export default async function PlanningSettingsPage() {
   if (!session?.userId) redirect('/login')
 
   const user = await prisma.user.findUnique({ where: { id: session.userId } })
-  // Permissions: ADMIN requis (pour simplifier, on suppose que Lionel et Magali ont le rôle ADMIN)
-  if (user?.role !== 'ADMIN') redirect('/planning')
+  // Permissions: ADMINISTRATEUR ou SUPERADMIN requis
+  if (user?.role !== 'ADMINISTRATEUR' && user?.role !== 'SUPERADMIN') redirect('/planning')
 
-  const employees = await prisma.user.findMany({
-    orderBy: { name: 'asc' },
+  const employees = (await prisma.user.findMany({
+    where: { archivedAt: null },
+    orderBy: [
+      { lastName: 'asc' },
+      { firstName: 'asc' }
+    ],
     include: { employeeSetting: true }
-  })
+  })) as any[]
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>

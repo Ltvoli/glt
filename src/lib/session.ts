@@ -9,6 +9,7 @@ export type JWTPayload = {
   role: Role
   permissions: string[]
   activeModules: string[]
+  jti: string
   iat?: number
   exp?: number
 }
@@ -26,13 +27,28 @@ export async function decrypt(input: string): Promise<JWTPayload | null> {
     const { payload } = await jwtVerify(input, key, {
       algorithms: ['HS256'],
     })
-    return payload as JWTPayload
+    return payload as any as JWTPayload
   } catch (error) {
     return null
   }
 }
 
 import { cookies } from 'next/headers'
+
+// Role mapping for backwards compatibility with legacy business modules
+export function mapRoleToLegacy(role: Role): 'SUPERADMIN' | 'ADMIN' | 'USER' | 'READONLY' {
+  switch (role) {
+    case 'ADMINISTRATEUR':
+      return 'SUPERADMIN'
+    case 'SUPERVISEUR':
+      return 'ADMIN'
+    case 'COORDINATEUR':
+      return 'USER'
+    case 'USER':
+    default:
+      return 'READONLY'
+  }
+}
 
 export async function getSession() {
   const cookieStore = await cookies()
@@ -44,9 +60,11 @@ export async function getSession() {
   
   return {
     userId: payload.sub,
-    role: payload.role,
+    role: mapRoleToLegacy(payload.role), // Legacy mapped role (SUPERADMIN, ADMIN, USER, READONLY)
+    dbRole: payload.role,              // Raw DB role (ADMINISTRATEUR, SUPERVISEUR, etc.)
     permissions: payload.permissions,
-    activeModules: payload.activeModules
+    activeModules: payload.activeModules,
+    jti: payload.jti
   }
 }
 

@@ -3,10 +3,10 @@ import prisma from '@/lib/prisma'
 export async function logAudit(
   action: string,
   entity: string,
-  entityId: string,
-  userId: string,
-  newValues?: Record<string, any>,
-  oldValues?: Record<string, any>
+  entityId: string | null,
+  userId: string | null,
+  details?: any,
+  ip?: string
 ) {
   try {
     await prisma.auditLog.create({
@@ -15,11 +15,12 @@ export async function logAudit(
         entity,
         entityId,
         userId,
-        newValues: newValues ? JSON.stringify(newValues) : null,
-        oldValues: oldValues ? JSON.stringify(oldValues) : null,
+        details: details || undefined,
+        ip: ip || null,
       }
     })
   } catch (error) {
     console.error('Failed to write audit log:', error)
   }
 }
+

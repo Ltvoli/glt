@@ -2,15 +2,21 @@ import prisma from '@/lib/prisma'
 import Link from 'next/link'
 import { Plus, Mail, Package, AlertCircle, Clock } from 'lucide-react'
 import { getSession } from '@/lib/session'
+import PaginationBar from '../contacts/pagination-bar'
+import { Search } from 'lucide-react'
+import MailTableClient from './mail-table-client'
 
 export default async function MailsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>
+  searchParams: Promise<{ filter?: string, page?: string, perPage?: string, q?: string }>
 }) {
   const session = await getSession()
-  const { filter } = await searchParams
+  const { filter, page, perPage, q } = await searchParams
   
+  const currentPage = Math.max(1, parseInt(page || '1'))
+  const itemsPerPage = Math.min(200, Math.max(10, parseInt(perPage || '50')))
+
   const whereClause: any = {}
   
   if (filter === 'mine') {
@@ -29,29 +35,34 @@ export default async function MailsPage({
     whereClause.status = { notIn: ['REPONDU', 'CLASSE'] }
   }
 
-  const mails = await prisma.mailCase.findMany({
-    where: whereClause,
-    include: {
-      assignee: { select: { name: true } },
-      links: {
-        include: {
-          contact: { select: { firstName: true, lastName: true } }
-        }
-      }
-    },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'RECU': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#e2e8f0', color: '#475569', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Reçu</span>
-      case 'LU': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#fef3c7', color: '#d97706', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Lu</span>
-      case 'EN_TRAITEMENT': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#dbeafe', color: '#2563eb', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>En traitement</span>
-      case 'REPONDU': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#dcfce3', color: '#16a34a', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Répondu</span>
-      case 'CLASSE': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#f1f5f9', color: '#94a3b8', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Classé</span>
-      default: return <span>{status}</span>
-    }
+  if (q) {
+    whereClause.OR = [
+      { subject: { contains: q, mode: 'insensitive' } },
+      { reference: { contains: q, mode: 'insensitive' } },
+      { senderName: { contains: q, mode: 'insensitive' } },
+      { recipientName: { contains: q, mode: 'insensitive' } },
+    ]
   }
+
+  const [mails, totalMails] = await Promise.all([
+    prisma.mailCase.findMany({
+      where: whereClause,
+      include: {
+        assignee: { select: { name: true } },
+        links: {
+          include: {
+            contact: { select: { firstName: true, lastName: true } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (currentPage - 1) * itemsPerPage,
+      take: itemsPerPage,
+    }),
+    prisma.mailCase.count({ where: whereClause })
+  ])
+
+  const totalPages = Math.ceil(totalMails / itemsPerPage)
 
   return (
     <div>
@@ -79,71 +90,28 @@ export default async function MailsPage({
         </Link>
       </div>
 
-      <div className="card" style={{ overflowX: 'auto' }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Référence & Type</th>
-              <th>Date</th>
-              <th>Sujet & Interlocuteur</th>
-              <th>Canal</th>
-              <th>Assigné à</th>
-              <th>Statut & Échéance</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mails.length === 0 ? (
-              <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                  Aucun courrier trouvé.
-                </td>
-              </tr>
-            ) : (
-              mails.map(mail => (
-                <tr key={mail.id} style={{ borderLeft: mail.urgency === 'HAUTE' ? '4px solid var(--danger)' : '4px solid transparent' }}>
-                  <td>
-                    <div style={{ fontWeight: 500, color: 'var(--text-muted)' }}>{mail.reference}</div>
-                    <div style={{ fontSize: '0.75rem', color: mail.type === 'ENTRANT' ? 'var(--primary)' : 'var(--warning)' }}>{mail.type}</div>
-                  </td>
-                  <td>{mail.type === 'ENTRANT' && mail.receiveDate ? new Date(mail.receiveDate).toLocaleDateString('fr-FR') : mail.sentDate ? new Date(mail.sentDate).toLocaleDateString('fr-FR') : '-'}</td>
-                  <td>
-                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {mail.urgency === 'HAUTE' && <AlertCircle size={14} color="var(--danger)" />}
-                      {mail.subject}
-                    </div>
-                    <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                      {mail.type === 'ENTRANT' ? (mail.senderName || 'Inconnu') : (mail.recipientName || 'Inconnu')} {mail.city ? `(${mail.city})` : ''}
-                      {mail.links.some((l: any) => l.contact) && (
-                         <span style={{ marginLeft: '0.5rem', color: 'var(--primary)' }}>
-                           🔗 Lié à un contact
-                         </span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    {mail.channel === 'POSTAL' ? <span title="Postal"><Package size={16} /></span> : <span title="Email/Autre"><Mail size={16} /></span>}
-                  </td>
-                  <td>{mail.assignee?.name || '-'}</td>
-                  <td>
-                    <div style={{ marginBottom: '0.25rem' }}>{getStatusBadge(mail.status)}</div>
-                    {mail.responseDueDate && mail.status !== 'REPONDU' && mail.status !== 'CLASSE' && (
-                      <div style={{ fontSize: '0.75rem', color: new Date(mail.responseDueDate) < new Date() ? 'var(--danger)' : 'var(--text-muted)' }}>
-                        <Clock size={12} style={{ display: 'inline', marginRight: '0.25rem' }} />
-                        {new Date(mail.responseDueDate).toLocaleDateString('fr-FR')}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <Link href={`/mails/${mail.id}`} className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                      Voir
-                    </Link>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <form method="GET" style={{ display: 'flex', gap: '0.5rem', maxWidth: '500px' }}>
+          {filter && <input type="hidden" name="filter" value={filter} />}
+          <div style={{ position: 'relative', flex: 1 }}>
+            <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input 
+              type="text" 
+              name="q" 
+              defaultValue={q || ''} 
+              placeholder="Rechercher par sujet, référence, nom..." 
+              className="form-control"
+              style={{ paddingLeft: '2.5rem' }}
+            />
+          </div>
+          <button type="submit" className="button">Rechercher</button>
+        </form>
+      </div>
+
+      <MailTableClient mails={mails} />
+
+      <div style={{ marginTop: '1.5rem' }}>
+        <PaginationBar currentPage={currentPage} totalPages={totalPages} currentParams={{ filter, page, perPage, q }} itemsPerPage={itemsPerPage} />
       </div>
     </div>
   )

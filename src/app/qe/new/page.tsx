@@ -22,6 +22,7 @@ export default async function NewQEPage() {
     where: { status: { notIn: ['CLASSE'] } },
     select: { id: true, subject: true, reference: true }
   })
+  const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -33,7 +34,7 @@ export default async function NewQEPage() {
       </div>
 
       <div className="card">
-        <QEForm users={users} contacts={contacts} tasks={tasks} mails={mails} />
+        <QEForm users={users} contacts={contacts} tasks={tasks} mails={mails} dictionary={dictionary} />
       </div>
     </div>
   )

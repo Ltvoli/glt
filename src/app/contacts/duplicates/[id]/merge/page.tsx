@@ -3,12 +3,18 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import MergeDuplicateForm from './merge-duplicate-form'
 
-export default async function MergeDuplicatePage({ params }: { params: { id: string } }) {
+export default async function MergeDuplicatePage({
+  params,
+}: {
+  params: Promise<{ id: string }>  // ← Next.js 15+ : params est une Promise
+}) {
+  const { id } = await params  // ← await obligatoire
+
   const candidate = await prisma.duplicateCandidate.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
-      contact1: true,
-      contact2: true
+      contact1: { include: { tags: { include: { tag: true } } } },
+      contact2: { include: { tags: { include: { tag: true } } } },
     }
   })
 
@@ -17,19 +23,22 @@ export default async function MergeDuplicatePage({ params }: { params: { id: str
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-        <Link href="/contacts/duplicates" className="button outline">Retour aux doublons</Link>
-        <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Fusion Avancée</h1>
+        <Link href="/contacts/duplicates" className="button outline">← Retour aux doublons</Link>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0 }}>Fusion de doublon</h1>
+      </div>
+
+      <div className="card" style={{ marginBottom: '1rem', padding: '1rem', background: '#fffbeb', border: '1px solid #fde68a' }}>
+        <p style={{ margin: 0, fontSize: '0.9rem', color: '#92400e' }}>
+          ⚠️ Sélectionnez pour chaque champ la valeur à conserver. Le contact retenu sera mis à jour, 
+          l'autre sera archivé. Les tâches, courriers, QE et tags de l'autre seront <strong>transférés</strong> automatiquement.
+        </p>
       </div>
 
       <div className="card">
-        <p style={{ marginBottom: '1.5rem', color: 'var(--text-muted)' }}>
-          Sélectionnez pour chaque champ la valeur que vous souhaitez conserver. Le contact résultant prendra ces valeurs, et l'autre contact sera archivé.
-        </p>
-
-        <MergeDuplicateForm 
+        <MergeDuplicateForm
           candidateId={candidate.id}
-          contact1={candidate.contact1}
-          contact2={candidate.contact2}
+          contact1={candidate.contact1 as any}
+          contact2={candidate.contact2 as any}
         />
       </div>
     </div>

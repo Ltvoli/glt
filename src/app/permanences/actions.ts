@@ -770,3 +770,159 @@ export async function anonymizePermanenceContacts(permanenceId: string): Promise
     return { success: false, error: error.message || 'Erreur lors de l\'anonymisation.' }
   }
 }
+
+// ----------------------------------------------------
+// LOCATION DETAILS UPDATE (mairieContact + notes)
+// ----------------------------------------------------
+export async function updateLocationDetails(
+  permanenceId: string,
+  locationId: string,
+  data: { mairieContactId?: string | null; locationNotes?: string | null }
+): Promise<ActionResult> {
+  try {
+    const auth = await checkPermission('permanences.update')
+    if (!auth.success || !auth.userId) return { success: false, error: auth.error }
+
+    await prisma.permanenceLocation.update({
+      where: { id: locationId },
+      data: {
+        mairieContactId: data.mairieContactId !== undefined ? data.mairieContactId : undefined,
+        locationNotes: data.locationNotes !== undefined ? data.locationNotes : undefined,
+      }
+    })
+
+    revalidatePath(`/permanences/${permanenceId}/locations`)
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erreur de mise à jour du lieu.' }
+  }
+}
+
+// ----------------------------------------------------
+// DEPUTY REMARKS
+// ----------------------------------------------------
+export async function saveDeputyRemarks(permanenceId: string, remarks: string): Promise<ActionResult> {
+  try {
+    const auth = await checkPermission('permanences.update')
+    if (!auth.success || !auth.userId) return { success: false, error: auth.error }
+
+    await prisma.mobilePermanence.update({
+      where: { id: permanenceId },
+      data: { deputyRemarks: remarks || null }
+    })
+
+    revalidatePath(`/permanences/${permanenceId}`)
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erreur de sauvegarde.' }
+  }
+}
+
+// ----------------------------------------------------
+// BULK ADD CONTACTS FROM CRM TO PHONING
+// ----------------------------------------------------
+export async function bulkAddContactsToPhoning(
+  permanenceId: string,
+  contactIds: string[]
+): Promise<ActionResult<{ added: number; skipped: number }>> {
+  try {
+    const auth = await checkPermission('permanences.update')
+    if (!auth.success || !auth.userId) return { success: false, error: auth.error }
+
+    let added = 0
+    let skipped = 0
+
+    for (const contactId of contactIds) {
+      // Check not already in phoning
+      const existing = await prisma.permanenceContact.findFirst({
+        where: { permanenceId, contactId }
+      })
+      if (existing) { skipped++; continue }
+
+      const contact = await prisma.contact.findUnique({ where: { id: contactId } })
+      if (!contact) { skipped++; continue }
+
+      await prisma.permanenceContact.create({
+        data: {
+          permanenceId,
+          contactId,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          phone: contact.mobilePhone || contact.phone,
+          email: contact.email,
+          city: contact.city,
+          role: 'PHONING',
+          callStatus: 'NOT_CALLED'
+        }
+      })
+      added++
+    }
+
+    await logAudit('phoning.bulk_add', 'MobilePermanence', permanenceId, auth.userId, { added, skipped })
+    await autoTransitionToInProgress(permanenceId, auth.userId)
+
+    revalidatePath(`/permanences/${permanenceId}/phoning`)
+    return { success: true, data: { added, skipped } }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erreur lors de l\'ajout en masse.' }
+  }
+}
+
+// ----------------------------------------------------
+// GET ACTIVE PERMANENCES FOR PHONING PICKER
+// ----------------------------------------------------
+export async function getActivePermanences() {
+  try {
+    const auth = await checkPermission('permanences.read')
+    if (!auth.success) return []
+
+    const permanences = await prisma.mobilePermanence.findMany({
+      where: {
+        archivedAt: null,
+        status: { notIn: ['ARCHIVED', 'VALIDATED', 'DRAFT'] }
+      },
+      select: {
+        id: true,
+        title: true,
+        scheduledStartDate: true,
+        status: true,
+      },
+      orderBy: { scheduledStartDate: 'desc' },
+      take: 20,
+    })
+
+    return permanences
+  } catch {
+    return []
+  }
+}
+
+// ----------------------------------------------------
+// SYNTHESIS — updated to support merchantInsights
+// ----------------------------------------------------
+export async function saveSynthesisFullAction(
+  permanenceId: string,
+  data: {
+    attentionPoints?: string
+    merchantProgram?: string
+    phoningTopics?: string
+    merchantInsights?: string
+    recommendations?: string
+  }
+): Promise<ActionResult> {
+  try {
+    const auth = await checkPermission('permanences.update')
+    if (!auth.success || !auth.userId) return { success: false, error: auth.error }
+
+    await prisma.permanenceSynthesis.upsert({
+      where: { permanenceId },
+      update: data,
+      create: { permanenceId, ...data }
+    })
+
+    revalidatePath(`/permanences/${permanenceId}/synthese`)
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erreur de sauvegarde de la synthèse.' }
+  }
+}

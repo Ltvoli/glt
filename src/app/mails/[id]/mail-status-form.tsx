@@ -11,7 +11,7 @@ const STATUSES = [
   { value: 'CLASSE', label: 'Classé' },
 ]
 
-export default function MailStatusForm({ mailId, currentStatus }: { mailId: string, currentStatus: string }) {
+export default function MailStatusForm({ mailId, currentStatus, dictionary = [] }: { mailId: string, currentStatus: string, dictionary?: any[] }) {
   const [isPending, startTransition] = useTransition()
   const [status, setStatus] = useState(currentStatus)
 
@@ -41,8 +41,8 @@ export default function MailStatusForm({ mailId, currentStatus }: { mailId: stri
           opacity: isPending ? 0.7 : 1
         }}
       >
-        {STATUSES.map(s => (
-          <option key={s.value} value={s.value}>{s.label}</option>
+        {dictionary.filter(d => d.type === 'MAIL_STATUS').map(d => (
+          <option key={d.code} value={d.code}>{d.label}</option>
         ))}
       </select>
     </div>

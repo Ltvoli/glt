@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache'
 import { logAudit } from '@/lib/audit'
 import { redirect } from 'next/navigation'
 
+
+// ─── Ignorer un doublon (pas un vrai doublon) ────────────────
 export async function dismissDuplicate(prevState: any, formData: FormData) {
   const session = await getSession()
   if (!session?.userId) return { error: 'Non autorisé' }
@@ -25,94 +27,181 @@ export async function dismissDuplicate(prevState: any, formData: FormData) {
   }
 }
 
+// ─── Fusion simple (garder un contact, archiver l'autre) ─────
 export async function mergeDuplicate(prevState: any, formData: FormData) {
   const session = await getSession()
   if (!session?.userId) return { error: 'Non autorisé' }
 
-  const candidateId = formData.get('candidateId') as string
-  const keepContactId = formData.get('keepContactId') as string
+  const candidateId     = formData.get('candidateId')     as string
+  const keepContactId   = formData.get('keepContactId')   as string
   const deleteContactId = formData.get('deleteContactId') as string
 
   if (!candidateId || !keepContactId || !deleteContactId) return { error: 'Données manquantes' }
 
   try {
-    // Dans une vraie app complexe, on devrait fusionner les tâches, courriers, tags, etc.
-    // Pour simplifier ici, on archive simplement le contact "supprimé" et on résout le candidat.
-    
-    await prisma.$transaction([
-      prisma.contact.update({
-        where: { id: deleteContactId },
-        data: { archivedAt: new Date() }
-      }),
-      prisma.duplicateCandidate.update({
-        where: { id: candidateId },
-        data: { status: 'RESOLVED' }
-      })
-    ])
-
-    await logAudit('MERGE_DUPLICATE', 'Contact', keepContactId, session.userId, { deletedContactId: deleteContactId })
-
+    await fusionnerContacts(keepContactId, deleteContactId, candidateId, session.userId)
     revalidatePath('/contacts/duplicates')
-    return { success: true }
-  } catch (e) {
-    return { error: 'Erreur technique' }
+    revalidatePath('/contacts')
+  } catch (e: any) {
+    console.error('[mergeDuplicate]', e)
+    return { error: `Erreur technique : ${e?.message ?? 'inconnue'}` }
   }
+
+  redirect('/contacts/duplicates')
 }
 
-export async function advancedMergeDuplicate(
-  { candidateId, contact1Id, contact2Id, selectedFields }: { candidateId: string, contact1Id: string, contact2Id: string, selectedFields: Record<string, 'c1' | 'c2'> },
-  prevState: any,
-  formData: FormData
-) {
+// ─── Fusion avancée (champ par champ depuis le formulaire) ───
+export async function advancedMergeDuplicate(prevState: any, formData: FormData) {
   const session = await getSession()
   if (!session?.userId) return { error: 'Non autorisé' }
 
-  try {
-    const candidate = await prisma.duplicateCandidate.findUnique({
-      where: { id: candidateId },
-      include: { contact1: true, contact2: true }
-    })
+  const candidateId     = formData.get('candidateId')     as string
+  const keepContactId   = formData.get('keepContactId')   as string
+  const deleteContactId = formData.get('deleteContactId') as string
 
-    if (!candidate || candidate.status !== 'PENDING') return { error: 'Doublon introuvable ou déjà traité' }
+  if (!candidateId || !keepContactId || !deleteContactId) return { error: 'Données manquantes' }
 
-    // Build the final merged data
-    const finalData: any = {}
-    for (const [field, choice] of Object.entries(selectedFields)) {
-      finalData[field] = choice === 'c1' ? (candidate.contact1 as any)[field] : (candidate.contact2 as any)[field]
+  // Construire le payload depuis les champs sélectionnés
+  const FIELDS = [
+    'firstName','lastName','email','mobilePhone','phone',
+    'streetNumber','streetName','postalCode','city',
+    'gender','birthDate','type','supportLevel','territorySector',
+    'notes','profession','newsletter','meetingStep',
+  ]
+
+  const dataToUpdate: Record<string, any> = {}
+  for (const field of FIELDS) {
+    const val = formData.get(`field_${field}`)
+    if (val !== null && val !== undefined) {
+      dataToUpdate[field] = val === '' ? null : val
     }
-
-    // We keep contact1 by default as the primary record, and delete contact2
-    const keepContactId = contact1Id
-    const deleteContactId = contact2Id
-
-    await prisma.$transaction([
-      prisma.contact.update({
-        where: { id: keepContactId },
-        data: finalData
-      }),
-      // Re-link everything from deleteContactId to keepContactId (Mails, Tasks, QE, Notes)
-      // MailCases, Tasks, QEs are linked via GlobalLink
-      prisma.globalLink.updateMany({
-        where: { contactId: deleteContactId },
-        data: { contactId: keepContactId }
-      }),
-      prisma.contact.update({
-        where: { id: deleteContactId },
-        data: { archivedAt: new Date() } // Soft delete
-      }),
-      prisma.duplicateCandidate.update({
-        where: { id: candidateId },
-        data: { status: 'RESOLVED' }
-      })
-    ])
-
-    await logAudit('MERGE_DUPLICATE', 'Contact', keepContactId, session.userId, { deletedContactId: deleteContactId, mergedFields: finalData })
-
-  } catch (error: any) {
-    if (error.message === 'NEXT_REDIRECT') throw error;
-    return { error: 'Erreur lors de la fusion avancée' }
   }
 
-  revalidatePath('/contacts/duplicates')
+  // Traitement spécial pour les champs date
+  if (dataToUpdate.birthDate && typeof dataToUpdate.birthDate === 'string') {
+    const d = new Date(dataToUpdate.birthDate)
+    dataToUpdate.birthDate = isNaN(d.getTime()) ? null : d
+  }
+
+  // Traitement du booléen newsletter
+  if (dataToUpdate.newsletter !== undefined) {
+    dataToUpdate.newsletter = dataToUpdate.newsletter === 'true'
+  }
+
+  try {
+    // Mettre à jour les champs sélectionnés sur le contact conservé
+    if (Object.keys(dataToUpdate).length > 0) {
+      await prisma.contact.update({
+        where: { id: keepContactId },
+        data: dataToUpdate,
+      })
+    }
+
+    await fusionnerContacts(keepContactId, deleteContactId, candidateId, session.userId)
+    revalidatePath('/contacts/duplicates')
+    revalidatePath('/contacts')
+  } catch (e: any) {
+    console.error('[mergeAdvancedDuplicate]', e)
+    return { error: `Erreur technique : ${e?.message ?? 'inconnue'}` }
+  }
+
   redirect('/contacts/duplicates')
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Logique de fusion : transfère TOUTES les relations du contact
+// supprimé vers le contact conservé, puis l'archive.
+//
+// Structure réelle du schéma :
+//   - Les liens tâches/courriers/QE ↔ contacts passent par GlobalLink
+//     (globalLink.contactId, globalLink.taskId | mailCaseId | questionId)
+//   - Les tags contacts passent par ContactTag (@@id([contactId, tagId]))
+// ═══════════════════════════════════════════════════════════════
+async function fusionnerContacts(
+  keepId: string,
+  deleteId: string,
+  candidateId: string,
+  userId: string,
+) {
+  await prisma.$transaction(async (tx) => {
+
+    // 1. Récupérer tous les GlobalLinks du contact à supprimer
+    const linksToTransfer = await tx.globalLink.findMany({
+      where: { contactId: deleteId }
+    })
+
+    for (const link of linksToTransfer) {
+      // Vérifier s'il existe déjà un lien identique pour le contact conservé
+      const duplicate = await tx.globalLink.findFirst({
+        where: {
+          contactId: keepId,
+          taskId:    link.taskId    ?? undefined,
+          mailCaseId: link.mailCaseId ?? undefined,
+          questionId: link.questionId ?? undefined,
+        }
+      })
+
+      if (!duplicate) {
+        // Réaffecter le lien au contact conservé
+        await tx.globalLink.update({
+          where: { id: link.id },
+          data: { contactId: keepId }
+        })
+      } else {
+        // Doublon de lien → supprimer
+        await tx.globalLink.delete({ where: { id: link.id } })
+      }
+    }
+
+    // 2. Transférer les tags (ContactTag a une clé composite [contactId, tagId])
+    const tagsToTransfer = await tx.contactTag.findMany({
+      where: { contactId: deleteId }
+    })
+
+    for (const ct of tagsToTransfer) {
+      // Vérifier si le tag existe déjà sur le contact conservé
+      const existing = await tx.contactTag.findUnique({
+        where: { contactId_tagId: { contactId: keepId, tagId: ct.tagId } }
+      })
+      if (!existing) {
+        // Créer le tag sur le contact conservé
+        await tx.contactTag.create({
+          data: { contactId: keepId, tagId: ct.tagId }
+        })
+      }
+      // Supprimer le tag de l'ancien contact
+      await tx.contactTag.delete({
+        where: { contactId_tagId: { contactId: deleteId, tagId: ct.tagId } }
+      })
+    }
+
+    // 3. Supprimer les autres candidats doublons impliquant le contact supprimé
+    await tx.duplicateCandidate.deleteMany({
+      where: {
+        id: { not: candidateId },
+        OR: [
+          { contact1Id: deleteId },
+          { contact2Id: deleteId },
+        ]
+      }
+    })
+
+    // 4. Résoudre le candidat courant
+    await tx.duplicateCandidate.update({
+      where: { id: candidateId },
+      data: { status: 'RESOLVED' }
+    })
+
+    // 5. Archiver le contact doublon
+    await tx.contact.update({
+      where: { id: deleteId },
+      data: { archivedAt: new Date() }
+    })
+  })
+
+  // 6. Log d'audit (hors transaction pour éviter les timeouts)
+  await logAudit('DUPLICATE_MERGED', 'Contact', keepId, userId, {
+    mergedContactId: deleteId,
+    candidateId,
+  })
 }

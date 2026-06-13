@@ -8,7 +8,7 @@ const initialState = {
   error: ''
 }
 
-export default function TaskForm({ users, contactId, allTags = [] }: { users: any[], contactId?: string, allTags?: any[] }) {
+export default function TaskForm({ users, contactId, allTags = [], dictionary = [] }: { users: any[], contactId?: string, allTags?: any[], dictionary?: any[] }) {
   const [state, formAction, isPending] = useActionState(createTask, initialState)
 
   return (
@@ -27,20 +27,19 @@ export default function TaskForm({ users, contactId, allTags = [] }: { users: an
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
         <div className="form-group">
           <label htmlFor="priority">Priorité</label>
-          <select id="priority" name="priority" className="form-control" defaultValue="NORMALE">
-            <option value="HAUTE">Haute</option>
-            <option value="NORMALE">Normale</option>
-            <option value="BASSE">Basse</option>
+          <select id="priority" name="priority" className="form-control" defaultValue={dictionary.find(d => d.type === 'TASK_PRIORITY' && d.isDefault)?.code || "NORMALE"}>
+            {dictionary.filter(d => d.type === 'TASK_PRIORITY').map(d => (
+              <option key={d.code} value={d.code}>{d.label}</option>
+            ))}
           </select>
         </div>
 
         <div className="form-group">
           <label htmlFor="status">Statut</label>
-          <select id="status" name="status" className="form-control" defaultValue="A_FAIRE">
-            <option value="A_FAIRE">À faire</option>
-            <option value="EN_COURS">En cours</option>
-            <option value="EN_ATTENTE">En attente</option>
-            <option value="TERMINEE">Terminée</option>
+          <select id="status" name="status" className="form-control" defaultValue={dictionary.find(d => d.type === 'TASK_STATUS' && d.isDefault)?.code || "A_FAIRE"}>
+            {dictionary.filter(d => d.type === 'TASK_STATUS').map(d => (
+              <option key={d.code} value={d.code}>{d.label}</option>
+            ))}
           </select>
         </div>
 

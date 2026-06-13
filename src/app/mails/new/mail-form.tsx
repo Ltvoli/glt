@@ -7,7 +7,7 @@ const initialState = {
   error: ''
 }
 
-export default function MailForm({ users, contacts, tasks, initialParentId, initialSubject, initialContactId }: { users: any[], contacts: any[], tasks: any[], initialParentId?: string, initialSubject?: string, initialContactId?: string }) {
+export default function MailForm({ users, contacts, tasks, initialParentId, initialSubject, initialContactId, dictionary = [] }: { users: any[], contacts: any[], tasks: any[], initialParentId?: string, initialSubject?: string, initialContactId?: string, dictionary?: any[] }) {
   const [state, formAction, isPending] = useActionState(createMail, initialState)
   const [mailType, setMailType] = useState(initialParentId ? 'SORTANT' : 'ENTRANT')
 

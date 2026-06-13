@@ -9,26 +9,32 @@ import Link from 'next/link'
 import prisma from '@/lib/prisma'
 
 export default async function DocumentsPage({
-  searchParams
+  searchParams: searchParamsPromise
 }: {
-  searchParams: { q?: string, type?: string, conf?: string, author?: string, relation?: string, status?: string }
+  searchParams: Promise<{ q?: string, type?: string, conf?: string, author?: string, relation?: string, status?: string }>
 }) {
   const session = await getSession()
   if (!session?.userId) redirect('/login')
 
+  const searchParams = await searchParamsPromise
+
   const docs = await getDocuments(
-    searchParams.q, 
-    searchParams.type, 
+    searchParams.q,
+    searchParams.type,
     searchParams.conf,
     searchParams.author,
     searchParams.relation,
     searchParams.status
   )
 
-  const users = await prisma.user.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: 'asc' }
+  const usersData = await prisma.user.findMany({
+    select: { id: true, firstName: true, lastName: true },
+    orderBy: [
+      { firstName: 'asc' },
+      { lastName: 'asc' }
+    ]
   })
+  const users = usersData.map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }))
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto' }}>

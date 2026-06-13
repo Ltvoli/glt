@@ -29,6 +29,8 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
 
   if (!mail) redirect('/mails')
 
+  const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
+
   const linkedContacts = mail.links.filter(l => l.contact).map(l => l.contact)
   const linkedTasks = mail.links.filter(l => l.task).map(l => l.task)
 
@@ -67,7 +69,7 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
                 Rédiger une réponse
               </Link>
             )}
-            <MailStatusForm mailId={mail.id} currentStatus={mail.status} />
+            <MailStatusForm mailId={mail.id} currentStatus={mail.status} dictionary={dictionary} />
           </div>
         </div>
       </div>

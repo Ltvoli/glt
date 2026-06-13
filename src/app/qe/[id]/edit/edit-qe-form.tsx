@@ -26,7 +26,7 @@ const MINISTRIES = [
   "Autre"
 ]
 
-export default function EditQEForm({ qe, users }: { qe: any, users: {id: string; name: string}[] }) {
+export default function EditQEForm({ qe, users, dictionary = [] }: { qe: any, users: {id: string; name: string}[], dictionary?: any[] }) {
   const router = useRouter()
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState('')
@@ -54,10 +54,9 @@ export default function EditQEForm({ qe, users }: { qe: any, users: {id: string;
         <div className="form-group">
           <label htmlFor="type">Type de question *</label>
           <select id="type" name="type" className="form-control" required defaultValue={qe.type}>
-            <option value="QE">Question Écrite (QE)</option>
-            <option value="QAG">Question d&apos;Actualité au Gouvernement (QAG)</option>
-            <option value="QOSD">Question Orale Sans Débat (QOSD)</option>
-            <option value="AMENDEMENT">Amendement</option>
+            {dictionary.filter(d => d.type === 'QE_TYPE').map(d => (
+              <option key={d.code} value={d.code}>{d.label}</option>
+            ))}
           </select>
         </div>
         <div className="form-group">

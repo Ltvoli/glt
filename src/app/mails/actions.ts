@@ -5,6 +5,7 @@ import { requireWriteAccess } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { logAudit } from '@/lib/audit'
+import { mailCaseSchema } from '@/lib/validations'
 
 // Utility to generate unique reference e.g., COU-2026-0042
 async function generateReference() {
@@ -51,9 +52,15 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
   const type = formData.get('type') as string || 'ENTRANT'
   const parentMailCaseId = formData.get('parentMailCaseId') as string
 
-  if (!subject || !channel) {
-    return { error: 'Le sujet et le canal sont obligatoires.' }
+  const validatedFields = mailCaseSchema.safeParse({
+    subject, senderName, recipientName, city, channel, category, urgency, notes, content, assigneeId, type
+  })
+
+  if (!validatedFields.success) {
+    return { error: validatedFields.error.issues[0].message }
   }
+
+  const validData = validatedFields.data
 
   const receiveDate = receiveDateStr ? new Date(receiveDateStr) : null
   const sentDate = sentDateStr ? new Date(sentDateStr) : null
@@ -85,19 +92,19 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
     const newMail = await prisma.mailCase.create({
       data: {
         reference,
-        type,
-        subject,
-        senderName: senderName || null,
-        recipientName: recipientName || null,
-        city: city || null,
-        channel,
-        category: category || null,
-        urgency: urgency || 'NORMALE',
+        type: validData.type,
+        subject: validData.subject,
+        senderName: validData.senderName || null,
+        recipientName: validData.recipientName || null,
+        city: validData.city || null,
+        channel: validData.channel,
+        category: validData.category || null,
+        urgency: validData.urgency || 'NORMALE',
         receiveDate,
         sentDate,
-        content: content || null,
-        notes: notes || null,
-        assigneeId: assigneeId || null,
+        content: validData.content || null,
+        notes: validData.notes || null,
+        assigneeId: validData.assigneeId || null,
         parentMailCaseId: parentMailCaseId || null,
         responseDueDate
       }
@@ -183,8 +190,24 @@ export async function updateMailStatus(mailId: string, status: string) {
     data: { status }
   })
 
-  await logAudit('UPDATE_STATUS', 'MailCase', mailId, session.userId, { status }, { status: mail.status })
+  await logAudit('UPDATE_STATUS', 'MailCase', mailId, session.userId, { before: mail.status, after: status })
 
   revalidatePath(`/mails/${mailId}`)
+  revalidatePath('/mails')
+}
+
+export async function batchUpdateMailStatus(mailIds: string[], status: string) {
+  const session = await requireWriteAccess()
+
+  await prisma.mailCase.updateMany({
+    where: { id: { in: mailIds } },
+    data: { status }
+  })
+
+  // Audit logs for each
+  for (const id of mailIds) {
+    await logAudit('UPDATE_STATUS', 'MailCase', id, session.userId, { action: 'BATCH_UPDATE', newStatus: status })
+  }
+
   revalidatePath('/mails')
 }

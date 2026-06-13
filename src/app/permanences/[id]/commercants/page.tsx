@@ -39,11 +39,15 @@ export default async function CommercantsPage({
   const completionPercent = totalTasks === 0 ? 100 : Math.round((completedTasks / totalTasks) * 100)
 
   // Fetch active users for task assignee dropdown
-  const users = await prisma.user.findMany({
+  const usersData = await prisma.user.findMany({
     where: { isActive: true },
-    select: { id: true, name: true },
-    orderBy: { name: 'asc' }
+    select: { id: true, firstName: true, lastName: true },
+    orderBy: [
+      { firstName: 'asc' },
+      { lastName: 'asc' }
+    ]
   })
+  const users = usersData.map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }))
 
   // Fetch CRM organizations of type COMMERCE
   const crmOrgs = await prisma.organization.findMany({

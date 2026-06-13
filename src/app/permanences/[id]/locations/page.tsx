@@ -20,7 +20,12 @@ export default async function PermanenceLocationsPage({
     where: { id, archivedAt: null },
     include: {
       locations: {
-        include: { commune: true },
+        include: {
+          commune: true,
+          mairieContact: {
+            select: { id: true, firstName: true, lastName: true, phone: true, mobilePhone: true, email: true }
+          }
+        },
         orderBy: { order: 'asc' }
       }
     }
@@ -34,6 +39,13 @@ export default async function PermanenceLocationsPage({
     orderBy: { name: 'asc' }
   })
 
+  // Fetch all contacts for mairie contact picker
+  const contacts = await prisma.contact.findMany({
+    where: { archivedAt: null },
+    select: { id: true, firstName: true, lastName: true, phone: true, mobilePhone: true, email: true, city: true },
+    orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }]
+  })
+
   const isReadOnly = session.role === 'READONLY'
 
   return (
@@ -44,20 +56,37 @@ export default async function PermanenceLocationsPage({
         <span style={{ margin: '0 0.5rem', color: 'var(--text-muted)' }}>&gt;</span>
         <Link href={`/permanences/${id}`} className="text-blue-600 hover:underline">{permanence.title}</Link>
         <span style={{ margin: '0 0.5rem', color: 'var(--text-muted)' }}>&gt;</span>
-        <span style={{ color: 'var(--text-muted)' }}>Communes & Lieux</span>
+        <span style={{ color: 'var(--text-muted)' }}>Communes &amp; Lieux</span>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--foreground)' }}>Communes & Lieux</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Planifiez les différents arrêts et points d'accueil de la permanence mobile.</p>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--foreground)' }}>Communes &amp; Lieux</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Planifiez les différents arrêts et points d&apos;accueil de la permanence mobile.</p>
         </div>
       </div>
 
       <LocationsClient
         permanenceId={id}
-        locations={permanence.locations}
+        locations={permanence.locations.map(l => ({
+          ...l,
+          mairieContact: l.mairieContact ? {
+            id: l.mairieContact.id,
+            firstName: l.mairieContact.firstName,
+            lastName: l.mairieContact.lastName,
+            phone: l.mairieContact.mobilePhone || l.mairieContact.phone,
+            email: l.mairieContact.email,
+          } : null,
+        }))}
         communes={communes}
+        contacts={contacts.map(c => ({
+          id: c.id,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          phone: c.mobilePhone || c.phone,
+          email: c.email,
+          city: c.city,
+        }))}
         isReadOnly={isReadOnly}
       />
     </div>

@@ -18,6 +18,7 @@ export default async function EditQEPage({ params }: { params: Promise<{ id: str
   if (!qe) redirect('/qe')
 
   const users = await prisma.user.findMany({ select: { id: true, name: true } })
+  const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -29,7 +30,7 @@ export default async function EditQEPage({ params }: { params: Promise<{ id: str
       </div>
 
       <div className="card">
-        <EditQEForm qe={qe} users={users} />
+        <EditQEForm qe={qe} users={users} dictionary={dictionary} />
       </div>
     </div>
   )

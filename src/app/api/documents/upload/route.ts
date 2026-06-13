@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { requirePermission } from '@/lib/permissions'
 import prisma from '@/lib/prisma'
-import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
+import { supabase } from '@/lib/supabase'
+import pdfParse from 'pdf-parse'
+import Tesseract from 'tesseract.js'
 
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -29,9 +31,12 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData()
     const file = formData.get('file') as File | null
-    const title = formData.get('title') as string
+    const title = formData.get('title') as string || (file ? file.name : '')
     const documentType = formData.get('documentType') as string || 'AUTRE'
     const confidentiality = formData.get('confidentiality') as string || 'INTERNE'
+    
+    const entityType = formData.get('entityType') as string
+    const entityId = formData.get('entityId') as string
     
     if (!file) return NextResponse.json({ error: 'Aucun fichier fourni' }, { status: 400 })
     if (!title) return NextResponse.json({ error: 'Titre manquant' }, { status: 400 })
@@ -45,29 +50,59 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const storageName = uuidv4()
-    const extension = path.extname(file.name)
+    const extension = path.extname(file.name) || ('.' + file.name.split('.').pop())
     const fileName = `${storageName}${extension}`
     
-    // Using a private local directory
-    const uploadDir = path.join(process.cwd(), 'private', 'documents')
-    await mkdir(uploadDir, { recursive: true })
-    
-    const filePath = path.join(uploadDir, fileName)
-    await writeFile(filePath, buffer)
+    // Upload vers Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase
+      .storage
+      .from('crm-attachments')
+      .upload(fileName, buffer, {
+        contentType: file.type,
+        upsert: false
+      })
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError)
+      return NextResponse.json({ error: 'Erreur lors du stockage sur le cloud' }, { status: 500 })
+    }
+
+    let extractedText = ''
+    try {
+      if (file.type === 'application/pdf') {
+        const pdfData = await pdfParse(buffer)
+        extractedText = pdfData.text
+      } else if (file.type.startsWith('image/')) {
+        const { data: { text } } = await Tesseract.recognize(buffer, 'fra')
+        extractedText = text
+      }
+    } catch (ocrError) {
+      console.error('OCR/Parse error:', ocrError)
+    }
+
+    const dataPayload: any = {
+      title,
+      documentType,
+      originalName: file.name,
+      storageName: fileName,
+      extension,
+      mimeType: file.type,
+      size: file.size,
+      storagePath: uploadData.path, // Supabase path
+      confidentiality,
+      uploadedById: session.userId,
+      extractedText: extractedText.trim() || null,
+    }
+
+    if (entityType && entityId) {
+      if (entityType === 'mail') dataPayload.mailCaseId = entityId
+      if (entityType === 'task') dataPayload.taskId = entityId
+      if (entityType === 'contact') dataPayload.contactId = entityId
+      if (entityType === 'qe') dataPayload.questionId = entityId
+    }
 
     const doc = await prisma.document.create({
-      data: {
-        title,
-        documentType,
-        originalName: file.name,
-        storageName: fileName,
-        extension,
-        mimeType: file.type,
-        size: file.size,
-        storagePath: filePath, // Stored safely locally
-        confidentiality,
-        uploadedById: session.userId,
-      }
+      data: dataPayload
     })
 
     return NextResponse.json({ success: true, document: doc })
@@ -76,3 +111,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Erreur interne lors de l\'upload' }, { status: 500 })
   }
 }
+

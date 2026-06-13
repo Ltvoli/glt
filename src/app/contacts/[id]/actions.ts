@@ -13,6 +13,7 @@ export async function updateContact(prevState: any, formData: FormData): Promise
   const id = formData.get('id') as string
   const firstName = formData.get('firstName') as string
   const lastName = formData.get('lastName') as string
+  const usageName = formData.get('usageName') as string
   const email = formData.get('email') as string
   const phone = formData.get('phone') as string
   const mobilePhone = formData.get('mobilePhone') as string
@@ -20,8 +21,11 @@ export async function updateContact(prevState: any, formData: FormData): Promise
   const city = formData.get('city') as string
   const gender = formData.get('gender') as string
   const birthDateStr = formData.get('birthDate') as string
+  const apartment = formData.get('apartment') as string
+  const building = formData.get('building') as string
   const streetNumber = formData.get('streetNumber') as string
   const streetName = formData.get('streetName') as string
+  const addressComplement = formData.get('addressComplement') as string
   const postalCode = formData.get('postalCode') as string
   const supportLevel = formData.get('supportLevel') as string
   const meetingStep = formData.get('meetingStep') as string
@@ -56,6 +60,7 @@ export async function updateContact(prevState: any, formData: FormData): Promise
       data: {
         firstName,
         lastName,
+        usageName: usageName || null,
         email: email || null,
         phone: phone || null,
         mobilePhone: mobilePhone || null,
@@ -63,8 +68,11 @@ export async function updateContact(prevState: any, formData: FormData): Promise
         city: city || null,
         gender: gender || null,
         birthDate,
+        apartment: apartment || null,
+        building: building || null,
         streetNumber: streetNumber || null,
         streetName: streetName || null,
+        addressComplement: addressComplement || null,
         postalCode: postalCode || null,
         supportLevel: supportLevel || null,
         meetingStep: meetingStep || null,
@@ -98,9 +106,8 @@ export async function updateContact(prevState: any, formData: FormData): Promise
 
     await logAudit('UPDATE', 'Contact', id, session.userId, updatedContact)
 
-    redirect(`/contacts/${id}`)
+    return { success: true }
   } catch (error: any) {
-    if (error.message === 'NEXT_REDIRECT') throw error
     return { error: 'Erreur lors de la mise à jour.' }
   }
 }

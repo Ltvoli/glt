@@ -1,13 +1,12 @@
 'use server'
 
 import prisma from '@/lib/prisma'
-import { getSession } from '@/lib/session'
+import { getSession, requireWriteAccess } from '@/lib/session'
 import { revalidatePath } from 'next/cache'
 import { logAudit } from '@/lib/audit'
 
 export async function updateTask(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
-  const session = await getSession()
-  if (!session?.userId) return { error: 'Non autorisé' }
+  const session = await requireWriteAccess()
 
   const id = formData.get('id') as string
   const title = formData.get('title') as string
@@ -88,8 +87,7 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
 }
 
 export async function addSubtask(taskId: string, title: string) {
-  const session = await getSession()
-  if (!session?.userId) return { error: 'Non autorisé' }
+  const session = await requireWriteAccess()
 
   await prisma.subtask.create({
     data: {
@@ -104,8 +102,7 @@ export async function addSubtask(taskId: string, title: string) {
 }
 
 export async function toggleSubtask(subtaskId: string, isCompleted: boolean) {
-  const session = await getSession()
-  if (!session?.userId) return { error: 'Non autorisé' }
+  const session = await requireWriteAccess()
 
   const subtask = await prisma.subtask.update({
     where: { id: subtaskId },
@@ -117,8 +114,7 @@ export async function toggleSubtask(subtaskId: string, isCompleted: boolean) {
 }
 
 export async function addTaskComment(taskId: string, content: string) {
-  const session = await getSession()
-  if (!session?.userId) return { error: 'Non autorisé' }
+  const session = await requireWriteAccess()
 
   const task = await prisma.task.findUnique({ where: { id: taskId } })
   if (!task) return { error: 'Tâche introuvable' }

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 
 export default function ImportForm() {
   const [file, setFile] = useState<File | null>(null)
+  const [forceConsent, setForceConsent] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState('')
   const [results, setResults] = useState<any>(null)
@@ -31,6 +32,7 @@ export default function ImportForm() {
 
     const formData = new FormData()
     formData.append('file', file)
+    if (forceConsent) formData.append('forceConsent', 'true')
 
     try {
       const response = await processImport(formData)
@@ -63,6 +65,23 @@ export default function ImportForm() {
               style={{ padding: '0.5rem' }}
             />
           </div>
+
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <input 
+              type="checkbox" 
+              id="forceConsent" 
+              checked={forceConsent}
+              onChange={(e) => setForceConsent(e.target.checked)}
+              style={{ width: '1rem', height: '1rem' }}
+            />
+            <label htmlFor="forceConsent" style={{ fontWeight: 500, margin: 0, cursor: 'pointer' }}>
+              Forcer le consentement (ex: import de liste d'adhérents)
+            </label>
+          </div>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '-0.5rem', marginBottom: '1rem' }}>
+            Si coché, tous les contacts de ce fichier seront marqués comme ayant accepté de recevoir des communications, 
+            indépendamment de la valeur dans la colonne "Newsletter" du fichier.
+          </p>
 
           {error && (
             <div style={{ color: 'var(--danger)', fontSize: '0.875rem' }}>

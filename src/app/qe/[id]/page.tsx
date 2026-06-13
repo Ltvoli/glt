@@ -30,6 +30,8 @@ export default async function QEDetailPage({ params }: { params: Promise<{ id: s
 
   if (!qe) redirect('/qe')
 
+  const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
+
   const linkedContacts = qe.links.filter(l => l.contact).map(l => l.contact)
   const linkedTasks = qe.links.filter(l => l.task).map(l => l.task)
   const linkedMails = qe.links.filter(l => l.mailCase).map(l => l.mailCase)
@@ -76,7 +78,7 @@ export default async function QEDetailPage({ params }: { params: Promise<{ id: s
           </div>
           
           <div className="no-print">
-            <QEStatusForm qeId={qe.id} currentStatus={qe.status} />
+            <QEStatusForm qeId={qe.id} currentStatus={qe.status} dictionary={dictionary} />
           </div>
           {/* Version print-only du statut */}
           <div style={{ display: 'none' }} className="print-only-status">

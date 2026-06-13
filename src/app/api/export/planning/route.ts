@@ -21,7 +21,10 @@ export async function GET(request: Request) {
   const endOfMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0))
 
   const usersData = await prisma.user.findMany({
-    orderBy: { name: 'asc' },
+    orderBy: [
+      { firstName: 'asc' },
+      { lastName: 'asc' }
+    ],
     include: {
       employeeSetting: true,
       statuses: {

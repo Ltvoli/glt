@@ -2,23 +2,28 @@ import prisma from '@/lib/prisma'
 import Link from 'next/link'
 import { Plus, Download, AlertTriangle } from 'lucide-react'
 import { relaunchQe, redepositQe } from './actions'
+import PaginationBar from '../contacts/pagination-bar'
+import QeTableClient from './qe-table-client'
 
 export default async function QEPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string, q?: string }>
+  searchParams: Promise<{ filter?: string, q?: string, page?: string, perPage?: string }>
 }) {
-  const { filter, q } = await searchParams
+  const { filter, q, page, perPage } = await searchParams
   
+  const currentPage = Math.max(1, parseInt(page || '1'))
+  const itemsPerPage = Math.min(200, Math.max(10, parseInt(perPage || '50')))
+
   const whereClause: { archivedAt: null; OR?: any[]; status?: string } = { archivedAt: null }
   
   if (q) {
     whereClause.OR = [
-      { title: { contains: q } },
-      { anNumber: { contains: q } },
-      { ministry: { contains: q } },
-      { theme: { contains: q } },
-      { notes: { contains: q } }
+      { title: { contains: q, mode: 'insensitive' } },
+      { anNumber: { contains: q, mode: 'insensitive' } },
+      { ministry: { contains: q, mode: 'insensitive' } },
+      { theme: { contains: q, mode: 'insensitive' } },
+      { notes: { contains: q, mode: 'insensitive' } }
     ]
   }
   
@@ -30,13 +35,20 @@ export default async function QEPage({
     whereClause.status = 'REPONSE_RECUE'
   }
 
-  const questions = await prisma.writtenQuestion.findMany({
-    where: whereClause,
-    include: {
-      assignee: { select: { name: true } }
-    },
-    orderBy: { updatedAt: 'desc' },
-  })
+  const [questions, totalQuestions] = await Promise.all([
+    prisma.writtenQuestion.findMany({
+      where: whereClause,
+      include: {
+        assignee: { select: { name: true } }
+      },
+      orderBy: { updatedAt: 'desc' },
+      skip: (currentPage - 1) * itemsPerPage,
+      take: itemsPerPage,
+    }),
+    prisma.writtenQuestion.count({ where: whereClause })
+  ])
+
+  const totalPages = Math.ceil(totalQuestions / itemsPerPage)
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -100,79 +112,9 @@ export default async function QEPage({
         </div>
       </div>
 
-      <div className="card" style={{ overflowX: 'auto' }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Numéro / Titre</th>
-              <th>Ministère</th>
-              <th>Thématique</th>
-              <th>Date de Dépôt</th>
-              <th>Statut</th>
-              <th>Délai</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {questions.length === 0 ? (
-              <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                  Aucune question trouvée.
-                </td>
-              </tr>
-            ) : (
-              questions.map(qe => (
-                <tr key={qe.id}>
-                  <td>
-                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', backgroundColor: '#e2e8f0', padding: '0.125rem 0.25rem', borderRadius: '4px' }}>
-                        {qe.type}
-                      </span>
-                      {qe.anNumber && <span style={{ color: 'var(--primary)', fontSize: '0.85rem' }}>#{qe.anNumber}</span>}
-                      {qe.title}
-                    </div>
-                  </td>
-                  <td>{qe.ministry || '-'}</td>
-                  <td>{qe.theme || '-'}</td>
-                  <td>{qe.depositDate ? new Date(qe.depositDate).toLocaleDateString('fr-FR') : '-'}</td>
-                  <td>{getStatusBadge(qe.status)}</td>
-                  <td>
-                    {(() => {
-                      const delay = getDelayAlert(qe.status, qe.depositDate)
-                      if (delay.isLate) {
-                        return <span style={{ color: 'var(--danger)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><AlertTriangle size={14} /> {delay.text}</span>
-                      }
-                      return <span>{delay.text}</span>
-                    })()}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <Link href={`/qe/${qe.id}`} className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                        Voir
-                      </Link>
-                      {getDelayAlert(qe.status, qe.depositDate).isLate && (
-                        <>
-                          <form action={async () => {
-                            'use server'
-                            await relaunchQe(qe.id)
-                          }}>
-                            <button type="submit" className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--warning)', color: 'var(--warning)' }}>Relancer</button>
-                          </form>
-                          <form action={async () => {
-                            'use server'
-                            await redepositQe(qe.id)
-                          }}>
-                            <button type="submit" className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--danger)', color: 'var(--danger)' }}>Redéposer</button>
-                          </form>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <QeTableClient questions={questions} />
+      <div style={{ marginTop: '1.5rem' }}>
+        <PaginationBar currentPage={currentPage} totalPages={totalPages} currentParams={{ filter, q, page, perPage }} itemsPerPage={itemsPerPage} />
       </div>
     </div>
   )

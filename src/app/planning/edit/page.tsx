@@ -23,10 +23,18 @@ export default async function PlanningEditPage() {
   const session = await getSession()
   if (!session?.userId) redirect('/login')
 
-  const users = await prisma.user.findMany({
-    orderBy: { name: 'asc' },
-    select: { id: true, name: true }
+  const dbUsers = await prisma.user.findMany({
+    orderBy: [
+      { lastName: 'asc' },
+      { firstName: 'asc' }
+    ],
+    select: { id: true, firstName: true, lastName: true }
   })
+
+  const users = dbUsers.map(u => ({
+    id: u.id,
+    name: `${u.firstName} ${u.lastName}`.trim()
+  }))
 
   const weekDates = getCurrentWeekDates()
 

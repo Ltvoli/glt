@@ -2,8 +2,9 @@ import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Calendar, User, MapPin, CheckCircle2, AlertTriangle, ChevronRight, FileSpreadsheet } from 'lucide-react'
+import { Calendar, User, MapPin, CheckCircle2, AlertTriangle, ChevronRight, FileSpreadsheet, Phone, ListTodo, FileDown } from 'lucide-react'
 import WorkflowButtons from './workflow-buttons'
+import DeputyRemarksWidget from './deputy-remarks-widget'
 
 export default async function PermanenceDashboardPage({
   params,
@@ -28,6 +29,7 @@ export default async function PermanenceDashboardPage({
       tasks: {
         orderBy: { order: 'asc' }
       },
+      contacts: true,
       synthesis: true
     }
   })
@@ -140,12 +142,13 @@ export default async function PermanenceDashboardPage({
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            {session.permissions.includes('permanences.export') && (
-              <a href={`/api/export/permanences?id=${permanence.id}`} className="button outline" style={{ height: '40px' }}>
-                <FileSpreadsheet size={16} /> Exporter XLSX
-              </a>
-            )}
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <Link href={`/permanences/${permanence.id}/mes-taches`} className="button outline" style={{ height: '40px' }}>
+              <ListTodo size={16} /> Mes Tâches
+            </Link>
+            <a href={`/api/export/permanences-csv?id=${permanence.id}`} className="button outline" style={{ height: '40px' }}>
+              <FileDown size={16} /> Export CSV
+            </a>
             {!isReadOnly && (
               <Link href={`/permanences/${permanence.id}/edit`} className="button outline" style={{ height: '40px' }}>
                 Modifier
@@ -231,6 +234,42 @@ export default async function PermanenceDashboardPage({
         </div>
       </div>
 
+      {/* TERRAIN STATS */}
+      {(() => {
+        const totalContacts = permanence.contacts.length
+        const calledContacts = permanence.contacts.filter(c => c.callStatus !== 'NOT_CALLED').length
+        const rdvContacts = permanence.contacts.filter(c => c.callStatus === 'APPOINTMENT_CONFIRMED').length
+        const callRate = totalContacts === 0 ? 0 : Math.round((calledContacts / totalContacts) * 100)
+        const locTotal = permanence.locations.length
+        const locComplete = permanence.locations.filter(l => l.parkingStatus === 'DONE').length
+        return (
+          <div style={{ marginBottom: '2rem' }}>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '1rem' }}>Statistiques terrain</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { icon: <Phone size={20} />, label: 'Contacts phoning', value: totalContacts, color: '#6366f1', bg: '#ede9fe' },
+                { icon: <CheckCircle2 size={20} />, label: 'Appels passés', value: calledContacts, color: '#0891b2', bg: '#cffafe' },
+                { icon: <CheckCircle2 size={20} />, label: 'RDV confirmés', value: rdvContacts, color: '#16a34a', bg: '#d1fae5' },
+                { icon: <MapPin size={20} />, label: 'Villes confirmées', value: `${locComplete}/${locTotal}`, color: '#d97706', bg: '#fef3c7' },
+              ].map((stat, i) => (
+                <div key={i} style={{ padding: '1.25rem', borderRadius: '12px', background: stat.bg, display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ color: stat.color }}>{stat.icon}</div>
+                  <div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
+                    <div style={{ fontSize: '0.75rem', color: stat.color, fontWeight: 600, marginTop: '0.2rem' }}>{stat.label}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {totalContacts > 0 && (
+              <div style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                Taux de contact phoning : <strong style={{ color: callRate >= 80 ? 'var(--success)' : callRate >= 50 ? 'var(--warning)' : 'var(--danger)' }}>{callRate}%</strong>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* SECTIONS GRID */}
       <div>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--foreground)', marginBottom: '1rem' }}>Préparation par Section</h2>
@@ -296,7 +335,7 @@ export default async function PermanenceDashboardPage({
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1rem' }}>
-              <span>Synthèse d\'activité</span>
+              <span>Synthèse d&apos;activité</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.1rem', color: 'var(--primary)', fontWeight: 600 }}>
                 Consulter <ChevronRight size={12} />
               </span>
@@ -304,6 +343,13 @@ export default async function PermanenceDashboardPage({
           </Link>
         </div>
       </div>
+
+      {/* DEPUTY REMARKS */}
+      <DeputyRemarksWidget
+        permanenceId={permanence.id}
+        initialRemarks={permanence.deputyRemarks || ''}
+        isReadOnly={isReadOnly}
+      />
     </div>
   )
 }

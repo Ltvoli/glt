@@ -29,7 +29,7 @@ const MINISTRIES = [
   "Autre"
 ]
 
-export default function QEForm({ users, contacts, tasks, mails }: { users: {id: string; name: string}[], contacts: {id: string; firstName: string; lastName: string}[], tasks: {id: string; title: string}[], mails?: {id: string; subject: string; reference: string}[] }) {
+export default function QEForm({ users, contacts, tasks, mails, dictionary = [] }: { users: {id: string; name: string}[], contacts: {id: string; firstName: string; lastName: string}[], tasks: {id: string; title: string}[], mails?: {id: string; subject: string; reference: string}[], dictionary?: any[] }) {
   const [state, formAction, isPending] = useActionState(createQE, initialState)
   
   const [anNumber, setAnNumber] = useState('')
@@ -103,11 +103,10 @@ export default function QEForm({ users, contacts, tasks, mails }: { users: {id: 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
         <div className="form-group">
           <label htmlFor="type">Type de question *</label>
-          <select id="type" name="type" className="form-control" required defaultValue="QE">
-            <option value="QE">Question Écrite (QE)</option>
-            <option value="QAG">Question d&apos;Actualité au Gouvernement (QAG)</option>
-            <option value="QOSD">Question Orale Sans Débat (QOSD)</option>
-            <option value="AMENDEMENT">Amendement</option>
+          <select id="type" name="type" className="form-control" required defaultValue={dictionary.find(d => d.type === 'QE_TYPE' && d.isDefault)?.code || "QE"}>
+            {dictionary.filter(d => d.type === 'QE_TYPE').map(d => (
+              <option key={d.code} value={d.code}>{d.label}</option>
+            ))}
           </select>
         </div>
         <div className="form-group">

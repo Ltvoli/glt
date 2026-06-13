@@ -5,6 +5,7 @@ import { requireWriteAccess } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { logAudit } from '@/lib/audit'
+import { taskSchema } from '@/lib/validations'
 
 export async function createTask(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
   let session
@@ -23,9 +24,15 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
   const expectedDeliverable = formData.get('expectedDeliverable') as string
   const tagsStr = formData.get('tags') as string
 
-  if (!title) {
-    return { error: 'Le titre est obligatoire.' }
+  const validatedFields = taskSchema.safeParse({
+    title, description, priority, status, assigneeId, expectedDeliverable
+  })
+
+  if (!validatedFields.success) {
+    return { error: validatedFields.error.issues[0].message }
   }
+
+  const validData = validatedFields.data
 
   let dueDate = null
   if (dueDateStr) {
@@ -35,13 +42,13 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
   try {
     const task = await prisma.task.create({
       data: {
-        title,
-        description: description || null,
-        priority: priority || 'NORMALE',
-        status: status || 'A_FAIRE',
-        assigneeId: assigneeId || null,
+        title: validData.title,
+        description: validData.description || null,
+        priority: validData.priority || 'NORMALE',
+        status: validData.status || 'A_FAIRE',
+        assigneeId: validData.assigneeId || null,
         dueDate,
-        expectedDeliverable: expectedDeliverable || null
+        expectedDeliverable: validData.expectedDeliverable || null
       }
     })
 
@@ -136,8 +143,36 @@ export async function updateTaskStatus(taskId: string, newStatus: string) {
     })
   }
 
-  await logAudit('UPDATE_STATUS', 'Task', taskId, session.userId, { status: task.status }, { status: newStatus })
+  await logAudit('UPDATE_STATUS', 'Task', taskId, session.userId, {
+    oldStatus: task.status,
+    newStatus
+  })
 
   revalidatePath('/tasks')
   revalidatePath(`/tasks/${taskId}`)
+}
+
+export async function batchUpdateTaskStatus(taskIds: string[], status: string) {
+  const session = await requireWriteAccess()
+
+  let completedAt = null
+  let cancelledAt = null
+
+  if (status === 'TERMINEE') completedAt = new Date()
+  if (status === 'ANNULEE') cancelledAt = new Date()
+
+  await prisma.task.updateMany({
+    where: { id: { in: taskIds } },
+    data: { 
+      status,
+      completedAt,
+      cancelledAt
+    }
+  })
+
+  for (const id of taskIds) {
+    await logAudit('UPDATE_STATUS', 'Task', id, session.userId, { action: 'BATCH_UPDATE', newStatus: status })
+  }
+
+  revalidatePath('/tasks')
 }

@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 
 export default async function NewContactPage() {
   const allTags = await prisma.tag.findMany({ orderBy: { name: 'asc' } })
+  const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
 
   return (
     <div>
@@ -13,7 +14,7 @@ export default async function NewContactPage() {
       </div>
 
       <div className="card" style={{ maxWidth: '800px' }}>
-        <ContactForm allTags={allTags} />
+        <ContactForm allTags={allTags} dictionary={dictionary} />
       </div>
     </div>
   )

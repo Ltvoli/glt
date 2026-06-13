@@ -10,7 +10,7 @@ const STATUSES = [
   { value: 'RETOUR_EFFECTUE', label: 'Retour effectué au demandeur' },
 ]
 
-export default function QEStatusForm({ qeId, currentStatus }: { qeId: string, currentStatus: string }) {
+export default function QEStatusForm({ qeId, currentStatus, dictionary = [] }: { qeId: string, currentStatus: string, dictionary?: any[] }) {
   const [isPending, startTransition] = useTransition()
   const [status, setStatus] = useState(currentStatus)
 
@@ -40,8 +40,8 @@ export default function QEStatusForm({ qeId, currentStatus }: { qeId: string, cu
           opacity: isPending ? 0.7 : 1
         }}
       >
-        {STATUSES.map(s => (
-          <option key={s.value} value={s.value}>{s.label}</option>
+        {dictionary.filter(d => d.type === 'QE_STATUS').map(d => (
+          <option key={d.code} value={d.code}>{d.label}</option>
         ))}
       </select>
     </div>

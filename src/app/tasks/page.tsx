@@ -2,14 +2,19 @@ import prisma from '@/lib/prisma'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { getSession } from '@/lib/session'
+import PaginationBar from '../contacts/pagination-bar'
+import TaskTableClient from './task-table-client'
 
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string, status?: string, priority?: string, assigneeId?: string, tag?: string, sort?: string, order?: 'asc'|'desc' }>
+  searchParams: Promise<{ filter?: string, status?: string, priority?: string, assigneeId?: string, tag?: string, sort?: string, order?: 'asc'|'desc', page?: string, perPage?: string }>
 }) {
-  const { filter, status, priority, assigneeId, tag, sort, order = 'asc' } = await searchParams
+  const { filter, status, priority, assigneeId, tag, sort, order = 'asc', page, perPage } = await searchParams
   const session = await getSession()
+
+  const currentPage = Math.max(1, parseInt(page || '1'))
+  const itemsPerPage = Math.min(200, Math.max(10, parseInt(perPage || '50')))
 
   const whereClause: any = {}
 
@@ -62,17 +67,23 @@ export default async function TasksPage({
   else if (sort === 'createdAt') orderByClause = { createdAt: order }
   else if (sort === 'updatedAt') orderByClause = { updatedAt: order }
 
-  const tasks = await prisma.task.findMany({
-    where: whereClause,
-    include: {
-      assignee: true,
-      subtasks: true,
-      tags: { include: { tag: true } }
-    },
-    orderBy: orderByClause
-  })
+  const [tasks, totalTasks, users] = await Promise.all([
+    prisma.task.findMany({
+      where: whereClause,
+      include: {
+        assignee: true,
+        subtasks: true,
+        tags: { include: { tag: true } }
+      },
+      orderBy: orderByClause,
+      skip: (currentPage - 1) * itemsPerPage,
+      take: itemsPerPage,
+    }),
+    prisma.task.count({ where: whereClause }),
+    prisma.user.findMany()
+  ])
 
-  const users = await prisma.user.findMany()
+  const totalPages = Math.ceil(totalTasks / itemsPerPage)
 
   const priorityColors: Record<string, string> = {
     HAUTE: 'var(--danger)',
@@ -169,72 +180,10 @@ export default async function TasksPage({
         </div>
       </form>
 
-      <div className="card" style={{ overflowX: 'auto' }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Titre</th>
-              <th>Livrable attendu</th>
-              <th>Statut</th>
-              <th>Priorité</th>
-              <th>Échéance</th>
-              <th>Assigné à</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                  Aucune tâche trouvée.
-                </td>
-              </tr>
-            ) : (
-              tasks.map(task => {
-                return (
-                  <tr key={task.id}>
-                    <td>
-                      <Link href={`/tasks/${task.id}`} style={{ color: 'var(--primary)', fontWeight: 500 }}>
-                        {task.title}
-                      </Link>
-                      {task.tags && task.tags.length > 0 && (
-                        <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
-                          {task.tags.map((t: any) => (
-                            <span key={t.tag.id} style={{ fontSize: '0.65rem', backgroundColor: '#e2e8f0', padding: '0.125rem 0.375rem', borderRadius: '4px' }}>
-                              {t.tag.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{task.expectedDeliverable || '-'}</span>
-                    </td>
-                    <td>
-                      <span style={{ 
-                        padding: '0.25rem 0.5rem', 
-                        backgroundColor: '#f1f5f9', 
-                        borderRadius: '4px', 
-                        fontSize: '0.75rem', 
-                        fontWeight: 500 
-                      }}>
-                        {statusLabels[task.status] || task.status}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{ color: priorityColors[task.priority] || 'var(--text-muted)', fontWeight: 500, fontSize: '0.875rem' }}>
-                        {task.priority}
-                      </span>
-                    </td>
-                    <td>
-                      {task.dueDate ? new Date(task.dueDate).toLocaleDateString('fr-FR') : '-'}
-                    </td>
-                    <td>{task.assignee?.name || 'Non assigné'}</td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
+      <TaskTableClient tasks={tasks} />
+
+      <div style={{ marginTop: '1.5rem' }}>
+        <PaginationBar currentPage={currentPage} totalPages={totalPages} currentParams={{ filter, status, priority, assigneeId, tag, sort, order, page, perPage }} itemsPerPage={itemsPerPage} />
       </div>
     </div>
   )

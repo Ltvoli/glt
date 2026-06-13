@@ -47,3 +47,5 @@ next-env.d.ts
 /scratch/
 /uploads/
 /check_users.ts
+
+.vercel

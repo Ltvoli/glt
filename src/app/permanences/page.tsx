@@ -67,7 +67,7 @@ export default async function PermanencesPage({
   const orderBy: any = {}
   orderBy[sortBy] = sortOrder
 
-  const [permanences, totalCount, users, communes] = await Promise.all([
+  const [permanences, totalCount, usersData, communes] = await Promise.all([
     prisma.mobilePermanence.findMany({
       where: whereClause,
       orderBy,
@@ -79,9 +79,18 @@ export default async function PermanencesPage({
       }
     }),
     prisma.mobilePermanence.count({ where: whereClause }),
-    prisma.user.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
+    prisma.user.findMany({ 
+      where: { isActive: true }, 
+      select: { id: true, firstName: true, lastName: true },
+      orderBy: [
+        { firstName: 'asc' },
+        { lastName: 'asc' }
+      ]
+    }),
     prisma.commune.findMany({ orderBy: { name: 'asc' } })
   ])
+
+  const users = usersData.map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }))
 
   const totalPages = Math.ceil(totalCount / itemsPerPage)
 

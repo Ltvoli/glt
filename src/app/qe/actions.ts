@@ -5,10 +5,11 @@ import { requireWriteAccess } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requirePermission } from '@/lib/permissions'
-import { writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
-import { join } from 'path'
 import { logAudit } from '@/lib/audit'
+import { supabase } from '@/lib/supabase'
+import { v4 as uuidv4 } from 'uuid'
+import path from 'path'
+import { qeSchema } from '@/lib/validations'
 
 export async function createQE(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
   let session
@@ -33,20 +34,26 @@ export async function createQE(prevState: any, formData: FormData): Promise<{ er
   const followUpDescription = formData.get('followUpDescription') as string
   const followUpDueDateStr = formData.get('followUpDueDate') as string
   
-  if (!title || !type) {
-    return { error: 'Le titre et le type sont obligatoires.' }
+  const validatedFields = qeSchema.safeParse({
+    title, type, ministry, theme, anNumber, text: content, notes
+  })
+
+  if (!validatedFields.success) {
+    return { error: validatedFields.error.issues[0].message }
   }
+
+  const validData = validatedFields.data
 
   try {
     const newQE = await prisma.writtenQuestion.create({
       data: {
-        title,
-        type,
-        ministry: ministry || null,
-        theme: theme || null,
-        anNumber: anNumber || null,
-        content: content || null,
-        notes: notes || null,
+        title: validData.title,
+        type: validData.type,
+        ministry: validData.ministry || null,
+        theme: validData.theme || null,
+        anNumber: validData.anNumber || null,
+        content: validData.text || null,
+        notes: validData.notes || null,
         assigneeId: assigneeId || null,
         createdById: session.userId,
         status: 'EN_ATTENTE', // Une QE déposée passe par défaut en "en attente de réponse"
@@ -84,32 +91,40 @@ export async function createQE(prevState: any, formData: FormData): Promise<{ er
       const bytes = await attachmentFile.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
-      const uploadDir = join(process.cwd(), 'uploads')
-      if (!existsSync(uploadDir)) {
-        await mkdir(uploadDir, { recursive: true })
+      const storageName = uuidv4()
+      const extension = path.extname(attachmentFile.name) || ('.' + attachmentFile.name.split('.').pop())
+      const fileName = `${storageName}${extension}`
+
+      // Upload vers Supabase
+      const { data: uploadData, error: uploadError } = await supabase
+        .storage
+        .from('crm-attachments')
+        .upload(fileName, buffer, {
+          contentType: attachmentFile.type,
+          upsert: false
+        })
+
+      if (uploadError) {
+        console.error('Erreur Supabase upload QE:', uploadError)
+        // On continue la création de la QE même si l'upload échoue, 
+        // ou on pourrait retourner une erreur.
+      } else {
+        await prisma.document.create({
+          data: {
+            originalName: attachmentFile.name,
+            storageName: fileName,
+            storagePath: uploadData.path,
+            mimeType: attachmentFile.type,
+            extension,
+            size: attachmentFile.size,
+            documentType: 'QE',
+            confidentiality: 'INTERNE',
+            questionId: newQE.id,
+            uploadedById: session.userId,
+            title: attachmentFile.name
+          }
+        })
       }
-
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-      const filepath = join(uploadDir, uniqueSuffix + '-' + attachmentFile.name)
-
-      await writeFile(filepath, buffer)
-
-      const extension = '.' + attachmentFile.name.split('.').pop()
-      await prisma.document.create({
-        data: {
-          originalName: attachmentFile.name,
-          storageName: uniqueSuffix + '-' + attachmentFile.name,
-          storagePath: filepath,
-          mimeType: attachmentFile.type,
-          extension,
-          size: attachmentFile.size,
-          documentType: 'QE',
-          confidentiality: 'INTERNE',
-          questionId: newQE.id,
-          uploadedById: session.userId,
-          title: attachmentFile.name
-        }
-      })
     }
 
   } catch (error) {
@@ -139,7 +154,7 @@ export async function updateQEStatus(qeId: string, status: string) {
     data: dataToUpdate
   })
 
-  await logAudit('UPDATE_STATUS', 'WrittenQuestion', qeId, session.userId, { status }, { status: qe.status })
+  await logAudit('UPDATE_STATUS', 'WrittenQuestion', qeId, session.userId, { before: qe.status, after: status })
 
   revalidatePath(`/qe/${qeId}`)
   revalidatePath('/qe')
@@ -171,7 +186,7 @@ export async function updateQEResponse(qeId: string, responseContent: string) {
   }
 
   // Log audit
-  await logAudit('UPDATE', 'WrittenQuestion', qeId, session.userId, undefined, { action: "Ajout réponse ministérielle", status: 'REPONSE_RECUE' })
+  await logAudit('UPDATE', 'WrittenQuestion', qeId, session.userId, { action: "Ajout réponse ministérielle", status: 'REPONSE_RECUE' })
 
   revalidatePath(`/qe/${qeId}`)
 }
@@ -239,14 +254,12 @@ export async function archiveQE(qeId: string) {
     data: { archivedAt: isArchived ? null : new Date() }
   })
 
-  await prisma.auditLog.create({
-    data: {
-      action: isArchived ? 'RESTORE' : 'ARCHIVE',
-      entity: 'WrittenQuestion',
-      entityId: qeId,
-      userId: session.userId,
-    }
-  })
+  await logAudit(
+    isArchived ? 'RESTORE' : 'ARCHIVE',
+    'WrittenQuestion',
+    qeId,
+    session.userId
+  )
 
   revalidatePath(`/qe/${qeId}`)
   revalidatePath('/qe')
@@ -316,6 +329,28 @@ export async function redepositQe(qeId: string) {
       followUpNotes: `Redéposée sous le nouveau brouillon (ID: ${newQe.id})`
     }
   })
+
+  revalidatePath('/qe')
+}
+
+export async function batchUpdateQeStatus(qeIds: string[], status: string) {
+  const session = await requireWriteAccess()
+
+  const dataToUpdate: any = { status }
+  if (status === 'DEPOSEE') {
+    dataToUpdate.depositDate = new Date()
+  } else if (status === 'REPONSE_RECUE') {
+    dataToUpdate.responseDate = new Date()
+  }
+
+  await prisma.writtenQuestion.updateMany({
+    where: { id: { in: qeIds } },
+    data: dataToUpdate
+  })
+
+  for (const id of qeIds) {
+    await logAudit('UPDATE_STATUS', 'WrittenQuestion', id, session.userId, { action: 'BATCH_UPDATE', newStatus: status })
+  }
 
   revalidatePath('/qe')
 }
