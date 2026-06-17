@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import EditContactForm from './edit-contact-form'
 import ArchiveButton from './archive-button'
-import { MapPin, Phone, Mail, Building, Clock, CheckSquare, Mail as MailIcon, HelpCircle, Smartphone, ExternalLink, User } from 'lucide-react'
+import { MapPin, Phone, Mail, Building, Clock, CheckSquare, Mail as MailIcon, HelpCircle, Smartphone, ExternalLink, User, Briefcase } from 'lucide-react'
 import PrintButton from '@/components/PrintButton'
 import { getModuleFields } from '@/lib/fields'
 
@@ -258,6 +258,16 @@ export default async function ContactDetailPage({
                   <Building size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
                   <span style={{ color: 'var(--foreground)', fontSize: '0.88rem' }}>
                     Secteur : <strong>{contact.territorySector}</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Profession */}
+              {contact.profession && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Briefcase size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--foreground)', fontSize: '0.88rem' }}>
+                    Profession : <strong>{contact.profession}</strong>
                   </span>
                 </div>
               )}

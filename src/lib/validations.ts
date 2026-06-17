@@ -42,6 +42,7 @@ export const contactSchema = z.object({
   whatsappStatus: emptyAsUndefined,
   linkedinUrl: emptyAsUndefined,
   notes: emptyAsUndefined,
+  profession: emptyAsUndefined,
 })
 
 // Schéma pour les tâches

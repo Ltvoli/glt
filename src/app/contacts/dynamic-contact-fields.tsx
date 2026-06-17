@@ -53,6 +53,13 @@ export function renderContactField(fieldKey: string, label: string, contact: any
         </div>
       )}
 
+      {fieldKey === 'profession' && (
+        <div className="form-group">
+          <label htmlFor="profession">{label}</label>
+          <input type="text" id="profession" name="profession" className="form-control" defaultValue={contact.profession || ''} />
+        </div>
+      )}
+
       {fieldKey === 'building' && (
         <div className="form-group">
           <label htmlFor="building">{label}</label>

@@ -41,12 +41,14 @@ export async function createContact(prevState: any, formData: FormData): Promise
   const smsConsent = formData.get('smsConsent') === 'true'
   const linkedinUrl = formData.get('linkedinUrl') as string
   const notes = formData.get('notes') as string
+  const profession = formData.get('profession') as string
   const tagsString = formData.get('tags') as string
 
   const validatedFields = contactSchema.safeParse({
     firstName, lastName, usageName, email, phone, mobilePhone, type, city, gender,
     apartment, building, streetNumber, streetName, addressComplement, postalCode,
-    supportLevel, meetingStep, territorySector, source, whatsappStatus, linkedinUrl, notes
+    supportLevel, meetingStep, territorySector, source, whatsappStatus, linkedinUrl, notes,
+    profession
   })
 
   if (!validatedFields.success) {
@@ -102,6 +104,7 @@ export async function createContact(prevState: any, formData: FormData): Promise
         smsConsent,
         linkedinUrl: validData.linkedinUrl || null,
         notes: validData.notes || null,
+        profession: validData.profession || null,
         createdById: session.userId,
       }
     })

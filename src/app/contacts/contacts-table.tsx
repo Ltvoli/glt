@@ -48,6 +48,7 @@ const ALL_COLUMNS: Column[] = [
   { id: 'meetingStep',       label: 'Étape rencontre',       defaultVisible: false },
   { id: 'tags',              label: 'Tags',                  defaultVisible: false },
   { id: 'type',              label: 'Type',                  defaultVisible: false },
+  { id: 'profession',        label: 'Profession',            defaultVisible: false },
   { id: 'createdAt',         label: 'Créé le',               defaultVisible: false },
 ]
 
@@ -55,11 +56,11 @@ function renderCell(contact: any, columnId: string): React.ReactNode {
   switch (columnId) {
     case 'firstName':         return contact.firstName || '-'
     case 'lastName':          return contact.lastName || '-'
-    case 'usageName':         return '-'  // Not in schema yet
+    case 'usageName':         return contact.usageName || '-'
     case 'streetNumber':      return contact.streetNumber || '-'
-    case 'apartment':         return '-'  // Not in schema yet
-    case 'building':          return '-'  // Not in schema yet
-    case 'addressComplement': return '-'  // Not in schema yet
+    case 'apartment':         return contact.apartment || '-'
+    case 'building':          return contact.building || '-'
+    case 'addressComplement': return contact.addressComplement || '-'
     case 'streetName':        return contact.streetName || '-'
     case 'city':              return contact.city || '-'
     case 'territorySector':   return contact.territorySector || '-'
@@ -71,6 +72,7 @@ function renderCell(contact: any, columnId: string): React.ReactNode {
     case 'supportLevel':      return contact.supportLevel || '-'
     case 'meetingStep':       return contact.meetingStep || '-'
     case 'type':              return contact.type || '-'
+    case 'profession':        return contact.profession || '-'
     case 'createdAt':         return new Date(contact.createdAt).toLocaleDateString('fr-FR')
     case 'tags':
       if (!contact.tags?.length) return '-'

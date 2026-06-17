@@ -130,6 +130,7 @@ model Contact {
   birthDate   DateTime?
   gender      String? // H, F, Autre
   nationality String? // Nationalité
+  profession  String?
 
   apartment         String? // Appartement
   building          String? // Bâtiment
