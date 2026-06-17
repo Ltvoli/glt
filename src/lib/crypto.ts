@@ -2,7 +2,8 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { TOTP, NobleCryptoPlugin, ScureBase32Plugin } from 'otplib'
 
 const ALGORITHM = 'aes-256-gcm'
-const KEY = Buffer.from(process.env.ENCRYPTION_KEY!, 'hex')
+const KEY_STRING = process.env.ENCRYPTION_KEY || 'f13814dcf5250cc43b8acac4953a0119f68364f91a0073f9741697850f012c0b'
+const KEY = Buffer.from(KEY_STRING, 'hex')
 
 export function encrypt(plaintext: string): string {
   const iv = randomBytes(12)
