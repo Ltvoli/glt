@@ -27,8 +27,20 @@ export const contactSchema = z.object({
   type: z.string().min(1, "Le type de contact est obligatoire."),
   city: emptyAsUndefined,
   gender: emptyAsUndefined,
+  birthDate: z.preprocess(
+    (val) => {
+      if (val === null || val === undefined || (typeof val === 'string' && val.trim() === '')) return undefined;
+      return new Date(val as any);
+    },
+    z.date().optional()
+  ),
+  nationality: emptyAsUndefined,
+  address: emptyAsUndefined,
   apartment: emptyAsUndefined,
   building: emptyAsUndefined,
+  buildingType: emptyAsUndefined,
+  floor: emptyAsUndefined,
+  door: emptyAsUndefined,
   streetNumber: emptyAsUndefined,
   streetName: emptyAsUndefined,
   addressComplement: emptyAsUndefined,
@@ -43,6 +55,16 @@ export const contactSchema = z.object({
   linkedinUrl: emptyAsUndefined,
   notes: emptyAsUndefined,
   profession: emptyAsUndefined,
+  newsletter: z.preprocess((val) => val === 'true' || val === true, z.boolean().optional().default(false)),
+  smsConsent: z.preprocess((val) => val === 'true' || val === true, z.boolean().optional().default(false)),
+  consentDate: z.preprocess(
+    (val) => {
+      if (val === null || val === undefined || (typeof val === 'string' && val.trim() === '')) return undefined;
+      return new Date(val as any);
+    },
+    z.date().optional()
+  ),
+  consentSource: emptyAsUndefined,
 })
 
 // Schéma pour les tâches
@@ -53,6 +75,13 @@ export const taskSchema = z.object({
   status: z.string().optional(),
   expectedDeliverable: emptyAsUndefined,
   assigneeId: emptyAsUndefined,
+  dueDate: z.preprocess(
+    (val) => {
+      if (val === null || val === undefined || (typeof val === 'string' && val.trim() === '')) return undefined;
+      return new Date(val as any);
+    },
+    z.date().optional()
+  ),
 })
 
 // Schéma pour les courriers
@@ -68,19 +97,18 @@ export const mailCaseSchema = z.object({
   notes: emptyAsUndefined,
   assigneeId: emptyAsUndefined,
   type: z.enum(['ENTRANT', 'SORTANT']),
+  validationStatus: emptyAsUndefined,
 })
 
 // Schéma pour les Questions Écrites
 export const qeSchema = z.object({
   title: z.string().trim().min(1, "Le titre est obligatoire."),
   type: z.string().min(1, "Le type est obligatoire."),
-  anNumber: z.string().trim().min(1, "Le numéro de question est obligatoire."),
+  anNumber: emptyAsUndefined,
   theme: emptyAsUndefined,
   ministry: emptyAsUndefined,
-  author: emptyAsUndefined,
-  coSigners: emptyAsUndefined,
-  text: emptyAsUndefined,
-  response: emptyAsUndefined,
+  content: emptyAsUndefined,
+  responseContent: emptyAsUndefined,
   notes: emptyAsUndefined,
   status: z.string().optional()
 })

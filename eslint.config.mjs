@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "check_perms.js",
+    "check_perms2.js",
+    "scratch/**",
+    "scripts/**",
   ]),
   {
     rules: {

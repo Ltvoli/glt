@@ -23,8 +23,10 @@ export default function SuperAdminLoginForm() {
       router.push('/admin')
     }
     if (state.requires2FA) {
-      setStep('2fa')
-      if (state.email) setSavedEmail(state.email)
+      setTimeout(() => {
+        setStep('2fa')
+        if (state.email) setSavedEmail(state.email)
+      }, 0)
     }
   }, [state.success, state.requires2FA, state.email, router])
 

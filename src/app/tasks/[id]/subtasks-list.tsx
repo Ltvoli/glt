@@ -11,7 +11,9 @@ export default function SubtasksList({ taskId, initialSubtasks }: { taskId: stri
 
   // Sync state with server when initialSubtasks change (ex: from other clients or actions)
   useEffect(() => {
-    setSubtasks(initialSubtasks)
+    setTimeout(() => {
+      setSubtasks(initialSubtasks)
+    }, 0)
   }, [initialSubtasks])
 
   const handleAdd = async (e: React.FormEvent) => {

@@ -53,9 +53,10 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
   const taskId = formData.get('taskId') as string
   const type = formData.get('type') as string || 'ENTRANT'
   const parentMailCaseId = formData.get('parentMailCaseId') as string
+  const validationStatus = formData.get('validationStatus') as string
 
   const validatedFields = mailCaseSchema.safeParse({
-    subject, senderName, recipientName, city, channel, category, urgency, notes, content, assigneeId, type
+    subject, senderName, recipientName, city, channel, category, urgency, notes, content, assigneeId, type, validationStatus
   })
 
   if (!validatedFields.success) {
@@ -102,7 +103,7 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
         channel: validData.channel,
         category: validData.category || null,
         urgency: validData.urgency || 'NORMALE',
-        validationStatus: validData.type === 'SORTANT' ? 'A_VALIDER' : null,
+        validationStatus: validData.validationStatus !== undefined ? validData.validationStatus : (validData.type === 'SORTANT' ? 'A_VALIDER' : null),
         receiveDate,
         sentDate,
         content: validData.content || null,
@@ -207,9 +208,10 @@ export async function updateMail(mailId: string, prevState: any, formData: FormD
   const taskId = formData.get('taskId') as string
   const type = formData.get('type') as string || 'ENTRANT'
   const parentMailCaseId = formData.get('parentMailCaseId') as string
+  const validationStatus = formData.get('validationStatus') as string
 
   const validatedFields = mailCaseSchema.safeParse({
-    subject, senderName, recipientName, city, channel, category, urgency, notes, content, assigneeId, type
+    subject, senderName, recipientName, city, channel, category, urgency, notes, content, assigneeId, type, validationStatus
   })
 
   if (!validatedFields.success) {
@@ -254,7 +256,7 @@ export async function updateMail(mailId: string, prevState: any, formData: FormD
         channel: validData.channel,
         category: validData.category || null,
         urgency: validData.urgency || 'NORMALE',
-        validationStatus: validData.type === 'SORTANT' ? 'A_VALIDER' : null,
+        validationStatus: validData.validationStatus !== undefined ? validData.validationStatus : undefined,
         receiveDate,
         sentDate,
         content: validData.content || null,

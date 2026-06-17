@@ -44,11 +44,23 @@ export async function createContact(prevState: any, formData: FormData): Promise
   const profession = formData.get('profession') as string
   const tagsString = formData.get('tags') as string
 
+  // New fields
+  const nationality = formData.get('nationality') as string
+  const address = formData.get('address') as string
+  const buildingType = formData.get('buildingType') as string
+  const floor = formData.get('floor') as string
+  const door = formData.get('door') as string
+  const consentDateStr = formData.get('consentDate') as string
+  const consentSource = formData.get('consentSource') as string
+
   const validatedFields = contactSchema.safeParse({
     firstName, lastName, usageName, email, phone, mobilePhone, type, city, gender,
-    apartment, building, streetNumber, streetName, addressComplement, postalCode,
+    birthDate: birthDateStr,
+    nationality, address,
+    apartment, building, buildingType, floor, door,
+    streetNumber, streetName, addressComplement, postalCode,
     supportLevel, meetingStep, territorySector, source, whatsappStatus, linkedinUrl, notes,
-    profession
+    profession, newsletter, smsConsent, consentDate: consentDateStr, consentSource
   })
 
   if (!validatedFields.success) {
@@ -56,11 +68,6 @@ export async function createContact(prevState: any, formData: FormData): Promise
   }
 
   const validData = validatedFields.data
-
-  let birthDate = null
-  if (birthDateStr) {
-    birthDate = new Date(birthDateStr)
-  }
 
   try {
     // Détection de doublons potentiels
@@ -88,9 +95,14 @@ export async function createContact(prevState: any, formData: FormData): Promise
         type: validData.type,
         city: validData.city || null,
         gender: validData.gender || null,
-        birthDate,
+        birthDate: validData.birthDate || null,
+        nationality: validData.nationality || null,
+        address: validData.address || null,
         apartment: validData.apartment || null,
         building: validData.building || null,
+        buildingType: validData.buildingType || null,
+        floor: validData.floor || null,
+        door: validData.door || null,
         streetNumber: validData.streetNumber || null,
         streetName: validData.streetName || null,
         addressComplement: validData.addressComplement || null,
@@ -100,8 +112,10 @@ export async function createContact(prevState: any, formData: FormData): Promise
         source: validData.source || null,
         whatsappStatus: validData.whatsappStatus || null,
         meetingStep: validData.meetingStep || null,
-        newsletter,
-        smsConsent,
+        newsletter: validData.newsletter,
+        smsConsent: validData.smsConsent,
+        consentDate: validData.consentDate || null,
+        consentSource: validData.consentSource || null,
         linkedinUrl: validData.linkedinUrl || null,
         notes: validData.notes || null,
         profession: validData.profession || null,

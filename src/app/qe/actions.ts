@@ -27,6 +27,7 @@ export async function createQE(prevState: any, formData: FormData): Promise<{ er
   const theme = formData.get('theme') as string
   const anNumber = formData.get('anNumber') as string
   const content = formData.get('content') as string
+  const responseContent = formData.get('responseContent') as string
   const notes = formData.get('notes') as string
   const assigneeId = formData.get('assigneeId') as string
   const contactId = formData.get('contactId') as string
@@ -37,7 +38,7 @@ export async function createQE(prevState: any, formData: FormData): Promise<{ er
   const followUpDueDateStr = formData.get('followUpDueDate') as string
   
   const validatedFields = qeSchema.safeParse({
-    title, type, ministry, theme, anNumber, text: content, notes
+    title, type, ministry, theme, anNumber, content, responseContent, notes
   })
 
   if (!validatedFields.success) {
@@ -54,7 +55,8 @@ export async function createQE(prevState: any, formData: FormData): Promise<{ er
         ministry: validData.ministry || null,
         theme: validData.theme || null,
         anNumber: validData.anNumber || null,
-        content: validData.text || null,
+        content: validData.content || null,
+        responseContent: validData.responseContent || null,
         notes: validData.notes || null,
         assigneeId: assigneeId || null,
         createdById: session.userId,
@@ -212,27 +214,35 @@ export async function updateQE(qeId: string, formData: FormData): Promise<{ erro
   const theme = formData.get('theme') as string
   const anNumber = formData.get('anNumber') as string
   const content = formData.get('content') as string
+  const responseContent = formData.get('responseContent') as string
   const notes = formData.get('notes') as string
   const assigneeId = formData.get('assigneeId') as string
   
   const followUpDescription = formData.get('followUpDescription') as string
   const followUpDueDateStr = formData.get('followUpDueDate') as string
 
-  if (!title || !type) {
-    return { error: 'Le titre et le type sont obligatoires.' }
+  const validatedFields = qeSchema.safeParse({
+    title, type, ministry, theme, anNumber, content, responseContent, notes
+  })
+
+  if (!validatedFields.success) {
+    return { error: validatedFields.error.issues[0].message }
   }
+
+  const validData = validatedFields.data
 
   try {
     const updatedQE = await prisma.writtenQuestion.update({
       where: { id: qeId },
       data: {
-        title,
-        type,
-        ministry: ministry || null,
-        theme: theme || null,
-        anNumber: anNumber || null,
-        content: content || null,
-        notes: notes || null,
+        title: validData.title,
+        type: validData.type,
+        ministry: validData.ministry || null,
+        theme: validData.theme || null,
+        anNumber: validData.anNumber || null,
+        content: validData.content || null,
+        responseContent: validData.responseContent || null,
+        notes: validData.notes || null,
         assigneeId: assigneeId || null,
         followUpDescription: followUpDescription || null,
         followUpDueDate: followUpDueDateStr ? new Date(followUpDueDateStr) : null,

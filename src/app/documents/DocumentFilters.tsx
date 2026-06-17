@@ -16,12 +16,14 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
 
   // Sync state with URL search params when they change externally (e.g. from folder clicks)
   useEffect(() => {
-    setQuery(searchParams.get('q') || '')
-    setType(searchParams.get('type') || '')
-    setConf(searchParams.get('conf') || '')
-    setAuthor(searchParams.get('author') || '')
-    setRelation(searchParams.get('relation') || '')
-    setStatus(searchParams.get('status') || '')
+    setTimeout(() => {
+      setQuery(searchParams.get('q') || '')
+      setType(searchParams.get('type') || '')
+      setConf(searchParams.get('conf') || '')
+      setAuthor(searchParams.get('author') || '')
+      setRelation(searchParams.get('relation') || '')
+      setStatus(searchParams.get('status') || '')
+    }, 0)
   }, [searchParams])
 
   useEffect(() => {

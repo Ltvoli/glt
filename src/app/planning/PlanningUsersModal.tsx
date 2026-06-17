@@ -22,7 +22,9 @@ export default function PlanningUsersModal({ users }: { users: UserData[] }) {
   // Sync state with props when the modal opens or when props change
   useEffect(() => {
     if (isOpen) {
-      setLocalUsers(users)
+      setTimeout(() => {
+        setLocalUsers(users)
+      }, 0)
     }
   }, [isOpen, users])
 

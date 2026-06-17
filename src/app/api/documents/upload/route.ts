@@ -6,6 +6,8 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
 import Tesseract from 'tesseract.js'
+import fs from 'fs/promises'
+import { PDFParse } from 'pdf-parse'
 
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -62,13 +64,13 @@ export async function POST(req: NextRequest) {
     // Upload local au lieu de Supabase
     const uploadDir = path.join(process.cwd(), 'public', 'uploads')
     try {
-      await require('fs/promises').mkdir(uploadDir, { recursive: true })
+      await fs.mkdir(uploadDir, { recursive: true })
     } catch(e) {}
     
     const filePath = path.join(uploadDir, fileName)
     
     try {
-      await require('fs/promises').writeFile(filePath, buffer)
+      await fs.writeFile(filePath, buffer)
     } catch (fsError) {
       console.error('Local upload error:', fsError)
       return NextResponse.json({ error: 'Erreur lors de la sauvegarde locale du fichier' }, { status: 500 })
@@ -78,9 +80,10 @@ export async function POST(req: NextRequest) {
     try {
       if (file.type === 'application/pdf') {
         try {
-          const pdfParse = require('pdf-parse')
-          const pdfData = await pdfParse(buffer)
+          const parser = new PDFParse({ data: buffer })
+          const pdfData = await parser.getText()
           extractedText = pdfData.text
+          await parser.destroy()
         } catch (e) {
           console.error("Erreur de parsing PDF (DOMMatrix/pdf-parse):", e)
         }

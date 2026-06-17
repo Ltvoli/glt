@@ -37,14 +37,18 @@ export default function Omnisearch() {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100)
     } else {
-      setQuery('')
-      setResults({ contacts: [], tasks: [], mails: [], qe: [] })
+      setTimeout(() => {
+        setQuery('')
+        setResults({ contacts: [], tasks: [], mails: [], qe: [] })
+      }, 0)
     }
   }, [isOpen])
 
   useEffect(() => {
     if (query.trim().length < 2) {
-      setResults({ contacts: [], tasks: [], mails: [], qe: [] })
+      setTimeout(() => {
+        setResults({ contacts: [], tasks: [], mails: [], qe: [] })
+      }, 0)
       return
     }
 

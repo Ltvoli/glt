@@ -10,10 +10,6 @@ export default function DataRetentionPage() {
   const [isPurging, setIsPurging] = useState(false)
   const [result, setResult] = useState<{ deletedContacts: number, deletedMails: number } | null>(null)
 
-  useEffect(() => {
-    loadStats()
-  }, [])
-
   const loadStats = async () => {
     setIsLoading(true)
     try {
@@ -25,6 +21,12 @@ export default function DataRetentionPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    setTimeout(() => {
+      loadStats()
+    }, 0)
+  }, [])
 
   const handlePurge = async () => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer DÉFINITIVEMENT ces données ? Cette action est irréversible.')) {

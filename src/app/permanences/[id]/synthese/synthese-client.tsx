@@ -108,7 +108,7 @@ export default function SyntheseClient({
           <div>
             <h4 style={{ fontWeight: 'bold', fontSize: '1rem' }}>✓ Synthèse validée et signée par le Député</h4>
             <p style={{ fontSize: '0.8125rem', marginTop: '0.25rem' }}>
-              Signataire : {synthesis?.signedByUser?.name} le {new Date(synthesis?.signedAt!).toLocaleDateString('fr-FR')} à {new Date(synthesis?.signedAt!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.
+              Signataire : {synthesis?.signedByUser?.name} le {synthesis?.signedAt ? new Date(synthesis.signedAt).toLocaleDateString('fr-FR') : ''} à {synthesis?.signedAt ? new Date(synthesis.signedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''}.
             </p>
           </div>
           <button

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useTransition, useEffect } from 'react'
+import React, { useState, useTransition, useEffect, useCallback } from 'react'
 import Papa from 'papaparse'
 import { 
   createApiKeyAction, 
@@ -114,14 +114,7 @@ export default function IntegrationsClient({
   const [successBanner, setSuccessBanner] = useState('')
   const [errorBanner, setErrorBanner] = useState('')
 
-  // Load Audit logs dynamically on filter or page change
-  useEffect(() => {
-    if (activeTab === 'audit') {
-      fetchAuditLogs(logsPage)
-    }
-  }, [activeTab, logsPage, logsFilterAction, logsFilterEntityType, logsFilterUserId])
-
-  const fetchAuditLogs = async (targetPage: number) => {
+  const fetchAuditLogs = useCallback(async (targetPage: number) => {
     setLogsLoading(true)
     const res = await getAuditLogsAction(targetPage, 25, {
       action: logsFilterAction || undefined,
@@ -135,7 +128,16 @@ export default function IntegrationsClient({
       setLogsPages(res.data.pagesCount)
     }
     setLogsLoading(false)
-  }
+  }, [logsFilterAction, logsFilterEntityType, logsFilterUserId])
+
+  // Load Audit logs dynamically on filter or page change
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      setTimeout(() => {
+        fetchAuditLogs(logsPage)
+      }, 0)
+    }
+  }, [activeTab, logsPage, fetchAuditLogs])
 
   // API Key scope toggling
   const handleScopeToggle = (scope: string, checked: boolean) => {

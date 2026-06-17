@@ -15,16 +15,17 @@ const DEFAULT_CONTACTS_FIELDS: Omit<FieldConfigInput, 'id'>[] = [
   { module: 'contacts', section: 'État civil', fieldKey: 'birthDate', defaultLabel: 'Date de naissance', customLabel: null, isVisible: true, order: 3 },
   { module: 'contacts', section: 'État civil', fieldKey: 'usageName', defaultLabel: 'Nom d\'usage', customLabel: null, isVisible: false, order: 4 },
   { module: 'contacts', section: 'État civil', fieldKey: 'nationality', defaultLabel: 'Nationalité', customLabel: null, isVisible: false, order: 5 },
+  { module: 'contacts', section: 'État civil', fieldKey: 'profession', defaultLabel: 'Profession', customLabel: null, isVisible: true, order: 6 },
 
   // Adresse
-  { module: 'contacts', section: 'Adresse', fieldKey: 'building', defaultLabel: 'Bâtiment', customLabel: null, isVisible: true, order: 6 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'streetNumber', defaultLabel: 'Numéro', customLabel: null, isVisible: true, order: 7 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'streetName', defaultLabel: 'Rue / Voie', customLabel: null, isVisible: true, order: 8 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'postalCode', defaultLabel: 'Code postal', customLabel: null, isVisible: true, order: 9 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'city', defaultLabel: 'Ville', customLabel: null, isVisible: true, order: 10 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'buildingType', defaultLabel: 'Type de bâtiment', customLabel: null, isVisible: false, order: 11 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'floor', defaultLabel: 'Étage', customLabel: null, isVisible: false, order: 12 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'door', defaultLabel: 'Porte', customLabel: null, isVisible: false, order: 13 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'building', defaultLabel: 'Bâtiment', customLabel: null, isVisible: true, order: 7 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'streetNumber', defaultLabel: 'Numéro', customLabel: null, isVisible: true, order: 8 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'streetName', defaultLabel: 'Rue / Voie', customLabel: null, isVisible: true, order: 9 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'postalCode', defaultLabel: 'Code postal', customLabel: null, isVisible: true, order: 10 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'city', defaultLabel: 'Ville', customLabel: null, isVisible: true, order: 11 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'buildingType', defaultLabel: 'Type de bâtiment', customLabel: null, isVisible: false, order: 12 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'floor', defaultLabel: 'Étage', customLabel: null, isVisible: false, order: 13 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'door', defaultLabel: 'Porte', customLabel: null, isVisible: false, order: 14 },
 ]
 
 const DEFAULT_TASKS_FIELDS: Omit<FieldConfigInput, 'id'>[] = [

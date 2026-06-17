@@ -89,7 +89,9 @@ export default function LocationsClient({
 
   // Sync state with props when database updates
   useEffect(() => {
-    setLocalLocations(permanence.locations)
+    setTimeout(() => {
+      setLocalLocations(permanence.locations)
+    }, 0)
   }, [permanence.locations])
 
   // Handle general info save
@@ -158,7 +160,7 @@ export default function LocationsClient({
   const handleFieldChange = (locId: string, field: keyof LocationData, value: any) => {
     setLocalLocations(prev => prev.map(loc => {
       if (loc.id === locId) {
-        let updated = { ...loc, [field]: value }
+        const updated = { ...loc, [field]: value }
         // If communeId changes, auto-update communeName
         if (field === 'communeId') {
           const matched = communes.find(c => c.id === value)

@@ -32,14 +32,8 @@ const ALL_COLUMNS: Column[] = [
   { id: 'firstName',         label: 'Prénom',                defaultVisible: true  },
   { id: 'lastName',          label: 'Nom',                   defaultVisible: true  },
   { id: 'usageName',         label: 'Nom d\'usage',          defaultVisible: true  },
-  { id: 'streetNumber',      label: 'Numéro',                defaultVisible: true  },
-  { id: 'apartment',         label: 'Porte',                 defaultVisible: true  },
-  { id: 'building',          label: 'Bâtiment',              defaultVisible: true  },
-  { id: 'addressComplement', label: 'Complément d\'adresse', defaultVisible: true  },
-  { id: 'streetName',        label: 'Rue / Voie',            defaultVisible: true  },
-  { id: 'city',              label: 'Ville',                 defaultVisible: true  },
+  { id: 'address',           label: 'Adresse',               defaultVisible: true  },
   { id: 'territorySector',   label: 'Territoire',            defaultVisible: true  },
-  { id: 'postalCode',        label: 'Code postal',           defaultVisible: false },
   { id: 'email',             label: 'Email',                 defaultVisible: false },
   { id: 'mobilePhone',       label: 'Portable',              defaultVisible: false },
   { id: 'phone',             label: 'Tél. fixe',             defaultVisible: false },
@@ -57,14 +51,16 @@ function renderCell(contact: any, columnId: string): React.ReactNode {
     case 'firstName':         return contact.firstName || '-'
     case 'lastName':          return contact.lastName || '-'
     case 'usageName':         return contact.usageName || '-'
-    case 'streetNumber':      return contact.streetNumber || '-'
-    case 'apartment':         return contact.apartment || '-'
-    case 'building':          return contact.building || '-'
-    case 'addressComplement': return contact.addressComplement || '-'
-    case 'streetName':        return contact.streetName || '-'
-    case 'city':              return contact.city || '-'
+    case 'address':
+      const addressParts = [
+        contact.apartment,
+        contact.building,
+        contact.streetNumber ? `${contact.streetNumber} ${contact.streetName || ''}` : contact.streetName,
+        contact.addressComplement,
+        contact.postalCode ? `${contact.postalCode} ${contact.city || ''}` : contact.city
+      ].filter(Boolean)
+      return addressParts.join(', ') || '-'
     case 'territorySector':   return contact.territorySector || '-'
-    case 'postalCode':        return contact.postalCode || '-'
     case 'email':             return contact.email || '-'
     case 'mobilePhone':       return contact.mobilePhone || '-'
     case 'phone':             return contact.phone || '-'

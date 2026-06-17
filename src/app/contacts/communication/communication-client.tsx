@@ -49,7 +49,7 @@ export default function CommunicationClient({
 
   // Fetch templates when channel changes
   useEffect(() => {
-    setIsLoadingTemplates(true)
+    setTimeout(() => setIsLoadingTemplates(true), 0)
     getMessageTemplates(channel)
       .then(res => {
         setTemplates(res)

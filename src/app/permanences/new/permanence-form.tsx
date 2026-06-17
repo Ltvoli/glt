@@ -121,7 +121,7 @@ export default function PermanenceForm({
   const handleLocationFieldChange = (id: string, field: keyof LocationItem, value: any) => {
     setLocations(prev => prev.map(loc => {
       if (loc.id === id) {
-        let updated = { ...loc, [field]: value }
+        const updated = { ...loc, [field]: value }
         
         if (field === 'communeId') {
           if (value === 'FREE') {

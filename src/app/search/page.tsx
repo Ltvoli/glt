@@ -12,9 +12,16 @@ function SearchResults() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (q.trim().length < 2) { setResults(null); return }
+    if (q.trim().length < 2) {
+      setTimeout(() => {
+        setResults(null)
+      }, 0)
+      return
+    }
     let active = true
-    setLoading(true)
+    setTimeout(() => {
+      setLoading(true)
+    }, 0)
     fetch(`/api/search?q=${encodeURIComponent(q)}`)
       .then(r => r.json())
       .then(data => { if (active) setResults(data) })

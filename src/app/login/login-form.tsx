@@ -15,7 +15,9 @@ export default function LoginForm() {
 
   useEffect(() => {
     if (state.success) router.push('/')
-    if ((state as any).data?.requires2FA) setShow2FA(true)
+    if ((state as any).data?.requires2FA) {
+      setTimeout(() => setShow2FA(true), 0)
+    }
   }, [state, router])
 
   const inputStyle: React.CSSProperties = {
