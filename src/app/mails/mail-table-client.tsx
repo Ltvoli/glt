@@ -113,7 +113,19 @@ export default function MailTableClient({ mails }: { mails: any[] }) {
                   </td>
                   <td>{mail.assignee?.name || '-'}</td>
                   <td>
-                    <div style={{ marginBottom: '0.25rem' }}>{getStatusBadge(mail.status)}</div>
+                    <div style={{ marginBottom: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                      {getStatusBadge(mail.status)}
+                      {mail.validationStatus === 'A_VALIDER' && (
+                        <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#ffedd5', color: '#ea580c', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>
+                          À valider
+                        </span>
+                      )}
+                      {mail.validationStatus === 'REJETE' && (
+                        <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>
+                          Rejeté
+                        </span>
+                      )}
+                    </div>
                     {mail.responseDueDate && mail.status !== 'REPONDU' && mail.status !== 'CLASSE' && (
                       <div style={{ fontSize: '0.75rem', color: new Date(mail.responseDueDate) < new Date() ? 'var(--danger)' : 'var(--text-muted)' }}>
                         <Clock size={12} style={{ display: 'inline', marginRight: '0.25rem' }} />

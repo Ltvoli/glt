@@ -1,23 +1,20 @@
 import { z } from 'zod'
 
-// Helper for optional strings from FormData that might be empty ("")
-export const emptyAsUndefined = z.string().trim().optional().transform(val => val === '' ? undefined : val)
+// Helper for optional strings from FormData that might be empty ("") or null
+export const emptyAsUndefined = z.preprocess(
+  (val) => (typeof val === 'string' && val.trim() === '') || val === null ? undefined : val,
+  z.string().trim().optional()
+)
 
-export const optionalEmail = z
-  .string()
-  .trim()
-  .refine(val => val === '' || z.string().email().safeParse(val).success, {
-    message: "Le format de l'adresse e-mail est invalide."
-  })
-  .transform(val => val === '' ? undefined : val)
+export const optionalEmail = z.preprocess(
+  (val) => (typeof val === 'string' && val.trim() === '') || val === null ? undefined : val,
+  z.string().trim().email("Le format de l'adresse e-mail est invalide.").optional()
+)
 
-export const optionalPhone = z
-  .string()
-  .trim()
-  .refine(val => val === '' || /^[\d\s\+\-\(\)]+$/.test(val), {
-    message: "Le numéro de téléphone ne doit contenir que des chiffres et des symboles autorisés (+, -, espaces)."
-  })
-  .transform(val => val === '' ? undefined : val)
+export const optionalPhone = z.preprocess(
+  (val) => (typeof val === 'string' && val.trim() === '') || val === null ? undefined : val,
+  z.string().trim().regex(/^[\d\s\+\-\(\)]+$/, "Le numéro de téléphone ne doit contenir que des chiffres et des symboles autorisés (+, -, espaces).").optional()
+)
 
 // Schéma pour les contacts
 export const contactSchema = z.object({

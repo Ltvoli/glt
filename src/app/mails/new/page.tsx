@@ -21,6 +21,8 @@ export default async function NewMailPage({ searchParams }: { searchParams: Prom
     select: { id: true, title: true }
   })
   const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
+  const { getModuleFields } = await import('@/lib/fields')
+  const fieldConfig = await getModuleFields('mailcases')
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -33,13 +35,14 @@ export default async function NewMailPage({ searchParams }: { searchParams: Prom
 
       <div className="card">
         <MailForm 
-          users={users} 
-          contacts={contacts} 
-          tasks={tasks} 
+          users={JSON.parse(JSON.stringify(users))} 
+          contacts={JSON.parse(JSON.stringify(contacts))} 
+          tasks={JSON.parse(JSON.stringify(tasks))} 
           initialParentId={parentMailCaseId}
           initialSubject={subject}
           initialContactId={contactId}
-          dictionary={dictionary}
+          dictionary={JSON.parse(JSON.stringify(dictionary))}
+          fieldConfig={fieldConfig}
         />
       </div>
     </div>

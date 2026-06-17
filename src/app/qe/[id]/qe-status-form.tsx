@@ -4,10 +4,10 @@ import { useState, useTransition } from 'react'
 import { updateQEStatus } from '../actions'
 
 const STATUSES = [
-  { value: 'BROUILLON', label: 'Brouillon' },
-  { value: 'DEPOSEE', label: 'Déposée / En attente' },
-  { value: 'REPONSE_RECUE', label: 'Réponse reçue' },
-  { value: 'RETOUR_EFFECTUE', label: 'Retour effectué au demandeur' },
+  { value: 'A_REDIGER', label: 'À rédiger' },
+  { value: 'VALIDER', label: 'Déposée' },
+  { value: 'REFUSE', label: 'Refusée' },
+  { value: 'TERMINE', label: 'Terminée' },
 ]
 
 export default function QEStatusForm({ qeId, currentStatus, dictionary = [] }: { qeId: string, currentStatus: string, dictionary?: any[] }) {
@@ -40,8 +40,8 @@ export default function QEStatusForm({ qeId, currentStatus, dictionary = [] }: {
           opacity: isPending ? 0.7 : 1
         }}
       >
-        {dictionary.filter(d => d.type === 'QE_STATUS').map(d => (
-          <option key={d.code} value={d.code}>{d.label}</option>
+        {STATUSES.map(d => (
+          <option key={d.value} value={d.value}>{d.label}</option>
         ))}
       </select>
     </div>

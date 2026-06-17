@@ -145,7 +145,7 @@ export async function GET() {
 
     const overdueQEs = await prisma.writtenQuestion.findMany({
       where: {
-        status: 'EN_ATTENTE',
+        status: 'VALIDER',
         depositDate: { lt: sixtyDaysAgo },
         assigneeId: { not: null },
         archivedAt: null
@@ -175,7 +175,7 @@ export async function GET() {
     // 6. QE - Retours à faire (Réponse reçue)
     const followUpQEs = await prisma.writtenQuestion.findMany({
       where: {
-        status: 'REPONSE_RECUE',
+        status: 'TERMINE',
         followUpDescription: { not: null },
         assigneeId: { not: null },
         archivedAt: null

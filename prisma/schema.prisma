@@ -84,6 +84,7 @@ model User {
   validatedPermanences MobilePermanence[]    @relation("PermanenceValidator")
   permanenceTasks      PermanenceTask[]
   permanenceSyntheses  PermanenceSynthesis[]
+  bulkCommunications   BulkCommunication[]   @relation("BulkCommsCreator")
 }
 
 model UserSession {
@@ -128,6 +129,7 @@ model Contact {
   email       String?
   birthDate   DateTime?
   gender      String? // H, F, Autre
+  nationality String? // Nationalité
 
   apartment         String? // Appartement
   building          String? // Bâtiment
@@ -137,6 +139,9 @@ model Contact {
   postalCode        String?
   city              String?
   address      String? // legacy or full address
+  buildingType String? // Type de bâtiment
+  floor        String? // Étage
+  door         String? // Porte
 
   territorySector String?
   supportLevel    String? // e.g. "1", "2", "3", "4", "5"
@@ -170,9 +175,14 @@ model Contact {
   supportLevelHistory ContactSupportLevelHistory[] @relation("SupportLevelHistory")
   permanenceContacts  PermanenceContact[]
   permanenceLocations PermanenceLocation[]         @relation("LocationMairieContact")
+  lists               ContactList[]
 
   @@index([lastName])
   @@index([email])
+  @@index([firstName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_firstName_trgm_idx")
+  @@index([lastName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_lastName_trgm_idx")
+  @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_email_trgm_idx")
+  @@index([city(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_city_trgm_idx")
 }
 
 model Tag {
@@ -264,6 +274,7 @@ model MailCase {
   category      String?
   urgency       String    @default("NORMALE")
   status        String    @default("RECU") // RECU, LU, EN_TRAITEMENT, REPONDU, CLASSE, ENVOYE
+  validationStatus String? // A_VALIDER, VALIDE, REJETE (null si non applicable)
   content       String?
   notes         String?
 
@@ -300,7 +311,7 @@ model WrittenQuestion {
   theme               String?
   depositDate         DateTime?
   responseDate        DateTime?
-  status              String    @default("DEPOSEE") // DEPOSEE, EN_ATTENTE, REPONSE_RECUE, RETOUR_EFFECTUE
+  status              String    @default("A_REDIGER") // A_REDIGER, VALIDER, REFUSE, TERMINE
   concernedPerson     String?
   feedbackNeeded      Boolean   @default(false)
   followUpDescription String?
@@ -359,6 +370,7 @@ model EmployeeSetting {
   annualWorkingDays         Int    @default(218)
   referencePeriodStartMonth Int    @default(6) // Juin par défaut
   referencePeriodStartDay   Int    @default(1)
+  showInPlanning            Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -424,6 +436,9 @@ model Module {
   key           String   @unique
   label         String
   icon          String?
+  description   String?
+  color         String?
+  bg            String?
   isActive      Boolean  @default(true)
   showInSidebar Boolean  @default(true)
   order         Int      @default(0)
@@ -445,6 +460,22 @@ model Page {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   archivedAt DateTime?
+}
+
+model FieldConfig {
+  id           String  @id @default(cuid())
+  module       String  // ex: "contacts", "tasks", "mailcases"
+  section      String? // ex: "État civil", "Adresse"
+  fieldKey     String  // ex: "firstName", "lastName"
+  defaultLabel String  // Libellé d'origine
+  customLabel  String? // Libellé personnalisé par l'admin
+  isVisible    Boolean @default(true)
+  order        Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([module, fieldKey])
 }
 
 model Setting {
@@ -720,6 +751,7 @@ model MobilePermanence {
   validationComment  String?
   notes              String?
   deputyRemarks      String? // Remarques générales du député
+  returnDate         DateTime? // Date de remise
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   archivedAt         DateTime?
@@ -822,3 +854,40 @@ model PermanenceSynthesis {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 }
+
+model AppLog {
+  id        String   @id @default(cuid())
+  level     String   @default("ERROR") // ERROR, WARNING, INFO
+  source    String   // ex: "upload", "cron", "action:archiveQE"
+  message   String
+  details   Json?    // Stack trace, contexte additionnel
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@index([level])
+  @@index([createdAt])
+  @@index([source])
+}
+
+model ContactList {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  contacts    Contact[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model BulkCommunication {
+  id           String   @id @default(cuid())
+  subject      String?
+  content      String
+  channel      String   // "EMAIL" ou "SMS"
+  sentCount    Int
+  successCount Int
+  failedCount  Int
+  createdAt    DateTime @default(now())
+  createdBy    User     @relation("BulkCommsCreator", fields: [createdById], references: [id])
+  createdById  String
+}
+

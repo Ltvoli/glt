@@ -1,13 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { addSubtask, toggleSubtask } from './actions'
-import { CheckSquare, Square, Plus } from 'lucide-react'
+import { CheckSquare, Square, Plus, Trash2 } from 'lucide-react'
 
 export default function SubtasksList({ taskId, initialSubtasks }: { taskId: string, initialSubtasks: any[] }) {
   const [subtasks, setSubtasks] = useState(initialSubtasks)
   const [newTitle, setNewTitle] = useState('')
   const [isAdding, setIsAdding] = useState(false)
+
+  // Sync state with server when initialSubtasks change (ex: from other clients or actions)
+  useEffect(() => {
+    setSubtasks(initialSubtasks)
+  }, [initialSubtasks])
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -15,17 +20,14 @@ export default function SubtasksList({ taskId, initialSubtasks }: { taskId: stri
 
     setIsAdding(true)
     const res = await addSubtask(taskId, newTitle)
-    if (res.success) {
+    if (res.success && res.subtask) {
+      setSubtasks([...subtasks, res.subtask])
       setNewTitle('')
-      // Idealement on récupèrerait l'objet créé, mais vu que la page sera revalidée par le serveur,
-      // la donnée fraîche sera redescendue. Pour un meilleur UX, on pourrait ajouter un stub localement.
-      // Par simplicité, on compte sur le revalidatePath.
     }
     setIsAdding(false)
   }
 
   const handleToggle = async (id: string, isCompleted: boolean) => {
-    // Optimistic UI
     setSubtasks(prev => prev.map(s => s.id === id ? { ...s, isCompleted } : s))
     await toggleSubtask(id, isCompleted)
   }
@@ -37,19 +39,34 @@ export default function SubtasksList({ taskId, initialSubtasks }: { taskId: stri
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Aucune sous-tâche.</p>
         ) : (
           subtasks.map(subtask => (
-            <div key={subtask.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <button 
-                onClick={() => handleToggle(subtask.id, !subtask.isCompleted)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: subtask.isCompleted ? 'var(--success)' : 'var(--text-muted)', padding: 0 }}
+            <div key={subtask.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.25rem 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button 
+                  onClick={() => handleToggle(subtask.id, !subtask.isCompleted)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: subtask.isCompleted ? 'var(--success)' : 'var(--text-muted)', padding: 0, display: 'flex', alignItems: 'center' }}
+                >
+                  {subtask.isCompleted ? <CheckSquare size={20} /> : <Square size={20} />}
+                </button>
+                <span style={{ 
+                  textDecoration: subtask.isCompleted ? 'line-through' : 'none',
+                  color: subtask.isCompleted ? 'var(--text-muted)' : 'var(--foreground)'
+                }}>
+                  {subtask.title}
+                </span>
+              </div>
+              <button
+                onClick={async () => {
+                  if (confirm('Supprimer cette sous-tâche ?')) {
+                    setSubtasks(prev => prev.filter(s => s.id !== subtask.id))
+                    const { deleteSubtask } = await import('./actions')
+                    await deleteSubtask(subtask.id)
+                  }
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', opacity: 0.7 }}
+                title="Supprimer la sous-tâche"
               >
-                {subtask.isCompleted ? <CheckSquare size={20} /> : <Square size={20} />}
+                <Trash2 size={16} />
               </button>
-              <span style={{ 
-                textDecoration: subtask.isCompleted ? 'line-through' : 'none',
-                color: subtask.isCompleted ? 'var(--text-muted)' : 'var(--foreground)'
-              }}>
-                {subtask.title}
-              </span>
             </div>
           ))
         )}
@@ -62,7 +79,7 @@ export default function SubtasksList({ taskId, initialSubtasks }: { taskId: stri
           onChange={(e) => setNewTitle(e.target.value)}
           placeholder="Nouvelle sous-tâche..." 
           className="form-control"
-          style={{ flex: 1 }}
+          style={{ flex: 1, margin: 0 }}
         />
         <button type="submit" className="button outline" disabled={isAdding || !newTitle.trim()}>
           <Plus size={16} /> Ajouter

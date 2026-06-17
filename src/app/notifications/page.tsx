@@ -191,8 +191,6 @@ export default async function NotificationsPage() {
                               textDecoration: 'none', fontWeight: 500,
                               transition: 'background 0.1s',
                             }}
-                            onMouseOver={e => e.currentTarget.style.background = '#dbeafe'}
-                            onMouseOut={e => e.currentTarget.style.background = '#f1f5f9'}
                           >
                             Voir {notif.relatedType === 'Task' ? 'la tâche' :
                                   notif.relatedType === 'MailCase' ? 'le courrier' :

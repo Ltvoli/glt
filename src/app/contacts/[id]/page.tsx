@@ -5,6 +5,7 @@ import EditContactForm from './edit-contact-form'
 import ArchiveButton from './archive-button'
 import { MapPin, Phone, Mail, Building, Clock, CheckSquare, Mail as MailIcon, HelpCircle, Smartphone, ExternalLink, User } from 'lucide-react'
 import PrintButton from '@/components/PrintButton'
+import { getModuleFields } from '@/lib/fields'
 
 // ── Contraste auto pour les tags ────────────────────────────
 function getContrastText(hexColor: string): string {
@@ -63,7 +64,7 @@ export default async function ContactDetailPage({
 
   if (!contact) notFound()
 
-  const [auditLogs, linkedTasks, linkedMails, linkedQEs, allTags, supportLevels, dictionary] = await Promise.all([
+  const [auditLogs, linkedTasks, linkedMails, linkedQEs, allTags, supportLevels, dictionary, fieldConfig] = await Promise.all([
     prisma.auditLog.findMany({
       where: { entity: 'Contact', entityId: id },
       orderBy: { createdAt: 'desc' },
@@ -88,6 +89,7 @@ export default async function ContactDetailPage({
     prisma.tag.findMany({ orderBy: { name: 'asc' } }),
     prisma.supportLevel.findMany({ orderBy: { order: 'asc' } }),
     prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } }),
+    getModuleFields('contacts')
   ])
 
   // Construire l'adresse complète pour Google Maps et l'affichage
@@ -104,8 +106,15 @@ export default async function ContactDetailPage({
     ? `https://maps.google.com/?q=${encodeURIComponent(fullAddress)}`
     : null
 
-  // Badge niveau de soutien depuis BDD
-  const supportLevelData = supportLevels.find(sl => sl.label === contact.supportLevel)
+  // Badge niveau de soutien depuis BDD (avec fallback pour les chiffres 1-5)
+  let supportLevelData = supportLevels.find(sl => sl.label === contact.supportLevel)
+  if (!supportLevelData && contact.supportLevel) {
+    const num = parseInt(contact.supportLevel)
+    if (!isNaN(num) && num >= 1 && num <= 5 && supportLevels.length > 0) {
+      const idx = Math.round(((num - 1) / 4) * (supportLevels.length - 1))
+      supportLevelData = supportLevels[Math.min(idx, supportLevels.length - 1)]
+    }
+  }
 
   const typeData = TYPE_LABELS[contact.type] || TYPE_LABELS['AUTRE']
 
@@ -272,6 +281,16 @@ export default async function ContactDetailPage({
               </div>
             )}
 
+            {/* Notes internes */}
+            {contact.notes && (
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600, marginBottom: '0.35rem' }}>Notes internes</div>
+                <p style={{ fontSize: '0.85rem', color: '#334155', whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.5 }}>
+                  {contact.notes}
+                </p>
+              </div>
+            )}
+
             {/* Créé par */}
             <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8', fontSize: '0.78rem' }}>
               <Clock size={13} />
@@ -281,16 +300,6 @@ export default async function ContactDetailPage({
               </span>
             </div>
           </div>
-
-          {/* Notes */}
-          {contact.notes && (
-            <div className="card" style={{ padding: '1.25rem', background: '#fffbeb', border: '1px solid #fde68a' }}>
-              <h2 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.75rem', color: '#92400e' }}>📝 Notes</h2>
-              <p style={{ fontSize: '0.875rem', color: '#78350f', whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.6 }}>
-                {contact.notes}
-              </p>
-            </div>
-          )}
 
           {/* Historique */}
           <div className="card" style={{ padding: '1.25rem' }}>
@@ -455,7 +464,7 @@ export default async function ContactDetailPage({
           {/* Formulaire d'édition */}
           <div className="card" style={{ padding: '1.25rem' }}>
             <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem' }}>✏️ Modifier le contact</h2>
-            <EditContactForm contact={contact} allTags={allTags} dictionary={dictionary} />
+            <EditContactForm contact={JSON.parse(JSON.stringify(contact))} allTags={allTags} dictionary={dictionary} fieldConfig={fieldConfig} supportLevels={supportLevels} />
           </div>
 
         </div>

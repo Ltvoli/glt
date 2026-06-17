@@ -2,10 +2,11 @@ import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, CheckCircle, Clock, Printer, Edit } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Clock, Edit } from 'lucide-react'
 import QEStatusForm from './qe-status-form'
 import QEAttachments from './qe-attachments'
 import QEResponseForm from './qe-response-form'
+import PrintButton from '@/app/reports/weekly/print-button'
 
 export default async function QEDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -52,9 +53,7 @@ export default async function QEDetailPage({ params }: { params: Promise<{ id: s
         </Link>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-             <button onClick={() => window.print()} className="button outline" style={{ padding: '0.5rem 1rem' }}>
-               <Printer size={16} style={{ marginRight: '0.5rem' }} /> Imprimer / PDF
-             </button>
+             <PrintButton />
              <Link href={`/qe/${qe.id}/edit`} className="button outline" style={{ padding: '0.5rem 1rem' }}>
                <Edit size={16} style={{ marginRight: '0.5rem' }} /> Modifier la question
              </Link>

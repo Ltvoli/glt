@@ -10,7 +10,8 @@ import {
   HeartHandshake, 
   Webhook,
   Database,
-  FileText
+  FileText,
+  Activity
 } from 'lucide-react'
 
 type AdminNavProps = {
@@ -38,6 +39,11 @@ export default function AdminNav({ dbRole }: AdminNavProps) {
       icon: SlidersHorizontal
     },
     {
+      name: 'Champs & Formulaires',
+      href: '/admin/fields',
+      icon: Database
+    },
+    {
       name: 'Tags',
       href: '/admin/tags',
       icon: Tags
@@ -63,6 +69,11 @@ export default function AdminNav({ dbRole }: AdminNavProps) {
       href: '/admin/data-retention',
       icon: Database,
       hideForSupervisor: true
+    },
+    {
+      name: 'Logs & Erreurs',
+      href: '/admin/logs',
+      icon: Activity,
     }
   ]
 

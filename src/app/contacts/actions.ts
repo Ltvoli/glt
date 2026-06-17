@@ -5,6 +5,7 @@ import { getSession, requireWriteAccess } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { logAudit } from '@/lib/audit'
 import { contactSchema } from '@/lib/validations'
+import { requirePermission } from '@/lib/permissions'
 
 export async function createContact(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean, id?: string }> {
   let session
@@ -153,6 +154,11 @@ export async function archiveContact(contactId: string): Promise<{ error?: strin
   } catch (e: any) {
     return { error: e.message }
   }
+  try {
+    requirePermission(session.role, 'ARCHIVE_CONTACTS')
+  } catch (e: any) {
+    return { error: e.message }
+  }
 
   try {
     const contact = await prisma.contact.findUnique({ where: { id: contactId } })
@@ -179,6 +185,11 @@ export async function archiveContactsBulk(
   let session
   try {
     session = await requireWriteAccess()
+  } catch (e: any) {
+    return { error: e.message }
+  }
+  try {
+    requirePermission(session.role, 'ARCHIVE_CONTACTS')
   } catch (e: any) {
     return { error: e.message }
   }

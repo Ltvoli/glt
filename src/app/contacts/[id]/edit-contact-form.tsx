@@ -5,13 +5,14 @@ import { updateContact } from './actions'
 import TagSelector from '@/components/ui/tag-selector'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { renderContactField } from '../dynamic-contact-fields'
 
 const initialState = {
   error: '',
   success: false
 }
 
-export default function EditContactForm({ contact, allTags = [], dictionary = [] }: { contact: any, allTags?: any[], dictionary?: any[] }) {
+export default function EditContactForm({ contact, allTags = [], dictionary = [], fieldConfig = {}, supportLevels = [] }: { contact: any, allTags?: any[], dictionary?: any[], fieldConfig?: Record<string, any>, supportLevels?: any[] }) {
   const [state, formAction, isPending] = useActionState(updateContact, initialState)
   const router = useRouter()
 
@@ -22,44 +23,28 @@ export default function EditContactForm({ contact, allTags = [], dictionary = []
     }
   }, [state, router, contact.id])
 
+  const etatCivilFields = Object.entries(fieldConfig || {})
+    .map(([key, f]) => ({ key, ...(f as any) }))
+    .filter((f: any) => f.section === 'État civil' && f.isVisible)
+    .sort((a: any, b: any) => a.order - b.order)
+
+  const adresseFields = Object.entries(fieldConfig || {})
+    .map(([key, f]) => ({ key, ...(f as any) }))
+    .filter((f: any) => f.section === 'Adresse' && f.isVisible)
+    .sort((a: any, b: any) => a.order - b.order)
+
   return (
     <div>
       <form action={formAction}>
         <input type="hidden" name="id" value={contact.id} />
         
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Informations personnelles</h3>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>État civil</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-          <div className="form-group">
-            <label htmlFor="gender">Genre</label>
-            <select id="gender" name="gender" className="form-control" defaultValue={contact.gender || ''}>
-              <option value="">Non renseigné</option>
-              <option value="H">Homme (H)</option>
-              <option value="F">Femme (F)</option>
-              <option value="Autre">Autre</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label htmlFor="birthDate">Date de naissance</label>
-            <input 
-              type="date" 
-              id="birthDate" 
-              name="birthDate" 
-              className="form-control" 
-              defaultValue={contact.birthDate ? new Date(contact.birthDate).toISOString().split('T')[0] : ''} 
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="firstName">Prénom *</label>
-            <input type="text" id="firstName" name="firstName" className="form-control" defaultValue={contact.firstName} required />
-          </div>
-          <div className="form-group">
-            <label htmlFor="lastName">Nom de naissance *</label>
-            <input type="text" id="lastName" name="lastName" className="form-control" defaultValue={contact.lastName} required />
-          </div>
-          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label htmlFor="usageName">Nom d&apos;usage (marital, usuel)</label>
-            <input type="text" id="usageName" name="usageName" className="form-control" defaultValue={contact.usageName || ''} placeholder="Optionnel" />
-          </div>
+          {etatCivilFields.length > 0 ? (
+            etatCivilFields.map((f: any) => renderContactField(f.key, f.label, contact, dictionary))
+          ) : (
+            <p style={{ color: '#94a3b8', gridColumn: '1 / -1' }}>Aucun champ configuré.</p>
+          )}
         </div>
 
         <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Coordonnées</h3>
@@ -85,43 +70,15 @@ export default function EditContactForm({ contact, allTags = [], dictionary = []
         </div>
 
         <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Adresse</h3>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-          <div className="form-group">
-            <label htmlFor="apartment">Appartement / Escalier</label>
-            <input type="text" id="apartment" name="apartment" className="form-control" defaultValue={contact.apartment || ''} placeholder="Ex: Appt 12, Esc B" />
-          </div>
-          <div className="form-group">
-            <label htmlFor="building">Bâtiment / Résidence</label>
-            <input type="text" id="building" name="building" className="form-control" defaultValue={contact.building || ''} placeholder="Ex: Résidence Les Fleurs" />
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+          {adresseFields.length > 0 ? (
+            adresseFields.map((f: any) => renderContactField(f.key, f.label, contact, dictionary))
+          ) : (
+            <p style={{ color: '#94a3b8', gridColumn: '1 / -1' }}>Aucun champ configuré.</p>
+          )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-          <div className="form-group">
-            <label htmlFor="streetNumber">Numéro</label>
-            <input type="text" id="streetNumber" name="streetNumber" className="form-control" defaultValue={contact.streetNumber || ''} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="streetName">Rue / Voie</label>
-            <input type="text" id="streetName" name="streetName" className="form-control" defaultValue={contact.streetName || ''} />
-          </div>
-        </div>
-
-        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-          <label htmlFor="addressComplement">Complément d&apos;adresse (Lieu-dit, BP...)</label>
-          <input type="text" id="addressComplement" name="addressComplement" className="form-control" defaultValue={contact.addressComplement || ''} placeholder="Ex: Lieu-dit Les Oliviers" />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1.5rem', marginBottom: '2rem' }}>
-          <div className="form-group">
-            <label htmlFor="postalCode">Code postal</label>
-            <input type="text" id="postalCode" name="postalCode" className="form-control" defaultValue={contact.postalCode || ''} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="city">Ville</label>
-            <input type="text" id="city" name="city" className="form-control" defaultValue={contact.city || ''} />
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem', marginBottom: '2rem' }}>
           <div className="form-group">
             <label htmlFor="territorySector">Secteur / Canton</label>
             <input type="text" id="territorySector" name="territorySector" className="form-control" defaultValue={contact.territorySector || ''} placeholder="Ex: Canton de Grasse-1" />
@@ -140,13 +97,21 @@ export default function EditContactForm({ contact, allTags = [], dictionary = []
           </div>
           <div className="form-group">
             <label htmlFor="supportLevel">Niveau de Soutien</label>
-            <select id="supportLevel" name="supportLevel" className="form-control" defaultValue={contact.supportLevel || ''}>
+            <select id="supportLevel" name="supportLevel" className="form-control" defaultValue={(() => {
+              let defaultSupportLevel = contact.supportLevel || ''
+              if (defaultSupportLevel && !supportLevels.some((sl: any) => sl.label === defaultSupportLevel)) {
+                const num = parseInt(defaultSupportLevel)
+                if (!isNaN(num) && num >= 1 && num <= 5 && supportLevels.length > 0) {
+                  const idx = Math.round(((num - 1) / 4) * (supportLevels.length - 1))
+                  defaultSupportLevel = supportLevels[Math.min(idx, supportLevels.length - 1)].label
+                }
+              }
+              return defaultSupportLevel
+            })()}>
               <option value="">Sélectionnez un niveau</option>
-              <option value="1">1 - Très défavorable</option>
-              <option value="2">2 - Défavorable</option>
-              <option value="3">3 - Neutre</option>
-              <option value="4">4 - Favorable</option>
-              <option value="5">5 - Très favorable</option>
+              {supportLevels.map((sl: any) => (
+                <option key={sl.id} value={sl.label}>{sl.label}</option>
+              ))}
             </select>
           </div>
           <div className="form-group">

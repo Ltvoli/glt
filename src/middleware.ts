@@ -46,8 +46,8 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL('/admin-login', req.nextUrl))
     }
     const { role } = sessionPayload as any
-    if (role !== 'ADMINISTRATEUR') {
-      return NextResponse.redirect(new URL('/admin-login', req.nextUrl))
+    if (role !== 'ADMINISTRATEUR' && role !== 'SUPERVISEUR') {
+      return NextResponse.redirect(new URL('/auth/unauthorized', req.nextUrl))
     }
     return NextResponse.next()
   }

@@ -1,5 +1,6 @@
 'use server'
 
+import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { requireWriteAccess } from '@/lib/session'
 import { redirect } from 'next/navigation'
@@ -15,6 +16,7 @@ export async function createQE(prevState: any, formData: FormData): Promise<{ er
   let session
   try {
     session = await requireWriteAccess()
+    requirePermission(session.role, 'MANAGE_QE')
   } catch (e: any) {
     return { error: e.message }
   }
@@ -56,8 +58,8 @@ export async function createQE(prevState: any, formData: FormData): Promise<{ er
         notes: validData.notes || null,
         assigneeId: assigneeId || null,
         createdById: session.userId,
-        status: 'EN_ATTENTE', // Une QE déposée passe par défaut en "en attente de réponse"
-        depositDate: new Date(),
+        status: 'A_REDIGER', // Une QE déposée passe par défaut en "A_REDIGER"
+        depositDate: null,
         followUpDescription: followUpDescription || null,
         followUpDueDate: followUpDueDateStr ? new Date(followUpDueDateStr) : null,
       }
@@ -137,15 +139,18 @@ export async function createQE(prevState: any, formData: FormData): Promise<{ er
 
 export async function updateQEStatus(qeId: string, status: string) {
   const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_QE')
+
+  const validatedStatus = z.enum(['A_REDIGER', 'VALIDER', 'REFUSE', 'TERMINE']).parse(status)
 
   const qe = await prisma.writtenQuestion.findUnique({ where: { id: qeId } })
   if (!qe) throw new Error('Question introuvable')
 
   // Automatically update dates based on status if needed
-  const dataToUpdate: any = { status }
-  if (status === 'DEPOSEE' && !qe.depositDate) {
+  const dataToUpdate: any = { status: validatedStatus }
+  if (validatedStatus === 'VALIDER' && !qe.depositDate) {
     dataToUpdate.depositDate = new Date()
-  } else if (status === 'REPONSE_RECUE' && !qe.responseDate) {
+  } else if (validatedStatus === 'TERMINE' && !qe.responseDate) {
     dataToUpdate.responseDate = new Date()
   }
 
@@ -154,7 +159,7 @@ export async function updateQEStatus(qeId: string, status: string) {
     data: dataToUpdate
   })
 
-  await logAudit('UPDATE_STATUS', 'WrittenQuestion', qeId, session.userId, { before: qe.status, after: status })
+  await logAudit('UPDATE_STATUS', 'WrittenQuestion', qeId, session.userId, { before: qe.status, after: validatedStatus })
 
   revalidatePath(`/qe/${qeId}`)
   revalidatePath('/qe')
@@ -162,12 +167,13 @@ export async function updateQEStatus(qeId: string, status: string) {
 
 export async function updateQEResponse(qeId: string, responseContent: string) {
   const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_QE')
 
   const qe = await prisma.writtenQuestion.findUnique({ where: { id: qeId } })
 
   await prisma.writtenQuestion.update({
     where: { id: qeId },
-    data: { responseContent, status: 'REPONSE_RECUE', responseDate: new Date() }
+    data: { responseContent, status: 'TERMINE', responseDate: new Date() }
   })
 
   // Create notification if assigned
@@ -186,7 +192,7 @@ export async function updateQEResponse(qeId: string, responseContent: string) {
   }
 
   // Log audit
-  await logAudit('UPDATE', 'WrittenQuestion', qeId, session.userId, { action: "Ajout réponse ministérielle", status: 'REPONSE_RECUE' })
+  await logAudit('UPDATE', 'WrittenQuestion', qeId, session.userId, { action: "Ajout réponse ministérielle", status: 'TERMINE' })
 
   revalidatePath(`/qe/${qeId}`)
 }
@@ -195,6 +201,7 @@ export async function updateQE(qeId: string, formData: FormData): Promise<{ erro
   let session
   try {
     session = await requireWriteAccess()
+    requirePermission(session.role, 'MANAGE_QE')
   } catch (e: any) {
     return { error: e.message }
   }
@@ -243,6 +250,7 @@ export async function updateQE(qeId: string, formData: FormData): Promise<{ erro
 
 export async function archiveQE(qeId: string) {
   const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_QE')
 
   const qe = await prisma.writtenQuestion.findUnique({ where: { id: qeId } })
   if (!qe) throw new Error('Question introuvable')
@@ -311,7 +319,7 @@ export async function redepositQe(qeId: string) {
       ministry: qe.ministry,
       theme: qe.theme,
       content: qe.content,
-      status: 'BROUILLON',
+      status: 'A_REDIGER',
       linkedOriginalQeId: qe.id,
       notes: "Redépôt suite absence de réponse après 60 jours",
       createdById: session.userId,
@@ -322,7 +330,7 @@ export async function redepositQe(qeId: string) {
   await prisma.writtenQuestion.update({
     where: { id: qeId },
     data: {
-      status: 'RETOUR_EFFECTUE',
+      status: 'REFUSE',
       redepositSuggested: true,
       redepositDate: new Date(),
       followUpAction: 'REDEPOT',
@@ -335,21 +343,26 @@ export async function redepositQe(qeId: string) {
 
 export async function batchUpdateQeStatus(qeIds: string[], status: string) {
   const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_QE')
 
-  const dataToUpdate: any = { status }
-  if (status === 'DEPOSEE') {
+  const validatedStatus = z.enum(['A_REDIGER', 'VALIDER', 'REFUSE', 'TERMINE']).parse(status)
+  const validatedIds = z.array(z.string()).parse(qeIds)
+
+  const dataToUpdate: any = { status: validatedStatus }
+  if (validatedStatus === 'VALIDER') {
     dataToUpdate.depositDate = new Date()
-  } else if (status === 'REPONSE_RECUE') {
+  } else if (validatedStatus === 'TERMINE') {
     dataToUpdate.responseDate = new Date()
   }
 
   await prisma.writtenQuestion.updateMany({
-    where: { id: { in: qeIds } },
+    where: { id: { in: validatedIds } },
     data: dataToUpdate
   })
 
-  for (const id of qeIds) {
-    await logAudit('UPDATE_STATUS', 'WrittenQuestion', id, session.userId, { action: 'BATCH_UPDATE', newStatus: status })
+  for (const id of validatedIds) {
+    await logAudit('UPDATE_STATUS', 'WrittenQuestion', id, session.userId, { action: 'BATCH_UPDATE', newStatus: validatedStatus })
+    revalidatePath(`/qe/${id}`)
   }
 
   revalidatePath('/qe')

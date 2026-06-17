@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Edit2, Download, GitMerge, Trash2, X,
   Settings2, ChevronDown, CheckSquare, Square,
-  FileText, Table2, Loader2, Phone
+  FileText, Table2, Loader2, Phone, FolderPlus, Mail
 } from 'lucide-react'
+import { toast } from 'sonner'
+import { getContactLists, addContactsToListBulk, createContactListBulk } from './lists/actions'
 
 // ── Utilitaire : couleur de texte lisible sur un fond donné ──
 // Retourne '#fff' ou '#1e293b' selon la luminance du fond
@@ -418,6 +420,71 @@ export default function ContactsTable({ contacts, totalContacts, filterParams }:
   const [allFiltered, setAllFiltered] = useState(false)
   const [archiving, setArchiving] = useState(false)
 
+  // List management states
+  const [isListModalOpen, setIsListModalOpen] = useState(false)
+  const [existingLists, setExistingLists] = useState<any[]>([])
+  const [selectedListId, setSelectedListId] = useState('')
+  const [newListName, setNewListName] = useState('')
+  const [newListDescription, setNewListDescription] = useState('')
+  const [isSubmittingList, setIsSubmittingList] = useState(false)
+  const [listMode, setListMode] = useState<'existing' | 'new'>('existing')
+
+  useEffect(() => {
+    if (isListModalOpen) {
+      getContactLists().then(lists => {
+        setExistingLists(lists)
+        if (lists.length > 0) {
+          setSelectedListId(lists[0].id)
+        }
+      })
+    }
+  }, [isListModalOpen])
+
+  const handleListSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmittingList(true)
+    try {
+      if (listMode === 'existing') {
+        if (!selectedListId) {
+          toast.error('Veuillez sélectionner une liste.')
+          setIsSubmittingList(false)
+          return
+        }
+        const res = await addContactsToListBulk(selectedListId, Array.from(selectedIds), filterParams, allFiltered)
+        if (res.success) {
+          toast.success('Contacts ajoutés à la liste avec succès !')
+          setIsListModalOpen(false)
+          clearSelection()
+          router.refresh()
+        } else {
+          toast.error(res.error || "Une erreur s'est produite.")
+        }
+      } else {
+        if (!newListName.trim()) {
+          toast.error('Le nom de la liste est obligatoire.')
+          setIsSubmittingList(false)
+          return
+        }
+        const res = await createContactListBulk(newListName, newListDescription, Array.from(selectedIds), filterParams, allFiltered)
+        if (res.success) {
+          toast.success('Liste créée et contacts ajoutés avec succès !')
+          setIsListModalOpen(false)
+          setNewListName('')
+          setNewListDescription('')
+          clearSelection()
+          router.refresh()
+        } else {
+          toast.error(res.error || "Une erreur s'est produite.")
+        }
+      }
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "Une erreur s'est produite.")
+    } finally {
+      setIsSubmittingList(false)
+    }
+  }
+
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('contactColumns_v2')
@@ -596,6 +663,50 @@ export default function ContactsTable({ contacts, totalContacts, filterParams }:
           selectedIds={selectedIds}
           onSuccess={clearSelection}
         />
+
+        <button
+          onClick={() => {
+            if (allFiltered) {
+              router.push(`/contacts/communication?all=true&filterParams=${encodeURIComponent(filterParams)}`)
+            } else {
+              router.push(`/contacts/communication?ids=${Array.from(selectedIds).join(',')}`)
+            }
+          }}
+          disabled={selectedIds.size === 0}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '5px',
+            padding: '5px 10px',
+            border: '1px solid #e2e8f0',
+            borderRadius: '6px',
+            background: selectedIds.size > 0 ? '#eff6ff' : 'white',
+            cursor: selectedIds.size > 0 ? 'pointer' : 'not-allowed',
+            fontSize: '0.83rem',
+            color: selectedIds.size > 0 ? '#2563eb' : '#94a3b8',
+            fontWeight: 500,
+            borderColor: selectedIds.size > 0 ? '#bfdbfe' : '#e2e8f0',
+          }}
+        >
+          <Mail size={14} /> Message groupé
+        </button>
+
+        <button
+          onClick={() => setIsListModalOpen(true)}
+          disabled={selectedIds.size === 0}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '5px',
+            padding: '5px 10px',
+            border: '1px solid #e2e8f0',
+            borderRadius: '6px',
+            background: selectedIds.size > 0 ? '#f0fdf4' : 'white',
+            cursor: selectedIds.size > 0 ? 'pointer' : 'not-allowed',
+            fontSize: '0.83rem',
+            color: selectedIds.size > 0 ? '#16a34a' : '#94a3b8',
+            fontWeight: 500,
+            borderColor: selectedIds.size > 0 ? '#bbf7d0' : '#e2e8f0',
+          }}
+        >
+          <FolderPlus size={14} /> Ajouter à une liste
+        </button>
 
         {/* Clear selection */}
         {selectedIds.size > 0 && (
@@ -784,6 +895,251 @@ export default function ContactsTable({ contacts, totalContacts, filterParams }:
           </tbody>
         </table>
       </div>
+
+      {/* ─── Modal pour ajouter à une liste / créer une liste ─── */}
+      {isListModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.4)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '1rem',
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            width: '100%',
+            maxWidth: '500px',
+            overflow: 'hidden',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                Ajouter {selectedCount} contact(s) à une liste
+              </h3>
+              <button
+                onClick={() => setIsListModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleListSubmit} style={{ padding: '1.5rem' }}>
+              {/* Tab Selector */}
+              <div style={{
+                display: 'flex',
+                background: '#f1f5f9',
+                borderRadius: '8px',
+                padding: '3px',
+                marginBottom: '1.5rem',
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setListMode('existing')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: listMode === 'existing' ? 'white' : 'transparent',
+                    boxShadow: listMode === 'existing' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: listMode === 'existing' ? '#0f172a' : '#64748b',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  Liste existante
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setListMode('new')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: listMode === 'new' ? 'white' : 'transparent',
+                    boxShadow: listMode === 'new' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: listMode === 'new' ? '#0f172a' : '#64748b',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  Créer une liste
+                </button>
+              </div>
+
+              {listMode === 'existing' ? (
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <label htmlFor="listSelect" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.5rem' }}>
+                    Sélectionner la liste
+                  </label>
+                  {existingLists.length === 0 ? (
+                    <div style={{
+                      padding: '1rem',
+                      background: '#f8fafc',
+                      border: '1px dashed #cbd5e1',
+                      borderRadius: '8px',
+                      textAlign: 'center',
+                      fontSize: '0.85rem',
+                      color: '#64748b',
+                    }}>
+                      Aucune liste existante. Veuillez en créer une.
+                    </div>
+                  ) : (
+                    <select
+                      id="listSelect"
+                      value={selectedListId}
+                      onChange={e => setSelectedListId(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.9rem',
+                        color: '#0f172a',
+                        background: 'white',
+                      }}
+                    >
+                      {existingLists.map(l => (
+                        <option key={l.id} value={l.id}>
+                          {l.name} ({l._count?.contacts || 0} contacts)
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label htmlFor="listName" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.5rem' }}>
+                      Nom de la liste <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="listName"
+                      value={newListName}
+                      onChange={e => setNewListName(e.target.value)}
+                      placeholder="ex: Donateurs 2026, Bénéficiaires Nord..."
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.9rem',
+                        color: '#0f172a',
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <label htmlFor="listDesc" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.5rem' }}>
+                      Description (optionnelle)
+                    </label>
+                    <textarea
+                      id="listDesc"
+                      value={newListDescription}
+                      onChange={e => setNewListDescription(e.target.value)}
+                      placeholder="Description de la liste..."
+                      rows={3}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.9rem',
+                        color: '#0f172a',
+                        resize: 'vertical',
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Actions */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '0.75rem',
+                borderTop: '1px solid #e2e8f0',
+                paddingTop: '1rem',
+                marginTop: '1.5rem',
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setIsListModalOpen(false)}
+                  disabled={isSubmittingList}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: 'white',
+                    color: '#334155',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingList || (listMode === 'existing' && existingLists.length === 0)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'var(--primary, #3b82f6)',
+                    color: 'white',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  {isSubmittingList ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" /> En cours...
+                    </>
+                  ) : (
+                    'Confirmer'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ─── CSS ─── */}
       {/* ─── CSS ─── */}

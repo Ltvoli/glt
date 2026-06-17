@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { updateEmployeeDayType } from './actions'
+import PlanningImportModal from './PlanningImportModal'
+import PlanningUsersModal from './PlanningUsersModal'
 
 type UserData = {
   id: string
   name: string
   email: string
   role: string
+  showInPlanning: boolean
   counters: { workedMonth: number; workedYear: number; paidLeaveYear: number; annualDays: number; remaining: number }
   monthCalendar: { dateStr: string; dayType: string; isHoliday: boolean; isWeekend: boolean; notes: string | null }[]
 }
@@ -33,7 +36,7 @@ export default function PlanningGrid({
   const [selectedCell, setSelectedCell] = useState<{ userId: string; dateStr: string; dayType: string; notes: string } | null>(null)
 
   const monthDate = new Date(Date.UTC(currentYear, currentMonth, 1))
-  const monthName = monthDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+  const monthName = monthDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
   
   // Nombres de jours dans le mois
   const daysInMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate()
@@ -80,6 +83,8 @@ export default function PlanningGrid({
     return '#ffffff'
   }
 
+  const visibleUsers = users.filter(u => u.showInPlanning)
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -88,14 +93,11 @@ export default function PlanningGrid({
           <p style={{ color: 'var(--text-muted)' }}>Suivi des jours travaillés et congés.</p>
         </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {isMagaliOrAdmin && <PlanningUsersModal users={users} />}
+          {isMagaliOrAdmin && <PlanningImportModal />}
           <a href={`/api/export/planning?year=${currentYear}&month=${currentMonth}`} className="button outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            Exporter CSV
+            Exporter Excel
           </a>
-          {isMagaliOrAdmin && (
-            <Link href="/planning/settings" className="button outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Settings size={16} /> Paramètres Quotas
-            </Link>
-          )}
         </div>
       </div>
 
@@ -107,10 +109,11 @@ export default function PlanningGrid({
             <button className="button outline" onClick={() => navigateMonth(1)}><ArrowRight size={16} /></button>
           </div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', textTransform: 'capitalize' }}>{monthName}</h2>
-          <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#dcfce3', border: '1px solid #ccc' }}></div> Travaillé</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#fee2e2', border: '1px solid #ccc' }}></div> Congé</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#ffffff', border: '1px solid #ccc' }}></div> Non Travaillé</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#fef08a', border: '1px solid #ccc' }}></div> Jour Férié</span>
           </div>
         </div>
 
@@ -125,7 +128,7 @@ export default function PlanningGrid({
                   const isWE = d.getUTCDay() === 0 || d.getUTCDay() === 6
                   return (
                     <th key={day} style={{ textAlign: 'center', width: '30px', padding: '0.5rem 0.25rem', backgroundColor: isWE ? '#f8fafc' : 'transparent' }}>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{d.toLocaleDateString('fr-FR', { weekday: 'narrow' })}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{d.toLocaleDateString('fr-FR', { weekday: 'narrow', timeZone: 'UTC' })}</div>
                       <div>{day}</div>
                     </th>
                   )
@@ -133,7 +136,7 @@ export default function PlanningGrid({
               </tr>
             </thead>
             <tbody>
-              {users.map(user => {
+              {visibleUsers.map(user => {
                 const c = user.counters
                 const showAlert = c.remaining <= 5
 
@@ -190,7 +193,7 @@ export default function PlanningGrid({
             <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem' }}>
               Modifier le statut <br/>
               <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>
-                {new Date(selectedCell.dateStr).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                {new Date(selectedCell.dateStr).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}
               </span>
             </h3>
             

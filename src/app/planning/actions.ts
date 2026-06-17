@@ -8,9 +8,10 @@ import { logAudit } from '@/lib/audit'
 
 // Déduire le dayType du status classique
 function getDayTypeFromStatus(status: string): string {
-  if (['PARIS', 'CIRCO', 'TELETRAVAIL', 'DEPLACEMENT'].includes(status)) return 'worked'
-  if (['CONGE'].includes(status)) return 'paid_leave'
-  return 'off' // MALADIE, ABSENT ou autre
+  const s = status.toUpperCase()
+  if (['PARIS', 'CIRCO', 'TELETRAVAIL', 'DEPLACEMENT', 'TRAVAILLÉ', 'TRAVAILLE'].includes(s)) return 'worked'
+  if (['CONGE', 'CONGÉ', 'CONGE PAYE', 'CONGÉ PAYÉ'].includes(s)) return 'paid_leave'
+  return 'off' // MALADIE, ABSENT, NON TRAVAILLÉ, NON TRAVAILLE ou autre
 }
 
 export async function upsertEmployeeStatus(dateStr: string, status: string, notes?: string) {
@@ -122,14 +123,14 @@ export async function updateEmployeeDayType(employeeId: string, dateStr: string,
   revalidatePath('/planning')
 }
 
-export async function upsertEmployeeSetting(employeeId: string, annualWorkingDays: number) {
+export async function upsertEmployeeSetting(employeeId: string, annualWorkingDays: number, showInPlanning: boolean = true) {
   const session = await requireWriteAccess()
   requirePermission(session.role, 'EDIT_QUOTAS')
 
   await prisma.employeeSetting.upsert({
     where: { userId: employeeId },
-    update: { annualWorkingDays },
-    create: { userId: employeeId, annualWorkingDays }
+    update: { annualWorkingDays, showInPlanning },
+    create: { userId: employeeId, annualWorkingDays, showInPlanning }
   })
 
   await logAudit(
@@ -137,7 +138,7 @@ export async function upsertEmployeeSetting(employeeId: string, annualWorkingDay
     'EmployeeSetting',
     employeeId,
     session.userId,
-    { annualWorkingDays }
+    { annualWorkingDays, showInPlanning }
   )
 
   revalidatePath('/planning/settings')

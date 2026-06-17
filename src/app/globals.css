@@ -255,3 +255,25 @@ input, select, textarea {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Document Explorer Hover Links (RSC friendly) */
+.document-icon-link {
+  color: #94a3b8;
+  transition: color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+.document-icon-link:hover {
+  color: var(--primary);
+}
+
+.document-title-link {
+  color: #0f172a;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.document-title-link:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+

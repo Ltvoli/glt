@@ -6,15 +6,20 @@ import { ArrowLeft } from 'lucide-react'
 import PlanningEditForm from './planning-edit-form'
 
 function getCurrentWeekDates() {
-  const curr = new Date()
-  const week = []
-  const first = curr.getDate() - (curr.getDay() === 0 ? 6 : curr.getDay() - 1)
-  const firstDay = new Date(curr.setDate(first))
+  const now = new Date()
+  const utcNow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const dayOfWeek = utcNow.getUTCDay()
   
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+  
+  const monday = new Date(utcNow)
+  monday.setUTCDate(utcNow.getUTCDate() + diffToMonday)
+  
+  const week = []
   for (let i = 0; i < 5; i++) {
-    const d = new Date(firstDay)
-    d.setDate(d.getDate() + i)
-    week.push(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())))
+    const d = new Date(monday)
+    d.setUTCDate(monday.getUTCDate() + i)
+    week.push(d)
   }
   return week
 }

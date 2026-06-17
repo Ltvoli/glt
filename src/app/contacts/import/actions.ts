@@ -200,18 +200,6 @@ export async function processImport(formData: FormData) {
               : false
           }
 
-          // ── Détection doublons ───────────────────────────
-          const orConditions: any[] = []
-          if (email)  orConditions.push({ email })
-          if (phone)  orConditions.push({ phone })
-          if (mobile) orConditions.push({ mobilePhone: mobile })
-
-          const potentialDuplicates = orConditions.length > 0
-            ? await prisma.contact.findMany({
-                where: { OR: orConditions, AND: { lastName: { equals: lastName, mode: 'insensitive' } }, archivedAt: null }
-              })
-            : []
-
           // ── Données à insérer ────────────────────────────
           const dataToInsert = {
             firstName,
@@ -240,21 +228,7 @@ export async function processImport(formData: FormData) {
 
           try {
             insertedContact = await prisma.contact.create({ data: dataToInsert })
-
-            if (potentialDuplicates.length > 0) {
-              for (const dup of potentialDuplicates) {
-                await prisma.duplicateCandidate.create({
-                  data: {
-                    contact1Id: dup.id,
-                    contact2Id: insertedContact.id,
-                    reason: dup.email === email ? 'NOM_EMAIL' : 'NOM_PHONE'
-                  }
-                })
-              }
-              duplicates++
-            } else {
-              created++
-            }
+            created++
           } catch (insertErr: any) {
             console.error('[Qomon Import] Erreur insertion :', lastName, firstName, insertErr?.message)
             errorsCount++
@@ -283,6 +257,78 @@ export async function processImport(formData: FormData) {
               } catch { /* Tag déjà existant ou autre */ }
             }
           }
+        }
+
+        // ── Détection des doublons en Batch (SQL avec pg_trgm) ──
+        try {
+          const emailDups = await prisma.$executeRawUnsafe(`
+            INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
+            SELECT 
+              'dup_' || substring(md5(random()::text) from 1 for 12),
+              c1.id,
+              c2.id,
+              'NOM_EMAIL',
+              'PENDING',
+              NOW()
+            FROM "Contact" c1
+            JOIN "Contact" c2 ON c1.id < c2.id
+            WHERE c1."archivedAt" IS NULL 
+              AND c2."archivedAt" IS NULL
+              AND c1.email IS NOT NULL AND c1.email <> '' AND c1.email = c2.email
+              AND similarity(c1."lastName", c2."lastName") > 0.6
+              AND NOT EXISTS (
+                SELECT 1 FROM "DuplicateCandidate" dc 
+                WHERE (dc."contact1Id" = c1.id AND dc."contact2Id" = c2.id)
+                   OR (dc."contact1Id" = c2.id AND dc."contact2Id" = c1.id)
+              );
+          `)
+          const phoneDups = await prisma.$executeRawUnsafe(`
+            INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
+            SELECT 
+              'dup_' || substring(md5(random()::text) from 1 for 12),
+              c1.id,
+              c2.id,
+              'NOM_PHONE',
+              'PENDING',
+              NOW()
+            FROM "Contact" c1
+            JOIN "Contact" c2 ON c1.id < c2.id
+            WHERE c1."archivedAt" IS NULL 
+              AND c2."archivedAt" IS NULL
+              AND (
+                (c1.phone IS NOT NULL AND c1.phone <> '' AND c1.phone = c2.phone)
+                OR (c1."mobilePhone" IS NOT NULL AND c1."mobilePhone" <> '' AND c1."mobilePhone" = c2."mobilePhone")
+              )
+              AND similarity(c1."lastName", c2."lastName") > 0.6
+              AND NOT EXISTS (
+                SELECT 1 FROM "DuplicateCandidate" dc 
+                WHERE (dc."contact1Id" = c1.id AND dc."contact2Id" = c2.id)
+                   OR (dc."contact1Id" = c2.id AND dc."contact2Id" = c1.id)
+              );
+          `)
+          const nameDups = await prisma.$executeRawUnsafe(`
+            INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
+            SELECT 
+              'dup_' || substring(md5(random()::text) from 1 for 12),
+              c1.id,
+              c2.id,
+              'NOM_SIMILAIRE',
+              'PENDING',
+              NOW()
+            FROM "Contact" c1
+            JOIN "Contact" c2 ON c1.id < c2.id
+            WHERE c1."archivedAt" IS NULL 
+              AND c2."archivedAt" IS NULL
+              AND similarity(c1."firstName" || ' ' || c1."lastName", c2."firstName" || ' ' || c2."lastName") > 0.85
+              AND NOT EXISTS (
+                SELECT 1 FROM "DuplicateCandidate" dc 
+                WHERE (dc."contact1Id" = c1.id AND dc."contact2Id" = c2.id)
+                   OR (dc."contact1Id" = c2.id AND dc."contact2Id" = c1.id)
+              );
+          `)
+          duplicates = Number(emailDups) + Number(phoneDups) + Number(nameDups)
+        } catch (trgmErr) {
+          console.error('[Qomon Import] Erreur détection doublons batch:', trgmErr)
         }
 
         // ── Log import ───────────────────────────────────

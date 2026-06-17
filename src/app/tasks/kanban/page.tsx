@@ -79,7 +79,7 @@ export default async function KanbanPage({
       </div>
 
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        <KanbanBoard initialColumns={columns} />
+        <KanbanBoard initialColumns={JSON.parse(JSON.stringify(columns))} />
       </div>
     </div>
   )

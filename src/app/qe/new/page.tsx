@@ -23,6 +23,8 @@ export default async function NewQEPage() {
     select: { id: true, subject: true, reference: true }
   })
   const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
+  const { getModuleFields } = await import('@/lib/fields')
+  const fieldConfig = await getModuleFields('writtenquestions')
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -34,7 +36,7 @@ export default async function NewQEPage() {
       </div>
 
       <div className="card">
-        <QEForm users={users} contacts={contacts} tasks={tasks} mails={mails} dictionary={dictionary} />
+        <QEForm users={JSON.parse(JSON.stringify(users))} contacts={JSON.parse(JSON.stringify(contacts))} tasks={JSON.parse(JSON.stringify(tasks))} mails={JSON.parse(JSON.stringify(mails))} dictionary={JSON.parse(JSON.stringify(dictionary))} fieldConfig={fieldConfig} />
       </div>
     </div>
   )

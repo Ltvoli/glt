@@ -205,3 +205,98 @@ async function fusionnerContacts(
     candidateId,
   })
 }
+
+// ──────────────────────────────────────────────────────────
+// Détection des doublons en Batch (SQL avec pg_trgm)
+// ──────────────────────────────────────────────────────────
+export async function triggerDuplicateDetection() {
+  const session = await getSession()
+  if (!session?.userId) throw new Error('Non autorisé')
+
+  const allowedRoles = ['ADMINISTRATEUR', 'SUPERVISEUR', 'SUPERADMIN', 'ADMIN']
+  const roleToCheck = session.dbRole || session.role
+  if (!roleToCheck || !allowedRoles.includes(roleToCheck)) {
+    throw new Error('Accès refusé.')
+  }
+
+  try {
+    // 1. Détecter par email identique et nom similaire
+    const emailDups = await prisma.$executeRawUnsafe(`
+      INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
+      SELECT 
+        'dup_' || substring(md5(random()::text) from 1 for 12),
+        c1.id,
+        c2.id,
+        'NOM_EMAIL',
+        'PENDING',
+        NOW()
+      FROM "Contact" c1
+      JOIN "Contact" c2 ON c1.id < c2.id
+      WHERE c1."archivedAt" IS NULL 
+        AND c2."archivedAt" IS NULL
+        AND c1.email IS NOT NULL AND c1.email <> '' AND c1.email = c2.email
+        AND similarity(c1."lastName", c2."lastName") > 0.6
+        AND NOT EXISTS (
+          SELECT 1 FROM "DuplicateCandidate" dc 
+          WHERE (dc."contact1Id" = c1.id AND dc."contact2Id" = c2.id)
+             OR (dc."contact1Id" = c2.id AND dc."contact2Id" = c1.id)
+        );
+    `)
+
+    // 2. Détecter par téléphone identique (mobile ou fixe) et nom similaire
+    const phoneDups = await prisma.$executeRawUnsafe(`
+      INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
+      SELECT 
+        'dup_' || substring(md5(random()::text) from 1 for 12),
+        c1.id,
+        c2.id,
+        'NOM_PHONE',
+        'PENDING',
+        NOW()
+      FROM "Contact" c1
+      JOIN "Contact" c2 ON c1.id < c2.id
+      WHERE c1."archivedAt" IS NULL 
+        AND c2."archivedAt" IS NULL
+        AND (
+          (c1.phone IS NOT NULL AND c1.phone <> '' AND c1.phone = c2.phone)
+          OR (c1."mobilePhone" IS NOT NULL AND c1."mobilePhone" <> '' AND c1."mobilePhone" = c2."mobilePhone")
+        )
+        AND similarity(c1."lastName", c2."lastName") > 0.6
+        AND NOT EXISTS (
+          SELECT 1 FROM "DuplicateCandidate" dc 
+          WHERE (dc."contact1Id" = c1.id AND dc."contact2Id" = c2.id)
+             OR (dc."contact1Id" = c2.id AND dc."contact2Id" = c1.id)
+        );
+    `)
+
+    // 3. Détecter par nom très similaire (prénom + nom > 0.85) sans autre info de contact identique
+    const nameDups = await prisma.$executeRawUnsafe(`
+      INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
+      SELECT 
+        'dup_' || substring(md5(random()::text) from 1 for 12),
+        c1.id,
+        c2.id,
+        'NOM_SIMILAIRE',
+        'PENDING',
+        NOW()
+      FROM "Contact" c1
+      JOIN "Contact" c2 ON c1.id < c2.id
+      WHERE c1."archivedAt" IS NULL 
+        AND c2."archivedAt" IS NULL
+        AND similarity(c1."firstName" || ' ' || c1."lastName", c2."firstName" || ' ' || c2."lastName") > 0.85
+        AND NOT EXISTS (
+          SELECT 1 FROM "DuplicateCandidate" dc 
+          WHERE (dc."contact1Id" = c1.id AND dc."contact2Id" = c2.id)
+             OR (dc."contact1Id" = c2.id AND dc."contact2Id" = c1.id)
+        );
+    `)
+
+    revalidatePath('/contacts/duplicates')
+    revalidatePath('/contacts')
+    return { success: true, count: Number(emailDups) + Number(phoneDups) + Number(nameDups) }
+  } catch (error: any) {
+    console.error('[triggerDuplicateDetection]', error)
+    return { error: `Erreur : ${error?.message || 'impossible de lancer la détection'}` }
+  }
+}
+

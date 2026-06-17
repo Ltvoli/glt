@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import { createQE } from '../actions'
+import { renderQeField } from '../dynamic-qe-fields'
 
 const initialState = {
   error: ''
@@ -29,7 +30,7 @@ const MINISTRIES = [
   "Autre"
 ]
 
-export default function QEForm({ users, contacts, tasks, mails, dictionary = [] }: { users: {id: string; name: string}[], contacts: {id: string; firstName: string; lastName: string}[], tasks: {id: string; title: string}[], mails?: {id: string; subject: string; reference: string}[], dictionary?: any[] }) {
+export default function QEForm({ users, contacts, tasks, mails, dictionary = [], fieldConfig = {} }: { users: {id: string; name: string}[], contacts: {id: string; firstName: string; lastName: string}[], tasks: {id: string; title: string}[], mails?: {id: string; subject: string; reference: string}[], dictionary?: any[], fieldConfig?: Record<string, any> }) {
   const [state, formAction, isPending] = useActionState(createQE, initialState)
   
   const [anNumber, setAnNumber] = useState('')
@@ -69,9 +70,30 @@ export default function QEForm({ users, contacts, tasks, mails, dictionary = [] 
     }
   }
 
+  const infoFields = Object.entries(fieldConfig || {})
+    .map(([key, f]) => ({ key, ...(f as any) }))
+    .filter((f: any) => f.section === 'Informations' && f.isVisible)
+    .sort((a: any, b: any) => a.order - b.order)
+
+  const trackingFields = Object.entries(fieldConfig || {})
+    .map(([key, f]) => ({ key, ...(f as any) }))
+    .filter((f: any) => f.section === 'Suivi' && f.isVisible)
+    .sort((a: any, b: any) => a.order - b.order)
+
+  const stateProps = {
+    anNumber,
+    setAnNumber,
+    title,
+    setTitle,
+    ministry,
+    setMinistry,
+    content,
+    setContent
+  }
+
   return (
     <form action={formAction}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
         <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Informations principales</h3>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <select value={legislature} onChange={e => setLegislature(e.target.value)} className="form-control" style={{ width: 'auto', padding: '0.25rem' }}>
@@ -95,91 +117,31 @@ export default function QEForm({ users, contacts, tasks, mails, dictionary = [] 
       
       {scrapeError && <div style={{ color: 'var(--danger)', fontSize: '0.875rem', marginBottom: '1rem' }}>{scrapeError}</div>}
       
-      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="title">Titre de la question *</label>
-        <input type="text" id="title" name="title" className="form-control" required placeholder="Ex: Conséquences de la réforme X sur le territoire..." value={title} onChange={e => setTitle(e.target.value)} />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-        <div className="form-group">
-          <label htmlFor="type">Type de question *</label>
-          <select id="type" name="type" className="form-control" required defaultValue={dictionary.find(d => d.type === 'QE_TYPE' && d.isDefault)?.code || "QE"}>
-            {dictionary.filter(d => d.type === 'QE_TYPE').map(d => (
-              <option key={d.code} value={d.code}>{d.label}</option>
-            ))}
-          </select>
+      {infoFields.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+          {infoFields.map((f: any) => renderQeField(f.key, f.label, {}, users, dictionary, stateProps))}
         </div>
-        <div className="form-group">
-          <label htmlFor="ministry">Ministère interrogé *</label>
-          <select id="ministry" name="ministry" className="form-control" required value={ministry} onChange={e => setMinistry(e.target.value)}>
-            <option value="" disabled>Sélectionner un ministère</option>
-            {MINISTRIES.map(m => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-        <div className="form-group">
-          <label htmlFor="anNumber">Numéro AN</label>
-          <input type="text" id="anNumber" name="anNumber" className="form-control" value={anNumber} onChange={e => setAnNumber(e.target.value)} />
-        </div>
-        <div className="form-group">
-          <label htmlFor="theme">Thématique</label>
-          <select id="theme" name="theme" className="form-control" defaultValue="">
-            <option value="" disabled>Sélectionner un thème</option>
-            <option value="Agriculture">Agriculture</option>
-            <option value="Environnement">Environnement</option>
-            <option value="Sécurité">Sécurité</option>
-            <option value="Logement">Logement</option>
-            <option value="Transports">Transports</option>
-            <option value="Santé">Santé</option>
-            <option value="Éducation">Éducation</option>
-            <option value="Économie">Économie</option>
-            <option value="Associations">Associations</option>
-            <option value="Autre">Autre</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label htmlFor="assigneeId">Collaborateur en charge</label>
-          <select id="assigneeId" name="assigneeId" className="form-control" defaultValue="">
-            <option value="">Non assigné</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      {trackingFields.length > 0 && (
+        <>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Suivi</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {trackingFields.map((f: any) => renderQeField(f.key, f.label, {}, users, dictionary, stateProps))}
+          </div>
+        </>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-        <div className="form-group">
-          <label htmlFor="followUpDescription">Retour à faire (Optionnel)</label>
-          <input type="text" id="followUpDescription" name="followUpDescription" className="form-control" placeholder="Ex: Prévenir le maire dès réception de la réponse..." />
-        </div>
-        <div className="form-group">
-          <label htmlFor="followUpDueDate">Échéance du retour</label>
-          <input type="date" id="followUpDueDate" name="followUpDueDate" className="form-control" />
-        </div>
-      </div>
-
-      <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Contenu</h3>
-
-      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="content">Texte de la question</label>
-        <textarea id="content" name="content" className="form-control" rows={10} placeholder="Rédigez le contenu de la question ici..." value={content} onChange={e => setContent(e.target.value)}></textarea>
-      </div>
-
-      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="attachment">Pièce jointe initiale (Optionnel)</label>
-        <input type="file" id="attachment" name="attachment" className="form-control" style={{ padding: '0.5rem' }} />
-        <small style={{ color: 'var(--text-muted)' }}>Exemple : brouillon de la question, argumentaire...</small>
-      </div>
-
-      <div className="form-group" style={{ marginBottom: '2rem' }}>
-        <label htmlFor="notes">Notes internes (Non publiées)</label>
-        <textarea id="notes" name="notes" className="form-control" rows={3} placeholder="Contexte, acteur local à prévenir lors de la publication..."></textarea>
-      </div>
+      {/* Hidden fallbacks for required fields if they are not visible in config */}
+      {!fieldConfig?.title?.isVisible && (
+        <input type="hidden" name="title" value={title || 'Sans titre'} />
+      )}
+      {!fieldConfig?.type?.isVisible && (
+        <input type="hidden" name="type" value="QE" />
+      )}
+      {!fieldConfig?.ministry?.isVisible && (
+        <input type="hidden" name="ministry" value={ministry || 'Autre'} />
+      )}
 
       <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Liaisons (Optionnel)</h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
@@ -213,6 +175,12 @@ export default function QEForm({ users, contacts, tasks, mails, dictionary = [] 
           </select>
           <small style={{ color: 'var(--text-muted)' }}>Lier à la demande écrite initiale.</small>
         </div>
+      </div>
+
+      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+        <label htmlFor="attachment">Pièce jointe initiale (Optionnel)</label>
+        <input type="file" id="attachment" name="attachment" className="form-control" style={{ padding: '0.5rem' }} />
+        <small style={{ color: 'var(--text-muted)' }}>Exemple : brouillon de la question, argumentaire...</small>
       </div>
 
       {state.error && (

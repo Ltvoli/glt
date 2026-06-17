@@ -7,6 +7,7 @@ import MailStatusForm from './mail-status-form'
 import MailAttachments from './mail-attachments'
 import PrintButton from '@/components/PrintButton'
 import GenerateLetterButton from '@/components/GenerateLetterButton'
+import MailValidationActions from './mail-validation-actions'
 
 export default async function MailDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -37,6 +38,9 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
 
   const templates = await prisma.documentTemplate.findMany({ where: { entityType: 'MAIL' }, select: { id: true, name: true } })
 
+  const isAdmin = session.dbRole === 'ADMINISTRATEUR'
+  const isPendingValidation = mail.validationStatus === 'A_VALIDER'
+
   return (
     <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
       <style>{`
@@ -50,6 +54,24 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
         <Link href="/mails" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', textDecoration: 'none', marginBottom: '1rem' }}>
           <ArrowLeft size={16} /> Retour aux courriers
         </Link>
+        
+        {isPendingValidation && (
+          <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: '#fff7ed', border: '1px solid #fdba74', borderRadius: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#c2410c' }}>
+              <AlertCircle size={20} />
+              <span style={{ fontWeight: 500 }}>Ce courrier est en attente de validation par un administrateur. Seul l'envoi est bloqué, la génération reste possible.</span>
+            </div>
+            {isAdmin && <MailValidationActions mailId={mail.id} />}
+          </div>
+        )}
+
+        {mail.validationStatus === 'REJETE' && (
+          <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#b91c1c' }}>
+            <AlertCircle size={20} />
+            <span style={{ fontWeight: 500 }}>Ce courrier a été rejeté. Veuillez le modifier et demander une nouvelle validation (ou en créer un nouveau).</span>
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
@@ -75,12 +97,16 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
             )}
             <PrintButton />
             <Link href={`/mails/${id}/edit`} className="button outline">Modifier</Link>
-            <MailStatusForm mailId={mail.id} currentStatus={mail.status} dictionary={dictionary} />
+            {!isPendingValidation && (
+              <MailStatusForm mailId={mail.id} currentStatus={mail.status} dictionary={dictionary} />
+            )}
           </div>
         </div>
         
         <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
-          <GenerateLetterButton entityId={mail.id} entityType="MAIL" templates={templates} />
+          {mail.validationStatus !== 'REJETE' && (
+            <GenerateLetterButton entityId={mail.id} entityType="MAIL" templates={templates} />
+          )}
         </div>
       </div>
 

@@ -19,6 +19,8 @@ export default async function EditQEPage({ params }: { params: Promise<{ id: str
 
   const users = await prisma.user.findMany({ select: { id: true, name: true } })
   const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
+  const { getModuleFields } = await import('@/lib/fields')
+  const fieldConfig = await getModuleFields('writtenquestions')
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -30,7 +32,7 @@ export default async function EditQEPage({ params }: { params: Promise<{ id: str
       </div>
 
       <div className="card">
-        <EditQEForm qe={qe} users={users} dictionary={dictionary} />
+        <EditQEForm qe={qe} users={users} dictionary={dictionary} fieldConfig={fieldConfig} />
       </div>
     </div>
   )

@@ -11,6 +11,8 @@ export default async function NewTaskPage({
   const allTags = await prisma.tag.findMany({ orderBy: { name: 'asc' } })
   const { contactId } = await searchParams
   const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
+  const { getModuleFields } = await import('@/lib/fields')
+  const fieldConfig = await getModuleFields('tasks')
 
   return (
     <div>
@@ -20,7 +22,7 @@ export default async function NewTaskPage({
       </div>
 
       <div className="card" style={{ maxWidth: '800px' }}>
-        <TaskForm users={users} contactId={contactId} allTags={allTags} dictionary={dictionary} />
+        <TaskForm users={JSON.parse(JSON.stringify(users))} contactId={contactId} allTags={allTags} dictionary={JSON.parse(JSON.stringify(dictionary))} fieldConfig={fieldConfig} />
       </div>
     </div>
   )

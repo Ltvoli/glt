@@ -47,16 +47,7 @@ export default async function GenericSection({ permanenceId, sectionKey, section
   const isReadOnly = session.role === 'READONLY'
 
   return (
-    <div style={{ padding: '2rem 0' }}>
-      {/* BREADCRUMB */}
-      <div style={{ marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-        <Link href="/permanences" className="text-blue-600 hover:underline">Permanences</Link>
-        <span style={{ margin: '0 0.5rem', color: 'var(--text-muted)' }}>&gt;</span>
-        <Link href={`/permanences/${permanenceId}`} className="text-blue-600 hover:underline">{permanence.title}</Link>
-        <span style={{ margin: '0 0.5rem', color: 'var(--text-muted)' }}>&gt;</span>
-        <span style={{ color: 'var(--text-muted)' }}>{sectionName}</span>
-      </div>
-
+    <div>
       {/* HEADER SECTION */}
       <div className="card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>

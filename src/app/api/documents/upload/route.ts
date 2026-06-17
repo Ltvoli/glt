@@ -11,13 +11,19 @@ const ALLOWED_MIME_TYPES = [
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/csv',
+  'text/plain',
   'image/jpeg',
   'image/png'
 ]
 const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
 
 export async function POST(req: NextRequest) {
-  const pdfParse = require('pdf-parse')
+
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -53,25 +59,31 @@ export async function POST(req: NextRequest) {
     const extension = path.extname(file.name) || ('.' + file.name.split('.').pop())
     const fileName = `${storageName}${extension}`
     
-    // Upload vers Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase
-      .storage
-      .from('crm-attachments')
-      .upload(fileName, buffer, {
-        contentType: file.type,
-        upsert: false
-      })
-
-    if (uploadError) {
-      console.error('Supabase upload error:', uploadError)
-      return NextResponse.json({ error: 'Erreur lors du stockage sur le cloud' }, { status: 500 })
+    // Upload local au lieu de Supabase
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+    try {
+      await require('fs/promises').mkdir(uploadDir, { recursive: true })
+    } catch(e) {}
+    
+    const filePath = path.join(uploadDir, fileName)
+    
+    try {
+      await require('fs/promises').writeFile(filePath, buffer)
+    } catch (fsError) {
+      console.error('Local upload error:', fsError)
+      return NextResponse.json({ error: 'Erreur lors de la sauvegarde locale du fichier' }, { status: 500 })
     }
 
     let extractedText = ''
     try {
       if (file.type === 'application/pdf') {
-        const pdfData = await pdfParse(buffer)
-        extractedText = pdfData.text
+        try {
+          const pdfParse = require('pdf-parse')
+          const pdfData = await pdfParse(buffer)
+          extractedText = pdfData.text
+        } catch (e) {
+          console.error("Erreur de parsing PDF (DOMMatrix/pdf-parse):", e)
+        }
       } else if (file.type.startsWith('image/')) {
         const { data: { text } } = await Tesseract.recognize(buffer, 'fra')
         extractedText = text
@@ -88,7 +100,7 @@ export async function POST(req: NextRequest) {
       extension,
       mimeType: file.type,
       size: file.size,
-      storagePath: uploadData.path, // Supabase path
+      storagePath: filePath,
       confidentiality,
       uploadedById: session.userId,
       extractedText: extractedText.trim() || null,

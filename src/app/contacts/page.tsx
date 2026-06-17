@@ -4,6 +4,7 @@ import { Plus, Upload, Copy, Download } from 'lucide-react'
 import ContactsTable from './contacts-table'
 import AdvancedFilters from './advanced-filters'
 import PaginationBar from './pagination-bar'
+import ContactsTabs from './contacts-tabs'
 
 import { buildWhereClause } from '@/lib/contacts-filter'
 
@@ -77,6 +78,8 @@ export default async function ContactsPage({
           </Link>
         </div>
       </div>
+
+      <ContactsTabs />
 
       {/* ─── Duplicate warning ─── */}
       {pendingDuplicates > 0 && (

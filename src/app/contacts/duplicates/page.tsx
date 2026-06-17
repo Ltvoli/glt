@@ -2,6 +2,8 @@ import prisma from '@/lib/prisma'
 import Link from 'next/link'
 import { Check, Trash2, ArrowRight } from 'lucide-react'
 import DuplicateActionsForm from './duplicate-actions-form'
+import DetectDuplicatesButton from './detect-duplicates-button'
+
 
 export default async function DuplicatesPage() {
   const candidates = await prisma.duplicateCandidate.findMany({
@@ -15,9 +17,12 @@ export default async function DuplicatesPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-        <Link href="/contacts" className="button outline">Retour aux contacts</Link>
-        <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Gestion des Doublons Potentiels</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <Link href="/contacts" className="button outline">Retour aux contacts</Link>
+          <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', margin: 0 }}>Gestion des Doublons Potentiels</h1>
+        </div>
+        <DetectDuplicatesButton />
       </div>
 
       {candidates.length === 0 ? (
@@ -48,7 +53,7 @@ export default async function DuplicatesPage() {
               {/* Séparateur */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--text-muted)' }}>
                 <span style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                  {candidate.reason === 'NOM_EMAIL' ? 'EMAIL' : 'TEL'}
+                  {candidate.reason === 'NOM_EMAIL' ? 'EMAIL' : candidate.reason === 'NOM_PHONE' ? 'TEL' : 'NOM'}
                 </span>
                 <ArrowRight size={24} />
               </div>

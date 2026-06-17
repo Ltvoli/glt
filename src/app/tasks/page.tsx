@@ -63,7 +63,7 @@ export default async function TasksPage({
   if (sort === 'status') orderByClause = { status: order }
   else if (sort === 'priority') orderByClause = { priority: order }
   else if (sort === 'dueDate') orderByClause = { dueDate: order }
-  else if (sort === 'assignee') orderByClause = { assignee: { name: order } }
+  else if (sort === 'assignee') orderByClause = [{ assignee: { lastName: order } }, { assignee: { firstName: order } }]
   else if (sort === 'createdAt') orderByClause = { createdAt: order }
   else if (sort === 'updatedAt') orderByClause = { updatedAt: order }
 
@@ -180,7 +180,7 @@ export default async function TasksPage({
         </div>
       </form>
 
-      <TaskTableClient tasks={tasks} />
+      <TaskTableClient tasks={JSON.parse(JSON.stringify(tasks))} />
 
       <div style={{ marginTop: '1.5rem' }}>
         <PaginationBar currentPage={currentPage} totalPages={totalPages} currentParams={{ filter, status, priority, assigneeId, tag, sort, order, page, perPage }} itemsPerPage={itemsPerPage} />

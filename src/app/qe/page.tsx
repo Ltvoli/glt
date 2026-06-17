@@ -28,14 +28,19 @@ export default async function QEPage({
   }
   
   if (filter === 'draft') {
-    whereClause.status = 'BROUILLON'
+    whereClause.status = 'A_REDIGER'
   } else if (filter === 'pending') {
-    whereClause.status = 'EN_ATTENTE'
+    whereClause.status = 'VALIDER'
+  } else if (filter === 'refused') {
+    whereClause.status = 'REFUSE'
   } else if (filter === 'answered') {
-    whereClause.status = 'REPONSE_RECUE'
+    whereClause.status = 'TERMINE'
   }
 
-  const [questions, totalQuestions] = await Promise.all([
+  const sixtyDaysAgo = new Date()
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+
+  const [questions, totalQuestions, overdueQe] = await Promise.all([
     prisma.writtenQuestion.findMany({
       where: whereClause,
       include: {
@@ -45,32 +50,69 @@ export default async function QEPage({
       skip: (currentPage - 1) * itemsPerPage,
       take: itemsPerPage,
     }),
-    prisma.writtenQuestion.count({ where: whereClause })
+    prisma.writtenQuestion.count({ where: whereClause }),
+    prisma.writtenQuestion.findMany({
+      where: {
+        status: 'VALIDER',
+        depositDate: { lt: sixtyDaysAgo },
+        responseDate: null,
+        archivedAt: null,
+      },
+      select: { id: true, title: true },
+      orderBy: { depositDate: 'asc' },
+    })
   ])
 
   const totalPages = Math.ceil(totalQuestions / itemsPerPage)
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'BROUILLON': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#e2e8f0', color: '#475569', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Brouillon</span>
-      case 'EN_ATTENTE': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#fef08a', color: '#854d0e', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>En attente</span>
-      case 'REPONSE_RECUE': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#dcfce3', color: '#16a34a', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Réponse Reçue</span>
-      case 'RETOUR_EFFECTUE': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#f1f5f9', color: '#94a3b8', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Retour Effectué</span>
-      default: return <span>{status}</span>
-    }
-  }
 
-  const getDelayAlert = (status: string, depositDate: Date | null) => {
-    if (status !== 'EN_ATTENTE' || !depositDate) return { text: '-', isLate: false }
-    const daysDiff = Math.floor((new Date().getTime() - depositDate.getTime()) / (1000 * 3600 * 24))
-    if (daysDiff >= 60) {
-      return { text: `${daysDiff}j (Alerte >60j)`, isLate: true }
-    }
-    return { text: `${daysDiff}j`, isLate: false }
-  }
 
   return (
     <div>
+      {overdueQe.length > 0 && (
+        <div style={{
+          backgroundColor: '#fef2f2',
+          border: '1px solid #fca5a5',
+          borderLeft: '4px solid #dc2626',
+          borderRadius: '8px',
+          padding: '1rem 1.5rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '1rem'
+        }}>
+          <AlertTriangle size={20} style={{ color: '#dc2626', flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontWeight: 'bold', color: '#dc2626', marginBottom: '0.5rem' }}>
+              {overdueQe.length} question{overdueQe.length > 1 ? 's' : ''} écrite{overdueQe.length > 1 ? 's' : ''} sans réponse depuis plus de 2 mois
+            </p>
+            <ul style={{ margin: '0 0 0.5rem 0', paddingLeft: '1.25rem' }}>
+              {overdueQe.slice(0, 5).map(qe => (
+                <li key={qe.id}>
+                  <Link href={`/qe/${qe.id}`} style={{ color: '#dc2626', textDecoration: 'underline' }}>
+                    {qe.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {overdueQe.length > 5 && (
+              <p style={{ color: '#b91c1c', fontSize: '0.875rem', margin: '0 0 0.5rem 0' }}>
+                + {overdueQe.length - 5} autre{overdueQe.length - 5 > 1 ? 's' : ''}
+              </p>
+            )}
+            <Link href="/qe?filter=pending" style={{
+              display: 'inline-block',
+              fontSize: '0.875rem',
+              color: '#dc2626',
+              fontWeight: '600',
+              textDecoration: 'underline'
+            }}>
+              Voir toutes →
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Questions Écrites (QE)</h1>
         <div style={{ display: 'flex', gap: '1rem' }}>
@@ -101,18 +143,21 @@ export default async function QEPage({
             Toutes
           </Link>
           <Link href="/qe?filter=draft" className={`button ${filter === 'draft' ? 'primary' : 'outline'}`}>
-            Brouillons
+            À rédiger
           </Link>
           <Link href="/qe?filter=pending" className={`button ${filter === 'pending' ? 'primary' : 'outline'}`}>
-            En attente de réponse
+            Déposées
+          </Link>
+          <Link href="/qe?filter=refused" className={`button ${filter === 'refused' ? 'primary' : 'outline'}`}>
+            Refusées
           </Link>
           <Link href="/qe?filter=answered" className={`button ${filter === 'answered' ? 'primary' : 'outline'}`}>
-            Réponses reçues
+            Terminées
           </Link>
         </div>
       </div>
 
-      <QeTableClient questions={questions} />
+      <QeTableClient questions={JSON.parse(JSON.stringify(questions))} />
       <div style={{ marginTop: '1.5rem' }}>
         <PaginationBar currentPage={currentPage} totalPages={totalPages} currentParams={{ filter, q, page, perPage }} itemsPerPage={itemsPerPage} />
       </div>

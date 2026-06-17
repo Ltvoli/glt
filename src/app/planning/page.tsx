@@ -82,6 +82,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
       name: user.name,
       email: user.email,
       role: user.role,
+      showInPlanning: user.employeeSetting?.showInPlanning ?? true,
       counters: {
         workedMonth: monthCounters.worked,
         workedYear: yearCounters.worked,

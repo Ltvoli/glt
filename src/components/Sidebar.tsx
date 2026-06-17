@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Users, CheckSquare, Mail, HelpCircle, CalendarDays, LogOut, Bell, FileText, Settings, ShieldAlert, Folder, MapPin } from 'lucide-react'
 import { logoutAction as logout } from '@/lib/auth-actions'
+import NotificationBadge from './NotificationBadge'
 
 const navItems = [
   { name: 'Tableau de bord', href: '/', icon: LayoutDashboard },
@@ -16,11 +17,10 @@ const navItems = [
   { name: 'Permanences', href: '/permanences', icon: MapPin },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Rapports', href: '/reports/weekly', icon: FileText },
-  { name: 'Tags (Paramètres)', href: '/settings/tags', icon: Settings },
   { name: 'RGPD & Sécurité', href: '/rgpd', icon: ShieldAlert },
 ]
 
-export default function Sidebar({ userRole, activeModules = [] }: { userRole?: string, activeModules?: string[] }) {
+export default function Sidebar({ userRole, activeModules = [], unreadCount = 0 }: { userRole?: string, activeModules?: string[], unreadCount?: number }) {
   const pathname = usePathname()
 
   const moduleMap: Record<string, string> = {
@@ -39,7 +39,8 @@ export default function Sidebar({ userRole, activeModules = [] }: { userRole?: s
     return true // Always show items that are not tied to a specific toggleable module
   })
 
-  if (userRole === 'SUPERADMIN' || userRole === 'ADMIN') {
+  if (userRole === 'ADMINISTRATEUR' || userRole === 'SUPERVISEUR') {
+    items.push({ name: 'Tags (Paramètres)', href: '/admin/tags', icon: Settings })
     items.push({ name: 'Administration', href: '/admin', icon: ShieldAlert })
   }
 
@@ -65,6 +66,16 @@ export default function Sidebar({ userRole, activeModules = [] }: { userRole?: s
           {items.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
             const Icon = item.icon
+
+            // Item spécial Notifications avec badge auto-refresh
+            if (item.href === '/notifications') {
+              return (
+                <li key={item.name} style={{ margin: '0.25rem 1rem' }}>
+                  <NotificationBadge initialCount={unreadCount} />
+                </li>
+              )
+            }
+
             return (
               <li key={item.name} style={{ margin: '0.25rem 1rem' }}>
                 <Link 

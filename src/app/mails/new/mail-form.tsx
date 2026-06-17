@@ -2,106 +2,81 @@
 
 import { useActionState, useState } from 'react'
 import { createMail } from '../actions'
+import { renderMailField } from '../dynamic-mail-fields'
 
 const initialState = {
   error: ''
 }
 
-export default function MailForm({ users, contacts, tasks, initialParentId, initialSubject, initialContactId, dictionary = [] }: { users: any[], contacts: any[], tasks: any[], initialParentId?: string, initialSubject?: string, initialContactId?: string, dictionary?: any[] }) {
+export default function MailForm({ users, contacts, tasks, initialParentId, initialSubject, initialContactId, dictionary = [], fieldConfig = {} }: { users: any[], contacts: any[], tasks: any[], initialParentId?: string, initialSubject?: string, initialContactId?: string, dictionary?: any[], fieldConfig?: Record<string, any> }) {
   const [state, formAction, isPending] = useActionState(createMail, initialState)
   const [mailType, setMailType] = useState(initialParentId ? 'SORTANT' : 'ENTRANT')
+
+  const infoFields = Object.entries(fieldConfig || {})
+    .map(([key, f]) => ({ key, ...(f as any) }))
+    .filter((f: any) => f.section === 'Informations' && f.isVisible)
+    .sort((a: any, b: any) => a.order - b.order)
+
+  const expFields = Object.entries(fieldConfig || {})
+    .map(([key, f]) => ({ key, ...(f as any) }))
+    .filter((f: any) => f.section === 'Expéditeur / Destinataire' && f.isVisible)
+    .sort((a: any, b: any) => a.order - b.order)
+
+  const planFields = Object.entries(fieldConfig || {})
+    .map(([key, f]) => ({ key, ...(f as any) }))
+    .filter((f: any) => f.section === 'Planification' && f.isVisible)
+    .sort((a: any, b: any) => a.order - b.order)
 
   return (
     <form action={formAction}>
       {initialParentId && (
         <input type="hidden" name="parentMailCaseId" value={initialParentId} />
       )}
-      
-      <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Informations principales</h3>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-        <div className="form-group">
-          <label htmlFor="type">Type *</label>
-          <select id="type" name="type" className="form-control" value={mailType} onChange={e => setMailType(e.target.value)}>
-            <option value="ENTRANT">Entrant (Reçu)</option>
-            <option value="SORTANT">Sortant (Envoyé)</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label htmlFor="subject">Sujet du courrier / objet *</label>
-          <input type="text" id="subject" name="subject" className="form-control" defaultValue={initialSubject || ''} required />
-        </div>
-      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-        {mailType === 'ENTRANT' ? (
-          <div className="form-group">
-            <label htmlFor="receiveDate">Date de réception *</label>
-            <input type="date" id="receiveDate" name="receiveDate" className="form-control" required defaultValue={new Date().toISOString().split('T')[0]} />
+      {infoFields.length > 0 && (
+        <>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Informations principales</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {infoFields.map((f: any) => renderMailField(f.key, f.label, {}, users, mailType, setMailType, initialSubject))}
           </div>
-        ) : (
-          <div className="form-group">
-            <label htmlFor="sentDate">Date d'envoi *</label>
-            <input type="date" id="sentDate" name="sentDate" className="form-control" required defaultValue={new Date().toISOString().split('T')[0]} />
-          </div>
-        )}
-        <div className="form-group">
-          <label htmlFor="channel">Canal *</label>
-          <select id="channel" name="channel" className="form-control" required defaultValue="POSTAL">
-            <option value="POSTAL">Postal</option>
-            <option value="MAIL">Email</option>
-            <option value="AUTRE">Autre</option>
-          </select>
-        </div>
-      </div>
+        </>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-        {mailType === 'ENTRANT' ? (
-          <div className="form-group">
-            <label htmlFor="senderName">Nom de l'expéditeur (si non lié à un contact)</label>
-            <input type="text" id="senderName" name="senderName" className="form-control" />
+      {expFields.length > 0 && (
+        <>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Expéditeur / Destinataire</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {expFields.map((f: any) => renderMailField(f.key, f.label, {}, users, mailType, setMailType, initialSubject))}
           </div>
-        ) : (
-          <div className="form-group">
-            <label htmlFor="recipientName">Nom du destinataire (si non lié à un contact)</label>
-            <input type="text" id="recipientName" name="recipientName" className="form-control" />
-          </div>
-        )}
-        <div className="form-group">
-          <label htmlFor="city">Commune</label>
-          <input type="text" id="city" name="city" className="form-control" />
-        </div>
-      </div>
+        </>
+      )}
 
-      <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Traitement</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-        <div className="form-group">
-          <label htmlFor="category">Catégorie</label>
-          <select id="category" name="category" className="form-control" defaultValue="">
-            <option value="">Non catégorisé</option>
-            <option value="DEMANDE_INTERVENTION">Demande d'intervention</option>
-            <option value="INVITATION">Invitation</option>
-            <option value="INFORMATION">Information</option>
-            <option value="RECLAMATION">Réclamation</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label htmlFor="urgency">Urgence</label>
-          <select id="urgency" name="urgency" className="form-control" defaultValue="NORMALE">
-            <option value="NORMALE">Normale</option>
-            <option value="HAUTE">Haute / Urgent</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label htmlFor="assigneeId">Assigner à</label>
-          <select id="assigneeId" name="assigneeId" className="form-control" defaultValue="">
-            <option value="">Non assigné</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      {planFields.length > 0 && (
+        <>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Planification</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {planFields.map((f: any) => renderMailField(f.key, f.label, {}, users, mailType, setMailType, initialSubject))}
+          </div>
+        </>
+      )}
+
+      {/* Hidden fallbacks for required fields if they are not visible in config */}
+      {!fieldConfig?.type?.isVisible && (
+        <>
+          <input type="hidden" name="type" value={mailType} />
+          {mailType === 'ENTRANT' ? (
+            <input type="hidden" name="receiveDate" value={new Date().toISOString().split('T')[0]} />
+          ) : (
+            <input type="hidden" name="sentDate" value={new Date().toISOString().split('T')[0]} />
+          )}
+        </>
+      )}
+      {!fieldConfig?.subject?.isVisible && (
+        <input type="hidden" name="subject" value={initialSubject || 'Courrier sans sujet'} />
+      )}
+      {!fieldConfig?.channel?.isVisible && (
+        <input type="hidden" name="channel" value="POSTAL" />
+      )}
 
       <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Liaisons (Optionnel)</h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
@@ -128,19 +103,9 @@ export default function MailForm({ users, contacts, tasks, initialParentId, init
       </div>
 
       <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="content">Contenu du courrier (Copie de l'email, retranscription...)</label>
-        <textarea id="content" name="content" className="form-control" rows={8} placeholder="Collez le texte du courrier ici..."></textarea>
-      </div>
-
-      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
         <label htmlFor="attachment">Pièce jointe (PDF, Image...)</label>
         <input type="file" id="attachment" name="attachment" className="form-control" style={{ padding: '0.5rem' }} />
         <small style={{ color: 'var(--text-muted)' }}>Vous pourrez en ajouter d'autres plus tard depuis la fiche du courrier.</small>
-      </div>
-
-      <div className="form-group" style={{ marginBottom: '2rem' }}>
-        <label htmlFor="notes">Notes internes (Équipe)</label>
-        <textarea id="notes" name="notes" className="form-control" rows={3} placeholder="Informations complémentaires, contexte..."></textarea>
       </div>
 
       {state.error && (
@@ -157,3 +122,4 @@ export default function MailForm({ users, contacts, tasks, initialParentId, init
     </form>
   )
 }
+

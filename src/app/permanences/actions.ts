@@ -115,19 +115,17 @@ export async function createPermanence(prevState: any, formData: FormData): Prom
     const address = formData.get('address') as string
     const startTime = formData.get('startTime') as string
     const endTime = formData.get('endTime') as string
+    const returnDateStr = formData.get('returnDate') as string
+    const ownerUserId = formData.get('ownerUserId') as string
+    const locationsJson = formData.get('locations') as string
 
     if (!title || !scheduledStartDateStr) {
       return { success: false, error: 'Le titre et la date de début sont requis.' }
     }
 
     const scheduledStartDate = new Date(scheduledStartDateStr)
-
-    // Find commune if selected
-    let finalCommuneName = communeNameFree || ''
-    if (communeId) {
-      const c = await prisma.commune.findUnique({ where: { id: communeId } })
-      if (c) finalCommuneName = c.name
-    }
+    const returnDate = returnDateStr ? new Date(returnDateStr) : null
+    const finalOwnerUserId = ownerUserId || auth.userId
 
     const perm = await prisma.mobilePermanence.create({
       data: {
@@ -135,24 +133,71 @@ export async function createPermanence(prevState: any, formData: FormData): Prom
         scheduledStartDate,
         notes,
         status: 'DRAFT',
-        ownerUserId: auth.userId,
+        ownerUserId: finalOwnerUserId,
+        returnDate,
       }
     })
 
-    // Generate location
-    await prisma.permanenceLocation.create({
-      data: {
-        permanenceId: perm.id,
-        communeId: communeId || null,
-        communeName: finalCommuneName,
-        date: scheduledStartDate,
-        startTime: startTime || null,
-        endTime: endTime || null,
-        address: address || null,
-        parkingStatus: 'TODO',
-        order: 0
+    // Parse JSON locations if available
+    let locations: any[] = []
+    if (locationsJson) {
+      try {
+        locations = JSON.parse(locationsJson)
+      } catch (e) {
+        console.error('Failed to parse locations JSON', e)
       }
-    })
+    }
+
+    if (locations.length > 0) {
+      for (let i = 0; i < locations.length; i++) {
+        const loc = locations[i]
+        const locDate = loc.dateStr ? new Date(loc.dateStr) : scheduledStartDate
+        
+        let finalCommuneName = loc.communeName || ''
+        if (loc.communeId && loc.communeId !== 'FREE') {
+          const c = await prisma.commune.findUnique({ where: { id: loc.communeId } })
+          if (c) finalCommuneName = c.name
+        }
+
+        await prisma.permanenceLocation.create({
+          data: {
+            permanenceId: perm.id,
+            communeId: (loc.communeId && loc.communeId !== 'FREE') ? loc.communeId : null,
+            communeName: finalCommuneName,
+            date: locDate,
+            startTime: loc.startTime || null,
+            endTime: loc.endTime || null,
+            address: loc.address || null,
+            parkingNotes: loc.parkingNotes || null,
+            parkingStatus: (loc.parkingStatus as any) || 'TODO',
+            mairieContactId: loc.mairieContactId || null,
+            locationNotes: loc.locationNotes || null,
+            order: i
+          }
+        })
+      }
+    } else {
+      // Fallback to single location
+      let finalCommuneName = communeNameFree || ''
+      if (communeId) {
+        const c = await prisma.commune.findUnique({ where: { id: communeId } })
+        if (c) finalCommuneName = c.name
+      }
+
+      await prisma.permanenceLocation.create({
+        data: {
+          permanenceId: perm.id,
+          communeId: (communeId && communeId !== 'FREE') ? communeId : null,
+          communeName: finalCommuneName,
+          date: scheduledStartDate,
+          startTime: startTime || null,
+          endTime: endTime || null,
+          address: address || null,
+          parkingStatus: 'TODO',
+          order: 0
+        }
+      })
+    }
 
     // Generate default tasks template
     const defaultTasks = [
@@ -184,7 +229,7 @@ export async function createPermanence(prevState: any, formData: FormData): Prom
       })
     }
 
-    await logAudit('permanence.create', 'MobilePermanence', perm.id, auth.userId, { title, scheduledStartDate })
+    await logAudit('permanence.create', 'MobilePermanence', perm.id, auth.userId, { title, scheduledStartDate, returnDate, ownerUserId: finalOwnerUserId })
     revalidatePath('/permanences')
     return { success: true, data: { id: perm.id } }
   } catch (error: any) {
@@ -192,7 +237,7 @@ export async function createPermanence(prevState: any, formData: FormData): Prom
   }
 }
 
-export async function updatePermanence(id: string, data: { title: string; scheduledStartDate: Date; notes?: string }): Promise<ActionResult> {
+export async function updatePermanence(id: string, data: { title: string; scheduledStartDate: Date; notes?: string; status?: any; ownerUserId?: string; deputyRemarks?: string; returnDate?: Date | null }): Promise<ActionResult> {
   try {
     const auth = await checkPermission('permanences.update')
     if (!auth.success || !auth.userId) return { success: false, error: auth.error }
@@ -202,7 +247,11 @@ export async function updatePermanence(id: string, data: { title: string; schedu
       data: {
         title: data.title,
         scheduledStartDate: data.scheduledStartDate,
-        notes: data.notes
+        notes: data.notes || null,
+        status: data.status,
+        ownerUserId: data.ownerUserId,
+        deputyRemarks: data.deputyRemarks,
+        returnDate: data.returnDate !== undefined ? data.returnDate : undefined
       }
     })
 
@@ -795,6 +844,49 @@ export async function updateLocationDetails(
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message || 'Erreur de mise à jour du lieu.' }
+  }
+}
+
+export async function updateLocation(
+  permanenceId: string,
+  locationId: string,
+  data: {
+    communeId?: string | null
+    communeName?: string
+    date?: Date
+    startTime?: string | null
+    endTime?: string | null
+    address?: string | null
+    parkingNotes?: string | null
+    parkingStatus?: TaskStatus
+    mairieContactId?: string | null
+    locationNotes?: string | null
+  }
+): Promise<ActionResult> {
+  try {
+    const auth = await checkPermission('permanences.update')
+    if (!auth.success || !auth.userId) return { success: false, error: auth.error }
+
+    await prisma.permanenceLocation.update({
+      where: { id: locationId },
+      data: {
+        communeId: data.communeId !== undefined ? data.communeId : undefined,
+        communeName: data.communeName !== undefined ? data.communeName : undefined,
+        date: data.date !== undefined ? data.date : undefined,
+        startTime: data.startTime !== undefined ? data.startTime : undefined,
+        endTime: data.endTime !== undefined ? data.endTime : undefined,
+        address: data.address !== undefined ? data.address : undefined,
+        parkingNotes: data.parkingNotes !== undefined ? data.parkingNotes : undefined,
+        parkingStatus: data.parkingStatus !== undefined ? data.parkingStatus : undefined,
+        mairieContactId: data.mairieContactId !== undefined ? data.mairieContactId : undefined,
+        locationNotes: data.locationNotes !== undefined ? data.locationNotes : undefined,
+      }
+    })
+
+    revalidatePath(`/permanences/${permanenceId}/locations`)
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erreur lors de la mise à jour du lieu.' }
   }
 }
 

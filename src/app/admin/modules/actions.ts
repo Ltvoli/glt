@@ -194,3 +194,84 @@ export async function saveSystemSettingsAction(
     return { success: false, error: 'Erreur lors de l\'enregistrement' }
   }
 }
+
+// 5. Update module details
+export async function updateModuleAction(
+  moduleId: string,
+  data: { label: string; description: string | null; icon: string | null; color: string | null; bg: string | null }
+): Promise<ActionResult> {
+  try {
+    const session = await requireAdminSession()
+
+    const oldModule = await prisma.module.findUnique({ where: { id: moduleId } })
+    if (!oldModule) return { success: false, error: 'Module introuvable' }
+
+    const updated = await prisma.module.update({
+      where: { id: moduleId },
+      data: {
+        label: data.label,
+        description: data.description,
+        icon: data.icon,
+        color: data.color,
+        bg: data.bg,
+      }
+    })
+
+    await logAudit('UPDATE_MODULE', 'Module', moduleId, session.userId, { before: oldModule, after: updated })
+    revalidatePath('/admin/modules')
+    revalidatePath('/')
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Erreur interne' }
+  }
+}
+
+// 6. Create new page
+export async function createPageAction(
+  data: { slug: string; label: string; moduleId: string; permission: string | null; icon: string | null; isVisible: boolean }
+): Promise<ActionResult> {
+  try {
+    const session = await requireAdminSession()
+
+    // Vérifier slug unique
+    const existing = await prisma.page.findUnique({ where: { slug: data.slug } })
+    if (existing) return { success: false, error: 'Une page avec ce slug existe déjà' }
+
+    const newPage = await prisma.page.create({
+      data: {
+        slug: data.slug,
+        label: data.label,
+        moduleId: data.moduleId,
+        permission: data.permission,
+        icon: data.icon,
+        isVisible: data.isVisible,
+      }
+    })
+
+    await logAudit('CREATE_PAGE', 'Page', newPage.id, session.userId, { newPage })
+    revalidatePath('/admin/modules')
+    revalidatePath('/')
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Erreur interne' }
+  }
+}
+
+// 7. Delete page
+export async function deletePageAction(pageId: string): Promise<ActionResult> {
+  try {
+    const session = await requireAdminSession()
+
+    const oldPage = await prisma.page.findUnique({ where: { id: pageId } })
+    if (!oldPage) return { success: false, error: 'Page introuvable' }
+
+    await prisma.page.delete({ where: { id: pageId } })
+
+    await logAudit('DELETE_PAGE', 'Page', pageId, session.userId, { deleted: oldPage })
+    revalidatePath('/admin/modules')
+    revalidatePath('/')
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Erreur interne' }
+  }
+}

@@ -14,6 +14,16 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
   const [relation, setRelation] = useState(searchParams.get('relation') || '')
   const [status, setStatus] = useState(searchParams.get('status') || '')
 
+  // Sync state with URL search params when they change externally (e.g. from folder clicks)
+  useEffect(() => {
+    setQuery(searchParams.get('q') || '')
+    setType(searchParams.get('type') || '')
+    setConf(searchParams.get('conf') || '')
+    setAuthor(searchParams.get('author') || '')
+    setRelation(searchParams.get('relation') || '')
+    setStatus(searchParams.get('status') || '')
+  }, [searchParams])
+
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       const params = new URLSearchParams()
@@ -24,11 +34,16 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
       if (relation) params.set('relation', relation)
       if (status) params.set('status', status)
       
-      router.push(`/documents?${params.toString()}`)
+      const newQueryString = params.toString()
+      const currentQueryString = searchParams.toString()
+      
+      if (newQueryString !== currentQueryString) {
+        router.push(`/documents?${newQueryString}`)
+      }
     }, 300)
 
     return () => clearTimeout(delayDebounceFn)
-  }, [query, type, conf, author, relation, status, router])
+  }, [query, type, conf, author, relation, status, router, searchParams])
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem', backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>

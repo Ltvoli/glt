@@ -28,7 +28,7 @@ export default async function RootLayout({
   let unreadCount = 0
 
   if (session) {
-    userRole = session.role as string
+    userRole = session.dbRole as string
     activeModules = session.activeModules || []
 
     // Fetch user info and unread notifications count in parallel
@@ -54,6 +54,7 @@ export default async function RootLayout({
             <Sidebar
               userRole={userRole}
               activeModules={activeModules}
+              unreadCount={unreadCount}
             />
             <main style={{ flex: 1, padding: '2rem', marginLeft: '250px' }} className="main-content">
               <TopBar />

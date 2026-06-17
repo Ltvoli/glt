@@ -4,9 +4,11 @@ import prisma from '@/lib/prisma'
 import { getSession, requireWriteAccess } from '@/lib/session'
 import { revalidatePath } from 'next/cache'
 import { logAudit } from '@/lib/audit'
+import { requirePermission } from '@/lib/permissions'
 
 export async function updateTask(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
   const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_TASKS')
 
   const id = formData.get('id') as string
   const title = formData.get('title') as string
@@ -88,8 +90,9 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
 
 export async function addSubtask(taskId: string, title: string) {
   const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_TASKS')
 
-  await prisma.subtask.create({
+  const subtask = await prisma.subtask.create({
     data: {
       title,
       taskId,
@@ -98,11 +101,13 @@ export async function addSubtask(taskId: string, title: string) {
   })
 
   revalidatePath(`/tasks/${taskId}`)
-  return { success: true }
+  revalidatePath(`/tasks`)
+  return { success: true, subtask }
 }
 
 export async function toggleSubtask(subtaskId: string, isCompleted: boolean) {
   const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_TASKS')
 
   const subtask = await prisma.subtask.update({
     where: { id: subtaskId },
@@ -115,6 +120,7 @@ export async function toggleSubtask(subtaskId: string, isCompleted: boolean) {
 
 export async function addTaskComment(taskId: string, content: string) {
   const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_TASKS')
 
   const task = await prisma.task.findUnique({ where: { id: taskId } })
   if (!task) return { error: 'Tâche introuvable' }
@@ -143,3 +149,19 @@ export async function addTaskComment(taskId: string, content: string) {
   revalidatePath(`/tasks/${taskId}`)
   return { success: true }
 }
+
+export async function deleteSubtask(subtaskId: string) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_TASKS')
+  const subtask = await prisma.subtask.findUnique({ where: { id: subtaskId } })
+  if (!subtask) return { error: 'Introuvable' }
+
+  await prisma.subtask.delete({
+    where: { id: subtaskId }
+  })
+
+  revalidatePath(`/tasks/${subtask.taskId}`)
+  revalidatePath(`/tasks`)
+  return { success: true }
+}
+

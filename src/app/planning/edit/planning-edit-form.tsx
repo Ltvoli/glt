@@ -76,7 +76,7 @@ export default function PlanningEditForm({ users, weekDates, allStatuses }: { us
               <div>
                 <div style={{ fontWeight: 'bold' }}>{DAYS[index]}</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
+                  {dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' })}
                 </div>
               </div>
               <select 

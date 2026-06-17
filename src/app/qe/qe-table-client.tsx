@@ -11,6 +11,10 @@ export default function QeTableClient({ questions }: { questions: any[] }) {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'A_REDIGER': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#e2e8f0', color: '#475569', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>À rédiger</span>
+      case 'VALIDER': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#fef08a', color: '#854d0e', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Déposée</span>
+      case 'REFUSE': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#fee2e2', color: '#b91c1c', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Refusée</span>
+      case 'TERMINE': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#dcfce3', color: '#16a34a', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Terminée</span>
       case 'BROUILLON': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#e2e8f0', color: '#475569', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Brouillon</span>
       case 'EN_ATTENTE': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#fef08a', color: '#854d0e', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>En attente</span>
       case 'REPONSE_RECUE': return <span style={{ padding: '0.25rem 0.5rem', backgroundColor: '#dcfce3', color: '#16a34a', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 500 }}>Réponse Reçue</span>
@@ -19,11 +23,11 @@ export default function QeTableClient({ questions }: { questions: any[] }) {
     }
   }
 
-  const getDelayAlert = (status: string, depositDate: Date | null) => {
-    if (status !== 'EN_ATTENTE' || !depositDate) return { text: '-', isLate: false }
+  const getDelayAlert = (status: string, depositDate: Date | null, responseDate: Date | null) => {
+    if (!depositDate || responseDate || status === 'TERMINE' || status === 'REFUSE') return { text: '-', isLate: false }
     const daysDiff = Math.floor((new Date().getTime() - new Date(depositDate).getTime()) / (1000 * 3600 * 24))
     if (daysDiff >= 60) {
-      return { text: `${daysDiff}j (Alerte >60j)`, isLate: true }
+      return { text: `${daysDiff}j (Alerte > 2 mois)`, isLate: true }
     }
     return { text: `${daysDiff}j`, isLate: false }
   }
@@ -89,7 +93,7 @@ export default function QeTableClient({ questions }: { questions: any[] }) {
               </tr>
             ) : (
               questions.map(qe => {
-                const delay = getDelayAlert(qe.status, qe.depositDate)
+                const delay = getDelayAlert(qe.status, qe.depositDate, qe.responseDate)
                 return (
                   <tr key={qe.id}>
                     <td>
@@ -176,20 +180,20 @@ export default function QeTableClient({ questions }: { questions: any[] }) {
           <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border)' }}></div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button 
-              onClick={() => handleBatchAction('REPONSE_RECUE')}
+              onClick={() => handleBatchAction('REFUSE')}
+              disabled={isPending}
+              className="button outline"
+              style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--danger)', borderColor: 'var(--danger)' }}
+            >
+              <AlertTriangle size={16} /> Refusé
+            </button>
+            <button 
+              onClick={() => handleBatchAction('TERMINE')}
               disabled={isPending}
               className="button outline"
               style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--success)', borderColor: 'var(--success)' }}
             >
-              <CheckCircle size={16} /> Réponse Reçue
-            </button>
-            <button 
-              onClick={() => handleBatchAction('RETOUR_EFFECTUE')}
-              disabled={isPending}
-              className="button outline"
-              style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: '#0284c7', borderColor: '#0284c7' }}
-            >
-              <ArrowRightCircle size={16} /> Retour Effectué
+              <CheckCircle size={16} /> Terminé
             </button>
           </div>
         </div>

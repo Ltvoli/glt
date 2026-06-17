@@ -2,85 +2,44 @@
 
 import { useActionState } from 'react'
 import { updateTask } from './actions'
-import TagSelector from '@/components/ui/tag-selector'
+import { renderTaskField } from '../dynamic-task-fields'
 
 const initialState = {
   error: '',
   success: false
 }
 
-export default function EditTaskForm({ task, users, allTags = [], dictionary = [] }: { task: any, users: any[], allTags?: any[], dictionary?: any[] }) {
+export default function EditTaskForm({ task, users, allTags = [], dictionary = [], fieldConfig = {} }: { task: any, users: any[], allTags?: any[], dictionary?: any[], fieldConfig?: Record<string, any> }) {
   const [state, formAction, isPending] = useActionState(updateTask, initialState)
+
+  const infoFields = Object.entries(fieldConfig || {})
+    .map(([key, f]) => ({ key, ...(f as any) }))
+    .filter((f: any) => f.section === 'Informations' && f.isVisible)
+    .sort((a: any, b: any) => a.order - b.order)
+
+  const planFields = Object.entries(fieldConfig || {})
+    .map(([key, f]) => ({ key, ...(f as any) }))
+    .filter((f: any) => f.section === 'Planification' && f.isVisible)
+    .sort((a: any, b: any) => a.order - b.order)
 
   return (
     <form action={formAction}>
       <input type="hidden" name="id" value={task.id} />
       
-      <div className="form-group">
-        <label htmlFor="title">Titre de la tâche *</label>
-        <input type="text" id="title" name="title" className="form-control" defaultValue={task.title} required />
-      </div>
-
-      <div className="form-group">
-        <label htmlFor="description">Description</label>
-        <textarea id="description" name="description" className="form-control" rows={4} defaultValue={task.description || ''} />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-        <div className="form-group">
-          <label htmlFor="priority">Priorité</label>
-          <select id="priority" name="priority" className="form-control" defaultValue={task.priority}>
-            {dictionary.filter(d => d.type === 'TASK_PRIORITY').map(d => (
-              <option key={d.code} value={d.code}>{d.label}</option>
-            ))}
-          </select>
+      {infoFields.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
+          {infoFields.map((f: any) => renderTaskField(f.key, f.label, task, users, dictionary, allTags))}
         </div>
+      )}
 
-        <div className="form-group">
-          <label htmlFor="status">Statut</label>
-          <select id="status" name="status" className="form-control" defaultValue={task.status}>
-            {dictionary.filter(d => d.type === 'TASK_STATUS').map(d => (
-              <option key={d.code} value={d.code}>{d.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="assigneeId">Assigné à</label>
-          <select id="assigneeId" name="assigneeId" className="form-control" defaultValue={task.assigneeId || ''}>
-            <option value="">Non assigné</option>
-            {users.map(user => (
-              <option key={user.id} value={user.id}>{user.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="dueDate">Échéance</label>
-          <input 
-            type="date" 
-            id="dueDate" 
-            name="dueDate" 
-            className="form-control" 
-            defaultValue={task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : ''} 
-          />
-        </div>
-      </div>
-
-      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="expectedDeliverable">Livrable attendu</label>
-        <input type="text" id="expectedDeliverable" name="expectedDeliverable" className="form-control" defaultValue={task.expectedDeliverable || ''} placeholder="ex: Rapport PDF, Note de synthèse..." />
-      </div>
-
-      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="tags">Tags</label>
-        <TagSelector 
-          allTags={allTags} 
-          defaultValue={task.tags?.map((t: any) => t.tag.name).join(', ') || ''} 
-          name="tags" 
-          placeholder="Urgent, Synthèse, RDV..." 
-        />
-      </div>
+      {planFields.length > 0 && (
+        <>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Planification</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {planFields.map((f: any) => renderTaskField(f.key, f.label, task, users, dictionary, allTags))}
+          </div>
+        </>
+      )}
 
       {state.error && (
         <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.875rem' }}>

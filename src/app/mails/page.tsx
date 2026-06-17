@@ -30,6 +30,11 @@ export default async function MailsPage({
     whereClause.type = 'ENTRANT'
   } else if (filter === 'sortant') {
     whereClause.type = 'SORTANT'
+  } else if (filter === 'to_validate') {
+    whereClause.validationStatus = 'A_VALIDER'
+    if (session?.dbRole !== 'ADMINISTRATEUR' && session?.dbRole !== 'SUPERVISEUR') {
+      whereClause.assigneeId = session?.userId
+    }
   } else if (filter === 'late') {
     whereClause.responseDueDate = { lt: new Date() }
     whereClause.status = { notIn: ['REPONDU', 'CLASSE'] }
@@ -85,6 +90,7 @@ export default async function MailsPage({
         <Link href="/mails?filter=urgent" className={`button ${filter === 'urgent' ? 'primary' : 'outline'}`}>Urgents</Link>
         <Link href="/mails?filter=entrant" className={`button ${filter === 'entrant' ? 'primary' : 'outline'}`}>Entrants</Link>
         <Link href="/mails?filter=sortant" className={`button ${filter === 'sortant' ? 'primary' : 'outline'}`}>Sortants</Link>
+        <Link href="/mails?filter=to_validate" className={`button ${filter === 'to_validate' ? 'primary' : 'outline'}`}>À valider</Link>
         <Link href="/mails?filter=late" className={`button ${filter === 'late' ? 'primary' : 'outline'}`} style={{ borderColor: filter === 'late' ? 'var(--danger)' : '', color: filter === 'late' ? 'white' : 'var(--danger)', backgroundColor: filter === 'late' ? 'var(--danger)' : 'transparent' }}>
           En retard
         </Link>
@@ -108,7 +114,7 @@ export default async function MailsPage({
         </form>
       </div>
 
-      <MailTableClient mails={mails} />
+      <MailTableClient mails={JSON.parse(JSON.stringify(mails))} />
 
       <div style={{ marginTop: '1.5rem' }}>
         <PaginationBar currentPage={currentPage} totalPages={totalPages} currentParams={{ filter, page, perPage, q }} itemsPerPage={itemsPerPage} />

@@ -99,72 +99,7 @@ export default async function PermanenceDashboardPage({
   const isReadOnly = session.role === 'READONLY'
 
   return (
-    <div style={{ padding: '2rem 0' }}>
-      {/* BREADCRUMB */}
-      <div style={{ marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-        <Link href="/permanences" className="text-blue-600 hover:underline">Permanences</Link>
-        <span style={{ margin: '0 0.5rem', color: 'var(--text-muted)' }}>&gt;</span>
-        <span style={{ color: 'var(--text-muted)' }}>{permanence.title}</span>
-      </div>
-
-      {/* HEADER */}
-      <div className="card" style={{ padding: '2rem', marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-              <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: 'var(--foreground)' }}>{permanence.title}</h1>
-              <span style={{ 
-                padding: '0.3rem 0.8rem', 
-                borderRadius: '9999px', 
-                fontSize: '0.75rem', 
-                fontWeight: 600,
-                ...getStatusStyle(permanence.status)
-              }}>
-                {getStatusLabel(permanence.status)}
-              </span>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '1.5rem', marginTop: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Calendar size={16} />
-                {new Date(permanence.scheduledStartDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <User size={16} />
-                Responsable : {permanence.ownerUser.name}
-              </div>
-              {permanence.locations.length > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <MapPin size={16} />
-                  Lieu : {permanence.locations.map(l => l.communeName).join(', ')}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <Link href={`/permanences/${permanence.id}/mes-taches`} className="button outline" style={{ height: '40px' }}>
-              <ListTodo size={16} /> Mes Tâches
-            </Link>
-            <a href={`/api/export/permanences-csv?id=${permanence.id}`} className="button outline" style={{ height: '40px' }}>
-              <FileDown size={16} /> Export CSV
-            </a>
-            {!isReadOnly && (
-              <Link href={`/permanences/${permanence.id}/edit`} className="button outline" style={{ height: '40px' }}>
-                Modifier
-              </Link>
-            )}
-          </div>
-        </div>
-
-        {permanence.validationComment && (
-          <div style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: '#fffbeb', borderLeft: '4px solid #d97706', borderRadius: '4px' }}>
-            <span style={{ fontWeight: 'bold', color: '#b45309', fontSize: '0.875rem' }}>Commentaire de validation :</span>
-            <p style={{ marginTop: '0.25rem', fontSize: '0.875rem', color: '#78350f' }}>{permanence.validationComment}</p>
-          </div>
-        )}
-      </div>
-
+    <div>
       {/* DASHBOARD GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{ marginBottom: '2rem' }}>
         {/* SCORE JAUGE */}

@@ -87,6 +87,12 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Non autorisé', { status: 401 })
   }
 
+  const allowedRoles = ['ADMINISTRATEUR', 'SUPERVISEUR', 'SUPERADMIN', 'ADMIN']
+  const roleToCheck = session.dbRole || session.role
+  if (!roleToCheck || !allowedRoles.includes(roleToCheck)) {
+    return new NextResponse('Accès refusé. Rôle SUPERVISEUR ou supérieur requis.', { status: 403 })
+  }
+
   try {
     const sp = request.nextUrl.searchParams
     const format = sp.get('format') || 'csv'
@@ -100,37 +106,99 @@ export async function GET(request: NextRequest) {
     }
     const dateStr = new Date().toISOString().split('T')[0]
 
-    const contacts = await prisma.contact.findMany({
-      where,
-      include: { tags: { include: { tag: true } } },
-      orderBy: { lastName: 'asc' },
-    })
+    const count = await prisma.contact.count({ where })
+    await logAudit('EXPORT', 'Contact', null, session.userId, { format, count, filters: params })
 
-    const { headers, rows } = formatContacts(contacts)
-
-    // Log l'export dans l'AuditLog
-    await logAudit('EXPORT', 'Contact', null, session.userId, { format, count: contacts.length, filters: params })
+    const batchSize = 2000
+    const encoder = new TextEncoder()
 
     if (format === 'xls') {
-      const xlsContent = buildXls(headers, rows)
+      const { headers } = formatContacts([])
+      const stream = new ReadableStream({
+        async start(controller) {
+          controller.enqueue(encoder.encode(`<?xml version="1.0" encoding="UTF-8"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="header">
+      <Font ss:Bold="1"/>
+    </Style>
+  </Styles>
+  <Worksheet ss:Name="Contacts">
+    <Table>
+      <Row>
+        ${headers.map(h => `<Cell ss:StyleID="header"><Data ss:Type="String">${escapeXml(h)}</Data></Cell>`).join('')}
+      </Row>`))
+
+          let skip = 0
+          while (true) {
+            const batch = await prisma.contact.findMany({
+              where,
+              include: { tags: { include: { tag: true } } },
+              orderBy: { lastName: 'asc' },
+              skip,
+              take: batchSize,
+            })
+            if (batch.length === 0) break
+
+            const { rows } = formatContacts(batch)
+            for (const row of rows) {
+              const rowXml = `<Row>${row.map(cell => `<Cell><Data ss:Type="String">${escapeXml(cell)}</Data></Cell>`).join('')}</Row>`
+              controller.enqueue(encoder.encode(rowXml))
+            }
+            skip += batchSize
+          }
+
+          controller.enqueue(encoder.encode(`    </Table>
+  </Worksheet>
+</Workbook>`))
+          controller.close()
+        }
+      })
+
       const responseHeaders = new Headers()
       responseHeaders.set('Content-Type', 'application/vnd.ms-excel; charset=UTF-8')
       responseHeaders.set('Content-Disposition', `attachment; filename="contacts_${dateStr}.xls"`)
-      return new NextResponse(xlsContent, { status: 200, headers: responseHeaders })
+      return new NextResponse(stream, { status: 200, headers: responseHeaders })
     }
 
     // CSV (default) — with UTF-8 BOM for Excel compatibility
-    const data = rows.map(row => {
-      const obj: Record<string, string> = {}
-      headers.forEach((h, i) => { obj[h] = row[i] })
-      return obj
+    const { headers } = formatContacts([])
+    const stream = new ReadableStream({
+      async start(controller) {
+        // Enqueue BOM
+        controller.enqueue(encoder.encode('\uFEFF'))
+        
+        // Enqueue headers
+        const headerCsv = headers.map(h => `"${h.replace(/"/g, '""')}"`).join(';') + '\r\n'
+        controller.enqueue(encoder.encode(headerCsv))
+
+        let skip = 0
+        while (true) {
+          const batch = await prisma.contact.findMany({
+            where,
+            include: { tags: { include: { tag: true } } },
+            orderBy: { lastName: 'asc' },
+            skip,
+            take: batchSize,
+          })
+          if (batch.length === 0) break
+
+          const { rows } = formatContacts(batch)
+          for (const row of rows) {
+            const rowCsv = row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(';') + '\r\n'
+            controller.enqueue(encoder.encode(rowCsv))
+          }
+          skip += batchSize
+        }
+        controller.close()
+      }
     })
-    const csv = '\uFEFF' + Papa.unparse(data, { delimiter: ';' }) // BOM + semicolon for French Excel
 
     const responseHeaders = new Headers()
     responseHeaders.set('Content-Type', 'text/csv; charset=utf-8')
     responseHeaders.set('Content-Disposition', `attachment; filename="contacts_${dateStr}.csv"`)
-    return new NextResponse(csv, { status: 200, headers: responseHeaders })
+    return new NextResponse(stream, { status: 200, headers: responseHeaders })
 
   } catch (error) {
     console.error('Export error:', error)

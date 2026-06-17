@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useTransition } from 'react'
-import { toggleModuleAction, updatePageAction, reorderPagesAction, saveSystemSettingsAction } from './actions'
+import { toggleModuleAction, updatePageAction, reorderPagesAction, saveSystemSettingsAction, updateModuleAction, createPageAction, deletePageAction } from './actions'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -9,7 +9,8 @@ import {
   Check, X, GripVertical, Eye, EyeOff, Settings2, ToggleLeft,
   Compass, Save, Loader2, Mail, Clock, FileText,
   ChevronDown, ChevronRight, Lock, Users, CheckSquare,
-  MapPin, CalendarDays, HelpCircle, Folder, ShieldAlert, Bell
+  MapPin, CalendarDays, HelpCircle, Folder, ShieldAlert, Bell,
+  Edit2, Trash2, Plus, Palette, Type, AlignLeft
 } from 'lucide-react'
 
 // ─── Meta données modules ────────────────────────────────────
@@ -41,7 +42,7 @@ const PERMISSION_LABELS: Record<string, string> = {
 }
 
 // ─── Types ────────────────────────────────────────────────────
-type Module  = { id: string; key: string; label: string; isActive: boolean; showInSidebar: boolean }
+type Module  = { id: string; key: string; label: string; description: string | null; color: string | null; bg: string | null; isActive: boolean; showInSidebar: boolean }
 type Page    = { id: string; slug: string; label: string; icon: string | null; moduleId: string; permission: string | null; order: number; isVisible: boolean }
 type Setting = { key: string; value: string; type: string; category: string; label: string }
 
@@ -101,10 +102,18 @@ export default function ModulesClient({ currentUserRole, modules: initialModules
 
   // Edition page
   const [editingPage, setEditingPage] = useState<Page | null>(null)
+  const [creatingPageForModule, setCreatingPageForModule] = useState<string | null>(null)
   const [editLabel, setEditLabel]     = useState('')
   const [editSlug, setEditSlug]       = useState('')
   const [editPermission, setEditPermission] = useState('')
   const [editIsVisible, setEditIsVisible]   = useState(true)
+
+  // Edition module
+  const [editingModule, setEditingModule] = useState<Module | null>(null)
+  const [editModLabel, setEditModLabel] = useState('')
+  const [editModDesc, setEditModDesc] = useState('')
+  const [editModColor, setEditModColor] = useState('')
+  const [editModBg, setEditModBg] = useState('')
 
   // Module accordéon état ouvert
   const [expandedModuleKey, setExpandedModuleKey] = useState<string | null>(null)
@@ -127,20 +136,76 @@ export default function ModulesClient({ currentUserRole, modules: initialModules
   }
 
   const openEditPage = (page: Page) => {
-    setEditingPage(page); setEditLabel(page.label); setEditSlug(page.slug)
+    setEditingPage(page); setCreatingPageForModule(null); setEditLabel(page.label); setEditSlug(page.slug)
     setEditPermission(page.permission || ''); setEditIsVisible(page.isVisible)
+  }
+
+  const openCreatePage = (moduleId: string) => {
+    setCreatingPageForModule(moduleId); setEditingPage(null)
+    setEditLabel('Nouvelle Page'); setEditSlug('/nouvelle-page')
+    setEditPermission(''); setEditIsVisible(true)
+  }
+
+  const openEditModule = (mod: Module) => {
+    setEditingModule(mod)
+    setEditModLabel(mod.label)
+    setEditModDesc(mod.description || MODULE_META[mod.key]?.description || '')
+    setEditModColor(mod.color || MODULE_META[mod.key]?.color || '#3b82f6')
+    setEditModBg(mod.bg || MODULE_META[mod.key]?.bg || '#eff6ff')
+  }
+
+  const handleSaveModule = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingModule) return
+    setErrorBanner(''); setSuccessBanner('')
+    const data = { label: editModLabel, description: editModDesc, color: editModColor, bg: editModBg, icon: null }
+    startTransition(async () => {
+      const res = await updateModuleAction(editingModule.id, data)
+      if (res.success) {
+        setSuccessBanner('Module mis à jour.')
+        setModules(prev => prev.map(m => m.id === editingModule.id ? { ...m, ...data } : m))
+        setEditingModule(null)
+      } else setErrorBanner(res.error || 'Erreur')
+    })
+  }
+
+  const handleDeletePage = async () => {
+    if (!editingPage) return
+    if (!window.confirm('Voulez-vous vraiment supprimer cette page ? Cette action est irréversible.')) return
+    setErrorBanner(''); setSuccessBanner('')
+    startTransition(async () => {
+      const res = await deletePageAction(editingPage.id)
+      if (res.success) {
+        setSuccessBanner('Page supprimée.')
+        setPages(prev => prev.filter(p => p.id !== editingPage.id))
+        setEditingPage(null)
+      } else setErrorBanner(res.error || 'Erreur de suppression')
+    })
   }
 
   const handleSavePage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!editingPage) return
+    if (!editingPage && !creatingPageForModule) return
     setErrorBanner(''); setSuccessBanner('')
+
+    if (creatingPageForModule) {
+      const data = { label: editLabel, slug: editSlug, isVisible: editIsVisible, permission: editPermission || null, moduleId: creatingPageForModule, icon: null }
+      startTransition(async () => {
+        const res = await createPageAction(data)
+        if (res.success) {
+          setSuccessBanner('Page créée avec succès.')
+          window.location.reload()
+        } else setErrorBanner(res.error || 'Erreur lors de la création')
+      })
+      return
+    }
+
     const updatedData = { label: editLabel, slug: editSlug, isVisible: editIsVisible, permission: editPermission || null }
     startTransition(async () => {
-      const res = await updatePageAction(editingPage.id, updatedData)
+      const res = await updatePageAction(editingPage!.id, updatedData)
       if (res.success) {
         setSuccessBanner('Page mise à jour avec succès.')
-        setPages(prev => prev.map(p => p.id === editingPage.id ? { ...p, ...updatedData } : p))
+        setPages(prev => prev.map(p => p.id === editingPage!.id ? { ...p, ...updatedData } : p))
         setEditingPage(null)
       } else setErrorBanner(res.error || 'Erreur lors de la sauvegarde')
     })
@@ -254,11 +319,17 @@ export default function ModulesClient({ currentUserRole, modules: initialModules
 
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: '0.95rem', color: mod.isActive ? '#0f172a' : '#94a3b8' }}>
-                      {meta?.name || mod.label}
+                      {mod.label || meta?.name}
                     </div>
                     <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
-                      {meta?.description || `Module ${mod.key}`}
+                      {mod.description || meta?.description || `Module ${mod.key}`}
                     </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', marginRight: '1rem' }}>
+                    <button type="button" onClick={() => openEditModule(mod)} className="button outline" style={{ padding: '0.4rem', height: '32px' }} title="Modifier les détails du module">
+                      <Edit2 size={16} />
+                    </button>
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '200px' }}>
@@ -279,6 +350,42 @@ export default function ModulesClient({ currentUserRole, modules: initialModules
               )
             })}
           </div>
+
+          {editingModule && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <div className="card" style={{ width: '400px', padding: '1.5rem', position: 'relative' }}>
+                <button onClick={() => setEditingModule(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
+                  <X size={20} />
+                </button>
+                <h3 style={{ margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Modifier le module</h3>
+                <form onSubmit={handleSaveModule} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Nom du module</label>
+                    <input type="text" className="form-control" required value={editModLabel} onChange={e => setEditModLabel(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Description</label>
+                    <textarea className="form-control" rows={3} value={editModDesc} onChange={e => setEditModDesc(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Couleur (ex: #3b82f6)</label>
+                    <input type="text" className="form-control" value={editModColor} onChange={e => setEditModColor(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Couleur de fond (ex: #eff6ff)</label>
+                    <input type="text" className="form-control" value={editModBg} onChange={e => setEditModBg(e.target.value)} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <button type="button" className="button outline" style={{ flex: 1 }} onClick={() => setEditingModule(null)}>Annuler</button>
+                    <button type="submit" disabled={isPending} className="button" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                      {isPending ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
+                      Enregistrer
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -316,7 +423,7 @@ export default function ModulesClient({ currentUserRole, modules: initialModules
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {meta?.name || mod.label}
+                          {mod.label || meta?.name}
                           <span style={{ fontSize: '0.72rem', padding: '2px 7px', borderRadius: '999px', background: mod.isActive ? '#f0fdf4' : '#f1f5f9', color: mod.isActive ? '#16a34a' : '#94a3b8', fontWeight: 600 }}>
                             {mod.isActive ? 'Actif' : 'Désactivé'}
                           </span>
@@ -354,6 +461,9 @@ export default function ModulesClient({ currentUserRole, modules: initialModules
                             </SortableContext>
                           </DndContext>
                         )}
+                        <button type="button" onClick={() => openCreatePage(mod.id)} className="button outline" style={{ marginTop: '0.75rem', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                          <Plus size={16} /> Créer une nouvelle page
+                        </button>
                       </div>
                     )}
                   </div>
@@ -363,14 +473,16 @@ export default function ModulesClient({ currentUserRole, modules: initialModules
           </div>
 
           {/* Droite : panneau d'édition de page */}
-          {editingPage ? (
+          {(editingPage || creatingPageForModule) ? (
             <div className="card" style={{ padding: '1.5rem', border: '1.5px solid var(--primary)', position: 'sticky', top: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>Modifier la page</h3>
-                  <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#64748b' }}>{editingPage.slug}</p>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>
+                    {editingPage ? 'Modifier la page' : 'Créer une page'}
+                  </h3>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#64748b' }}>{editSlug}</p>
                 </div>
-                <button onClick={() => setEditingPage(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
+                <button onClick={() => { setEditingPage(null); setCreatingPageForModule(null); }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
                   <X size={18} />
                 </button>
               </div>
@@ -419,7 +531,7 @@ export default function ModulesClient({ currentUserRole, modules: initialModules
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <button type="button" className="button outline" style={{ flex: 1, height: '38px' }} onClick={() => setEditingPage(null)}>
+                  <button type="button" className="button outline" style={{ flex: 1, height: '38px' }} onClick={() => { setEditingPage(null); setCreatingPageForModule(null); }}>
                     Annuler
                   </button>
                   <button type="submit" disabled={isPending} className="button" style={{ flex: 1, height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
@@ -427,6 +539,11 @@ export default function ModulesClient({ currentUserRole, modules: initialModules
                     Enregistrer
                   </button>
                 </div>
+                {editingPage && (
+                  <button type="button" onClick={handleDeletePage} disabled={isPending} style={{ width: '100%', marginTop: '0.75rem', background: 'none', border: '1px solid #fecaca', color: '#dc2626', padding: '0.5rem', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                    <Trash2 size={15} /> Supprimer la page
+                  </button>
+                )}
               </form>
             </div>
           ) : (

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { calculateCounters, getReferencePeriodStart } from '@/lib/planning-utils'
+import * as xlsx from 'xlsx'
 
 export async function GET(request: Request) {
   const session = await getSession()
@@ -35,8 +36,17 @@ export async function GET(request: Request) {
     }
   })
 
-  // Préparer le CSV
-  let csvContent = 'Collaborateur,Mois de référence,Travaillés (Mois),Travaillés (Année),CP Pris (Année),Jours Restants\n'
+  const wb = xlsx.utils.book_new()
+
+  // --- Onglet 1 : Compteurs ---
+  const countersData = [
+    ['Collaborateur', 'Mois de référence', 'Travaillés (Mois)', 'Travaillés (Année)', 'CP Pris (Année)', 'Jours Restants']
+  ]
+
+  // --- Onglet 2 : Export Détail (Format Import) ---
+  const detailData = [
+    ['Email', 'Date', 'Statut', 'Notes']
+  ]
 
   for (const user of usersData) {
     const settings = user.employeeSetting || { annualWorkingDays: 218, referencePeriodStartMonth: 6, referencePeriodStartDay: 1 }
@@ -51,16 +61,48 @@ export async function GET(request: Request) {
     const remaining = settings.annualWorkingDays - yearCounters.worked
 
     const monthStr = startOfMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
-    const row = `"${user.name}","${monthStr}",${monthCounters.worked},${yearCounters.worked},${yearCounters.paidLeave},${remaining}`
-    csvContent += row + '\n'
+    countersData.push([
+      user.name || '',
+      monthStr,
+      monthCounters.worked.toString(),
+      yearCounters.worked.toString(),
+      yearCounters.paidLeave.toString(),
+      remaining.toString()
+    ])
+
+    // Ajouter les statuts détaillés du mois courant pour cet utilisateur
+    const userMonthStatuses = user.statuses.filter(s => 
+      s.date >= startOfMonth && s.date <= endOfMonth
+    )
+    
+    for (const statusObj of userMonthStatuses) {
+      // Format Date JJ/MM/AAAA
+      const d = new Date(statusObj.date)
+      const dateStr = `${d.getUTCDate().toString().padStart(2, '0')}/${(d.getUTCMonth()+1).toString().padStart(2, '0')}/${d.getUTCFullYear()}`
+      
+      detailData.push([
+        user.email,
+        dateStr,
+        statusObj.status,
+        statusObj.notes || ''
+      ])
+    }
   }
 
-  // BOM pour Excel
-  const bom = '\uFEFF'
-  return new NextResponse(bom + csvContent, {
+  const wsCounters = xlsx.utils.aoa_to_sheet(countersData)
+  wsCounters['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 15 }]
+  xlsx.utils.book_append_sheet(wb, wsCounters, 'Compteurs')
+
+  const wsDetail = xlsx.utils.aoa_to_sheet(detailData)
+  wsDetail['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 40 }]
+  xlsx.utils.book_append_sheet(wb, wsDetail, 'Export-Import')
+
+  const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' })
+
+  return new NextResponse(buf, {
     headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="export_planning_${currentYear}_${currentMonth + 1}.csv"`
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="Planning_Export_${currentYear}_${currentMonth + 1}.xlsx"`
     }
   })
 }

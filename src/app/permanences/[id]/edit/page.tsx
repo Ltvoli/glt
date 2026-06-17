@@ -23,6 +23,10 @@ export default async function EditPermanencePage({
     redirect('/permanences')
   }
 
+  const users = await prisma.user.findMany({ select: { id: true, name: true } })
+  const { getModuleFields } = await import('@/lib/fields')
+  const fieldConfig = await getModuleFields('permanences')
+
   return (
     <div style={{ maxWidth: '600px', margin: '2rem auto' }}>
       <div style={{ marginBottom: '2rem' }}>
@@ -33,7 +37,7 @@ export default async function EditPermanencePage({
       </div>
 
       <div className="card" style={{ padding: '2rem' }}>
-        <EditForm permanence={permanence} />
+        <EditForm permanence={permanence} users={JSON.parse(JSON.stringify(users))} fieldConfig={fieldConfig} />
       </div>
     </div>
   )

@@ -5,6 +5,9 @@ import prisma from '@/lib/prisma'
 export default async function NewContactPage() {
   const allTags = await prisma.tag.findMany({ orderBy: { name: 'asc' } })
   const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
+  const supportLevels = await prisma.supportLevel.findMany({ orderBy: { order: 'asc' } })
+  const { getModuleFields } = await import('@/lib/fields')
+  const fieldConfig = await getModuleFields('contacts')
 
   return (
     <div>
@@ -14,7 +17,7 @@ export default async function NewContactPage() {
       </div>
 
       <div className="card" style={{ maxWidth: '800px' }}>
-        <ContactForm allTags={allTags} dictionary={dictionary} />
+        <ContactForm allTags={allTags} dictionary={dictionary} fieldConfig={fieldConfig} supportLevels={supportLevels} />
       </div>
     </div>
   )

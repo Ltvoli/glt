@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateQE } from '../../actions'
+import { renderQeField } from '../../dynamic-qe-fields'
 
 const MINISTRIES = [
   "Premier ministre",
@@ -26,7 +27,7 @@ const MINISTRIES = [
   "Autre"
 ]
 
-export default function EditQEForm({ qe, users, dictionary = [] }: { qe: any, users: {id: string; name: string}[], dictionary?: any[] }) {
+export default function EditQEForm({ qe, users, dictionary = [], fieldConfig = {} }: { qe: any, users: {id: string; name: string}[], dictionary?: any[], fieldConfig?: Record<string, any> }) {
   const router = useRouter()
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState('')
@@ -41,89 +42,46 @@ export default function EditQEForm({ qe, users, dictionary = [] }: { qe: any, us
     }
   }
 
+  const infoFields = Object.entries(fieldConfig || {})
+    .map(([key, f]) => ({ key, ...(f as any) }))
+    .filter((f: any) => f.section === 'Informations' && f.isVisible)
+    .sort((a: any, b: any) => a.order - b.order)
+
+  const trackingFields = Object.entries(fieldConfig || {})
+    .map(([key, f]) => ({ key, ...(f as any) }))
+    .filter((f: any) => f.section === 'Suivi' && f.isVisible)
+    .sort((a: any, b: any) => a.order - b.order)
+
   return (
     <form action={handleSubmit}>
-      <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Informations principales</h3>
-      
-      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="title">Titre de la question *</label>
-        <input type="text" id="title" name="title" className="form-control" required defaultValue={qe.title} />
-      </div>
+      {infoFields.length > 0 && (
+        <>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Informations principales</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {infoFields.map((f: any) => renderQeField(f.key, f.label, qe, users, dictionary))}
+          </div>
+        </>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-        <div className="form-group">
-          <label htmlFor="type">Type de question *</label>
-          <select id="type" name="type" className="form-control" required defaultValue={qe.type}>
-            {dictionary.filter(d => d.type === 'QE_TYPE').map(d => (
-              <option key={d.code} value={d.code}>{d.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-group">
-          <label htmlFor="ministry">Ministère interrogé</label>
-          <select id="ministry" name="ministry" className="form-control" defaultValue={qe.ministry || ''}>
-            <option value="">Sélectionner un ministère</option>
-            {MINISTRIES.map(m => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      {trackingFields.length > 0 && (
+        <>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Suivi</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {trackingFields.map((f: any) => renderQeField(f.key, f.label, qe, users, dictionary))}
+          </div>
+        </>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-        <div className="form-group">
-          <label htmlFor="anNumber">Numéro AN</label>
-          <input type="text" id="anNumber" name="anNumber" className="form-control" defaultValue={qe.anNumber || ''} />
-        </div>
-        <div className="form-group">
-          <label htmlFor="theme">Thématique</label>
-          <select id="theme" name="theme" className="form-control" defaultValue={qe.theme || ''}>
-            <option value="">Sélectionner un thème</option>
-            <option value="Agriculture">Agriculture</option>
-            <option value="Environnement">Environnement</option>
-            <option value="Sécurité">Sécurité</option>
-            <option value="Logement">Logement</option>
-            <option value="Transports">Transports</option>
-            <option value="Santé">Santé</option>
-            <option value="Éducation">Éducation</option>
-            <option value="Économie">Économie</option>
-            <option value="Associations">Associations</option>
-            <option value="Autre">Autre</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label htmlFor="assigneeId">Collaborateur en charge</label>
-          <select id="assigneeId" name="assigneeId" className="form-control" defaultValue={qe.assigneeId || ''}>
-            <option value="">Non assigné</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-        <div className="form-group">
-          <label htmlFor="followUpDescription">Retour à faire (Optionnel)</label>
-          <input type="text" id="followUpDescription" name="followUpDescription" className="form-control" defaultValue={qe.followUpDescription || ''} />
-        </div>
-        <div className="form-group">
-          <label htmlFor="followUpDueDate">Échéance du retour</label>
-          <input type="date" id="followUpDueDate" name="followUpDueDate" className="form-control" defaultValue={qe.followUpDueDate ? new Date(qe.followUpDueDate).toISOString().split('T')[0] : ''} />
-        </div>
-      </div>
-
-      <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Contenu</h3>
-
-      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="content">Texte de la question</label>
-        <textarea id="content" name="content" className="form-control" rows={10} defaultValue={qe.content || ''}></textarea>
-      </div>
-
-      <div className="form-group" style={{ marginBottom: '2rem' }}>
-        <label htmlFor="notes">Notes internes (Non publiées)</label>
-        <textarea id="notes" name="notes" className="form-control" rows={3} defaultValue={qe.notes || ''}></textarea>
-      </div>
+      {/* Hidden fallbacks for required fields if they are not visible in config */}
+      {!fieldConfig?.title?.isVisible && (
+        <input type="hidden" name="title" value={qe.title || ''} />
+      )}
+      {!fieldConfig?.type?.isVisible && (
+        <input type="hidden" name="type" value={qe.type || 'QE'} />
+      )}
+      {!fieldConfig?.ministry?.isVisible && (
+        <input type="hidden" name="ministry" value={qe.ministry || 'Autre'} />
+      )}
 
       {error && (
         <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.875rem' }}>

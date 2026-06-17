@@ -5,12 +5,15 @@ import { requireWriteAccess, getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { logAudit } from '@/lib/audit'
+import { contactSchema } from '@/lib/validations'
 
 export async function updateContact(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
   const session = await getSession()
   if (!session?.userId) return { error: 'Non autorisé' }
 
   const id = formData.get('id') as string
+  if (!id) return { error: 'Identifiant obligatoire.' }
+
   const firstName = formData.get('firstName') as string
   const lastName = formData.get('lastName') as string
   const usageName = formData.get('usageName') as string
@@ -39,9 +42,17 @@ export async function updateContact(prevState: any, formData: FormData): Promise
   const notes = formData.get('notes') as string
   const tagsString = formData.get('tags') as string
 
-  if (!id || !firstName || !lastName || !type) {
-    return { error: 'Nom, prénom et type sont obligatoires.' }
+  const validatedFields = contactSchema.safeParse({
+    firstName, lastName, usageName, email, phone, mobilePhone, type, city, gender,
+    apartment, building, streetNumber, streetName, addressComplement, postalCode,
+    supportLevel, meetingStep, territorySector, source, whatsappStatus, linkedinUrl, notes
+  })
+
+  if (!validatedFields.success) {
+    return { error: validatedFields.error.issues[0].message }
   }
+
+  const validData = validatedFields.data
 
   let birthDate = null
   if (birthDateStr) {
@@ -58,31 +69,31 @@ export async function updateContact(prevState: any, formData: FormData): Promise
     const updatedContact = await prisma.contact.update({
       where: { id },
       data: {
-        firstName,
-        lastName,
-        usageName: usageName || null,
-        email: email || null,
-        phone: phone || null,
-        mobilePhone: mobilePhone || null,
-        type,
-        city: city || null,
-        gender: gender || null,
+        firstName: validData.firstName,
+        lastName: validData.lastName,
+        usageName: validData.usageName || null,
+        email: validData.email || null,
+        phone: validData.phone || null,
+        mobilePhone: validData.mobilePhone || null,
+        type: validData.type,
+        city: validData.city || null,
+        gender: validData.gender || null,
         birthDate,
-        apartment: apartment || null,
-        building: building || null,
-        streetNumber: streetNumber || null,
-        streetName: streetName || null,
-        addressComplement: addressComplement || null,
-        postalCode: postalCode || null,
-        supportLevel: supportLevel || null,
-        meetingStep: meetingStep || null,
-        territorySector: territorySector || null,
-        source: source || null,
-        whatsappStatus: whatsappStatus || null,
+        apartment: validData.apartment || null,
+        building: validData.building || null,
+        streetNumber: validData.streetNumber || null,
+        streetName: validData.streetName || null,
+        addressComplement: validData.addressComplement || null,
+        postalCode: validData.postalCode || null,
+        supportLevel: validData.supportLevel || null,
+        meetingStep: validData.meetingStep || null,
+        territorySector: validData.territorySector || null,
+        source: validData.source || null,
+        whatsappStatus: validData.whatsappStatus || null,
         newsletter,
         smsConsent,
-        linkedinUrl: linkedinUrl || null,
-        notes: notes || null,
+        linkedinUrl: validData.linkedinUrl || null,
+        notes: validData.notes || null,
         updatedById: session.userId,
       }
     })

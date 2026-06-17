@@ -6,11 +6,13 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { logAudit } from '@/lib/audit'
 import { taskSchema } from '@/lib/validations'
+import { requirePermission } from '@/lib/permissions'
 
 export async function createTask(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
   let session
   try {
     session = await requireWriteAccess()
+    requirePermission(session.role, 'MANAGE_TASKS')
   } catch (e: any) {
     return { error: e.message }
   }
@@ -101,6 +103,7 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
 
 export async function updateTaskStatus(taskId: string, newStatus: string) {
   const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_TASKS')
 
   const task = await prisma.task.findUnique({ where: { id: taskId } })
   if (!task) throw new Error('Tâche introuvable')
@@ -154,6 +157,7 @@ export async function updateTaskStatus(taskId: string, newStatus: string) {
 
 export async function batchUpdateTaskStatus(taskIds: string[], status: string) {
   const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_TASKS')
 
   let completedAt = null
   let cancelledAt = null
@@ -172,6 +176,7 @@ export async function batchUpdateTaskStatus(taskIds: string[], status: string) {
 
   for (const id of taskIds) {
     await logAudit('UPDATE_STATUS', 'Task', id, session.userId, { action: 'BATCH_UPDATE', newStatus: status })
+    revalidatePath(`/tasks/${id}`)
   }
 
   revalidatePath('/tasks')
