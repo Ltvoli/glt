@@ -594,9 +594,21 @@ model Document {
   uploadedById String
   uploadedBy   User   @relation("UserDocuments", fields: [uploadedById], references: [id])
 
+  folderId     String?
+  folder       DocumentFolder?  @relation("FolderDocuments", fields: [folderId], references: [id], onDelete: SetNull)
+
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   archivedAt DateTime?
+}
+
+model DocumentFolder {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  color     String     @default("#64748b")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  documents Document[] @relation("FolderDocuments")
 }
 
 model Notification {

@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { title, content, documentType, confidentiality, entityType, entityId } = body
+    const { title, content, documentType, confidentiality, entityType, entityId, folderId } = body
     
     if (!title) return NextResponse.json({ error: 'Titre manquant' }, { status: 400 })
     if (!content) return NextResponse.json({ error: 'Contenu manquant' }, { status: 400 })
@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
       storagePath: `/uploads/${fileName}`,
       extractedText: content,
       uploadedById: session.userId,
+      folderId: folderId || null,
     }
 
     if (entityType && entityId) {

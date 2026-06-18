@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { UploadCloud, X, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-export default function DocumentUploadModal() {
+export default function DocumentUploadModal({ folders = [] }: { folders?: any[] }) {
   const [isOpen, setIsOpen] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState('')
@@ -106,6 +106,16 @@ export default function DocumentUploadModal() {
                     <option value="CONFIDENTIEL">Confidentiel</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Dossier</label>
+                <select name="folderId" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px' }}>
+                  <option value="">(Aucun dossier)</option>
+                  {folders.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>

@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
     
     const entityType = formData.get('entityType') as string
     const entityId = formData.get('entityId') as string
+    const folderId = formData.get('folderId') as string || null
     
     if (!file) return NextResponse.json({ error: 'Aucun fichier fourni' }, { status: 400 })
     if (!title) return NextResponse.json({ error: 'Titre manquant' }, { status: 400 })
@@ -107,6 +108,7 @@ export async function POST(req: NextRequest) {
       confidentiality,
       uploadedById: session.userId,
       extractedText: extractedText.trim() || null,
+      folderId: folderId || null,
     }
 
     if (entityType && entityId) {

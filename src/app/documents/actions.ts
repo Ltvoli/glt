@@ -11,7 +11,8 @@ export async function getDocuments(
   confidentiality?: string,
   author?: string,
   relation?: string,
-  status?: string
+  status?: string,
+  folderId?: string
 ) {
   const session = await getSession()
   if (!session) throw new Error('Non authentifié')
@@ -35,6 +36,9 @@ export async function getDocuments(
   }
   if (status) {
     where.status = status
+  }
+  if (folderId) {
+    where.folderId = folderId
   }
   if (relation) {
     switch (relation) {
@@ -91,7 +95,7 @@ export async function deleteDocument(id: string) {
   revalidatePath('/documents')
 }
 
-export async function updateDocument(id: string, data: { title?: string, documentType?: string, confidentiality?: string, status?: string }) {
+export async function updateDocument(id: string, data: { title?: string, documentType?: string, confidentiality?: string, status?: string, folderId?: string | null }) {
   const session = await getSession()
   if (!session) throw new Error('Non authentifié')
   requirePermission(session.role, 'MANAGE_DOCUMENTS')

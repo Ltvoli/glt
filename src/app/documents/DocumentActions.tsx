@@ -5,7 +5,7 @@ import { MoreVertical, Trash, Edit2, Loader2, Download } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { deleteDocument, updateDocument } from './actions'
 
-export default function DocumentActions({ document }: { document: any }) {
+export default function DocumentActions({ document, folders = [] }: { document: any, folders?: any[] }) {
   const [isOpen, setIsOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -13,6 +13,7 @@ export default function DocumentActions({ document }: { document: any }) {
   const [confidentiality, setConfidentiality] = useState(document.confidentiality)
   const [documentType, setDocumentType] = useState(document.documentType)
   const [status, setStatus] = useState(document.status || 'VALIDATED')
+  const [folderId, setFolderId] = useState<string | null>(document.folderId || null)
   
   const router = useRouter()
 
@@ -30,9 +31,10 @@ export default function DocumentActions({ document }: { document: any }) {
 
   const handleSave = async () => {
     try {
-      await updateDocument(document.id, { title, confidentiality, documentType, status })
+      await updateDocument(document.id, { title, confidentiality, documentType, status, folderId })
       setIsEditing(false)
       setIsOpen(false)
+      router.refresh()
     } catch (e) {
       alert("Erreur lors de la modification")
     }
@@ -131,6 +133,18 @@ export default function DocumentActions({ document }: { document: any }) {
                   <option value="PDF">PDF</option>
                   <option value="WORD">Word</option>
                   <option value="AUTRE">Autre</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 500, display: 'block', marginBottom: '0.25rem' }}>Dossier</label>
+                <select 
+                  value={folderId || ''} onChange={e => setFolderId(e.target.value || null)}
+                  style={{ width: '100%', padding: '0.25rem 0.5rem', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '0.875rem' }}
+                >
+                  <option value="">(Aucun dossier)</option>
+                  {folders.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
                 </select>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>

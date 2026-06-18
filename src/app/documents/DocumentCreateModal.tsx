@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { FileText, X, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-export default function DocumentCreateModal() {
+export default function DocumentCreateModal({ folders = [] }: { folders?: any[] }) {
   const [isOpen, setIsOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
@@ -20,6 +20,7 @@ export default function DocumentCreateModal() {
     const content = formData.get('content') as string
     const documentType = formData.get('documentType') as string
     const confidentiality = formData.get('confidentiality') as string
+    const folderId = formData.get('folderId') as string
 
     try {
       const res = await fetch('/api/documents/create', {
@@ -31,7 +32,8 @@ export default function DocumentCreateModal() {
           title,
           content,
           documentType,
-          confidentiality
+          confidentiality,
+          folderId
         })
       })
 
@@ -150,6 +152,16 @@ export default function DocumentCreateModal() {
                     <option value="CONFIDENTIEL">Confidentiel</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Dossier</label>
+                <select name="folderId" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px' }}>
+                  <option value="">(Aucun dossier)</option>
+                  {folders.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>

@@ -4,45 +4,46 @@ import { getDocuments } from './actions'
 import { FileText, Download, Link as LinkIcon, Folder } from 'lucide-react'
 import DocumentUploadModal from './DocumentUploadModal'
 import DocumentCreateModal from './DocumentCreateModal'
+import FolderCreateModal from './FolderCreateModal'
+import FolderGrid from './FolderGrid'
 import DocumentActions from './DocumentActions'
 import DocumentFilters from './DocumentFilters'
 import Link from 'next/link'
 import prisma from '@/lib/prisma'
 
-const FOLDER_LABELS: Record<string, { label: string; type: string; color: string }> = {
-  PDF: { label: 'Documents PDF', type: 'PDF', color: '#ef4444' },
-  WORD: { label: 'Fichiers Word', type: 'WORD', color: '#2563eb' },
-  COURRIER: { label: 'Courriers', type: 'COURRIER', color: '#10b981' },
-  QE: { label: 'Questions Écrites', type: 'QE', color: '#8b5cf6' },
-  NOTE: { label: 'Notes internes', type: 'NOTE', color: '#f59e0b' },
-  AUTRE: { label: 'Autres', type: 'AUTRE', color: '#64748b' }
-}
-
 export default async function DocumentsPage({
   searchParams: searchParamsPromise
 }: {
-  searchParams: Promise<{ q?: string, type?: string, conf?: string, author?: string, relation?: string, status?: string }>
+  searchParams: Promise<{ q?: string, type?: string, conf?: string, author?: string, relation?: string, status?: string, folder?: string }>
 }) {
   const session = await getSession()
   if (!session?.userId) redirect('/login')
 
   const searchParams = await searchParamsPromise
 
-  const getFolderLink = (type: string) => {
-    const params = new URLSearchParams()
-    if (searchParams.q) params.set('q', searchParams.q)
-    params.set('type', type)
-    if (searchParams.conf) params.set('conf', searchParams.conf)
-    if (searchParams.author) params.set('author', searchParams.author)
-    if (searchParams.relation) params.set('relation', searchParams.relation)
-    if (searchParams.status) params.set('status', searchParams.status)
-    return `/documents?${params.toString()}`
+  // Load and seed folders
+  let folders = await prisma.documentFolder.findMany({
+    orderBy: { name: 'asc' }
+  })
+  if (folders.length === 0) {
+    const defaults = [
+      { name: 'Documents PDF', color: '#ef4444' },
+      { name: 'Fichiers Word', color: '#2563eb' },
+      { name: 'Courriers', color: '#10b981' },
+      { name: 'Questions Écrites', color: '#8b5cf6' },
+      { name: 'Notes internes', color: '#f59e0b' }
+    ]
+    await prisma.documentFolder.createMany({
+      data: defaults
+    })
+    folders = await prisma.documentFolder.findMany({
+      orderBy: { name: 'asc' }
+    })
   }
 
   const getClearLink = () => {
     const params = new URLSearchParams()
     if (searchParams.q) params.set('q', searchParams.q)
-    // omit type
     if (searchParams.conf) params.set('conf', searchParams.conf)
     if (searchParams.author) params.set('author', searchParams.author)
     if (searchParams.relation) params.set('relation', searchParams.relation)
@@ -51,16 +52,17 @@ export default async function DocumentsPage({
     return qs ? `/documents?${qs}` : '/documents'
   }
 
-  const activeFolder = searchParams.type && FOLDER_LABELS[searchParams.type]
+  const activeFolder = searchParams.folder ? folders.find(f => f.id === searchParams.folder) : null
 
-  const [docs, usersData, typeCounts] = await Promise.all([
+  const [docs, usersData, folderCounts] = await Promise.all([
     getDocuments(
       searchParams.q,
       searchParams.type,
       searchParams.conf,
       searchParams.author,
       searchParams.relation,
-      searchParams.status
+      searchParams.status,
+      searchParams.folder
     ),
     prisma.user.findMany({
       select: { id: true, firstName: true, lastName: true },
@@ -70,7 +72,7 @@ export default async function DocumentsPage({
       ]
     }),
     prisma.document.groupBy({
-      by: ['documentType'],
+      by: ['folderId'],
       _count: {
         _all: true
       },
@@ -83,20 +85,10 @@ export default async function DocumentsPage({
     })
   ])
 
-  const folderCounts: Record<string, number> = {
-    PDF: 0,
-    WORD: 0,
-    COURRIER: 0,
-    QE: 0,
-    NOTE: 0,
-    AUTRE: 0
-  }
-
-  typeCounts.forEach(c => {
-    if (c.documentType in folderCounts) {
-      folderCounts[c.documentType] = c._count._all
-    } else {
-      folderCounts.AUTRE += c._count._all
+  const counts: Record<string, number> = {}
+  folderCounts.forEach(c => {
+    if (c.folderId) {
+      counts[c.folderId] = c._count._all
     }
   })
 
@@ -111,8 +103,9 @@ export default async function DocumentsPage({
         </div>
         
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <DocumentCreateModal />
-          <DocumentUploadModal />
+          <FolderCreateModal />
+          <DocumentCreateModal folders={folders} />
+          <DocumentUploadModal folders={folders} />
         </div>
       </header>
 
@@ -138,7 +131,7 @@ export default async function DocumentsPage({
             <span style={{ color: '#cbd5e1' }}>/</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: activeFolder.color }}>
               <Folder size={18} style={{ fill: `${activeFolder.color}20` }} />
-              {activeFolder.label}
+              {activeFolder.name}
             </span>
           </div>
           
@@ -163,51 +156,7 @@ export default async function DocumentsPage({
         /* Folders grid when at root */
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#1e293b' }}>Dossiers</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
-            {Object.entries(FOLDER_LABELS).map(([key, info]) => {
-              const count = folderCounts[key] || 0;
-              return (
-                <Link
-                  key={key}
-                  href={getFolderLink(key)}
-                  className="card-interactive"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '1rem',
-                    padding: '1.25rem',
-                    backgroundColor: 'white',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '12px',
-                    textDecoration: 'none',
-                    color: 'inherit',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '3rem',
-                    height: '3rem',
-                    borderRadius: '10px',
-                    backgroundColor: `${info.color}15`,
-                    color: info.color
-                  }}>
-                    <Folder size={28} style={{ fill: `${info.color}20` }} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <h4 style={{ fontWeight: '600', fontSize: '0.95rem', margin: 0, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', color: '#1e293b' }}>
-                      {info.label}
-                    </h4>
-                    <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0' }}>
-                      {count} document{count > 1 ? 's' : ''}
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+          <FolderGrid folders={folders} counts={counts} searchParams={searchParams} />
           
           <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#1e293b' }}>Tous les documents</h2>
         </div>
@@ -279,7 +228,7 @@ export default async function DocumentsPage({
             </div>
             
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <DocumentActions document={JSON.parse(JSON.stringify(doc))} />
+              <DocumentActions document={JSON.parse(JSON.stringify(doc))} folders={folders} />
             </div>
           </div>
         ))}
