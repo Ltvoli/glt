@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getDocuments } from './actions'
 import { FileText, Download, Link as LinkIcon, Folder } from 'lucide-react'
 import DocumentUploadModal from './DocumentUploadModal'
+import DocumentCreateModal from './DocumentCreateModal'
 import DocumentActions from './DocumentActions'
 import DocumentFilters from './DocumentFilters'
 import Link from 'next/link'
@@ -109,7 +110,10 @@ export default async function DocumentsPage({
           <p style={{ color: 'var(--text-muted)' }}>Gérez tous les documents liés aux contacts, tâches, QE, etc.</p>
         </div>
         
-        <DocumentUploadModal />
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <DocumentCreateModal />
+          <DocumentUploadModal />
+        </div>
       </header>
 
       <DocumentFilters users={users} />
