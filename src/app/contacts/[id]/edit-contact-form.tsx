@@ -90,9 +90,20 @@ export default function EditContactForm({ contact, allTags = [], dictionary = []
           <div className="form-group">
             <label htmlFor="type">Type de contact *</label>
             <select id="type" name="type" className="form-control" defaultValue={contact.type} required>
-              {dictionary.filter(d => d.type === 'CONTACT_TYPE').map(d => (
-                <option key={d.code} value={d.code}>{d.label}</option>
-              ))}
+              {dictionary.filter(d => d.type === 'CONTACT_TYPE').length > 0 ? (
+                dictionary.filter(d => d.type === 'CONTACT_TYPE').map(d => (
+                  <option key={d.code} value={d.code}>{d.label}</option>
+                ))
+              ) : (
+                <>
+                  <option value="ELECTEUR">Électeur</option>
+                  <option value="ELU">Élu</option>
+                  <option value="ASSO">Association</option>
+                  <option value="PARTENAIRE">Partenaire</option>
+                  <option value="PRESSE">Presse</option>
+                  <option value="AUTRE">Autre</option>
+                </>
+              )}
             </select>
           </div>
           <div className="form-group">
