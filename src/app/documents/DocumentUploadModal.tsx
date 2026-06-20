@@ -23,16 +23,22 @@ export default function DocumentUploadModal({ folders = [] }: { folders?: any[] 
         body: formData
       })
       
-      const data = await res.json()
+      let data: any = {}
+      try {
+        data = await res.json()
+      } catch {
+        // Response n'est pas du JSON (ex: 500 HTML)
+        data = { error: `Erreur serveur ${res.status}` }
+      }
       
       if (res.ok) {
         setIsOpen(false)
         router.refresh()
       } else {
-        setError(data.error || "Erreur lors de l'upload")
+        setError(data.error || `Erreur ${res.status} lors de l'upload`)
       }
-    } catch (err) {
-      setError("Erreur réseau")
+    } catch (err: any) {
+      setError(`Erreur réseau : ${err?.message || 'impossible de joindre le serveur'}`)
     } finally {
       setIsUploading(false)
     }
