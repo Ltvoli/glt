@@ -8,24 +8,25 @@ import { CSS } from '@dnd-kit/utilities'
 import { Save, RotateCcw, Smartphone, MonitorSmartphone, Loader2, GripVertical, ChevronDown, ChevronRight, Check } from 'lucide-react'
 
 const DEFAULT_CONTACTS_FIELDS: Omit<FieldConfigInput, 'id'>[] = [
-  // État civil
   { module: 'contacts', section: 'État civil', fieldKey: 'gender', defaultLabel: 'Genre', customLabel: null, isVisible: true, order: 0 },
   { module: 'contacts', section: 'État civil', fieldKey: 'firstName', defaultLabel: 'Prénom', customLabel: null, isVisible: true, order: 1 },
   { module: 'contacts', section: 'État civil', fieldKey: 'lastName', defaultLabel: 'Nom', customLabel: null, isVisible: true, order: 2 },
   { module: 'contacts', section: 'État civil', fieldKey: 'birthDate', defaultLabel: 'Date de naissance', customLabel: null, isVisible: true, order: 3 },
-  { module: 'contacts', section: 'État civil', fieldKey: 'usageName', defaultLabel: 'Nom d\'usage', customLabel: null, isVisible: false, order: 4 },
-  { module: 'contacts', section: 'État civil', fieldKey: 'nationality', defaultLabel: 'Nationalité', customLabel: null, isVisible: false, order: 5 },
+  { module: 'contacts', section: 'État civil', fieldKey: 'usageName', defaultLabel: 'Nom d\'usage', customLabel: null, isVisible: true, order: 4 },
+  { module: 'contacts', section: 'État civil', fieldKey: 'nationality', defaultLabel: 'Nationalité', customLabel: null, isVisible: true, order: 5 },
   { module: 'contacts', section: 'État civil', fieldKey: 'profession', defaultLabel: 'Profession', customLabel: null, isVisible: true, order: 6 },
-
-  // Adresse
-  { module: 'contacts', section: 'Adresse', fieldKey: 'building', defaultLabel: 'Bâtiment', customLabel: null, isVisible: true, order: 7 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'streetNumber', defaultLabel: 'Numéro', customLabel: null, isVisible: true, order: 8 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'streetName', defaultLabel: 'Rue / Voie', customLabel: null, isVisible: true, order: 9 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'postalCode', defaultLabel: 'Code postal', customLabel: null, isVisible: true, order: 10 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'city', defaultLabel: 'Ville', customLabel: null, isVisible: true, order: 11 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'buildingType', defaultLabel: 'Type de bâtiment', customLabel: null, isVisible: false, order: 12 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'floor', defaultLabel: 'Étage', customLabel: null, isVisible: false, order: 13 },
-  { module: 'contacts', section: 'Adresse', fieldKey: 'door', defaultLabel: 'Porte', customLabel: null, isVisible: false, order: 14 },
+  { module: 'contacts', section: 'État civil', fieldKey: 'ageRange', defaultLabel: 'Tranches d\'âge', customLabel: null, isVisible: true, order: 7 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'building', defaultLabel: 'Bâtiment', customLabel: null, isVisible: true, order: 8 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'streetNumber', defaultLabel: 'Numéro', customLabel: null, isVisible: true, order: 9 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'streetName', defaultLabel: 'Rue / Voie', customLabel: null, isVisible: true, order: 10 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'postalCode', defaultLabel: 'Code postal', customLabel: null, isVisible: true, order: 11 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'city', defaultLabel: 'Ville', customLabel: null, isVisible: true, order: 12 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'buildingType', defaultLabel: 'Type de bâtiment', customLabel: null, isVisible: false, order: 13 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'floor', defaultLabel: 'Étage', customLabel: null, isVisible: false, order: 14 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'door', defaultLabel: 'Porte', customLabel: null, isVisible: false, order: 15 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'territory', defaultLabel: 'Territoire', customLabel: null, isVisible: true, order: 16 },
+  { module: 'contacts', section: 'Adresse', fieldKey: 'department', defaultLabel: 'Département', customLabel: null, isVisible: true, order: 17 },
+  { module: 'contacts', section: 'Profil', fieldKey: 'lastContactMobile', defaultLabel: 'Dernier contact via mobile', customLabel: null, isVisible: true, order: 18 },
 ]
 
 const DEFAULT_TASKS_FIELDS: Omit<FieldConfigInput, 'id'>[] = [
@@ -181,7 +182,8 @@ export default function FieldsClient({ initialFields }: { initialFields: FieldCo
   const [activeModule, setActiveModule] = useState('contacts')
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     'État civil': true,
-    'Adresse': true
+    'Adresse': true,
+    'Profil': true
   })
   
   const [isPendingInit, startInitTransition] = useTransition()

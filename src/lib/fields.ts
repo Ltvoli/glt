@@ -86,40 +86,38 @@ const DEFAULT_FIELDS_BY_MODULE: Record<string, any[]> = {
 }
 
 export async function getModuleFields(moduleKey: string): Promise<FieldConfigMap> {
+  const defaults = DEFAULT_FIELDS_BY_MODULE[moduleKey]
   let fields = await prisma.fieldConfig.findMany({
     where: { module: moduleKey },
     orderBy: { order: 'asc' }
   })
 
-  // Seeding/Upserting automatically if empty
-  if (fields.length === 0) {
-    const defaults = DEFAULT_FIELDS_BY_MODULE[moduleKey]
-    if (defaults) {
-      await prisma.$transaction(
-        defaults.map(field => 
-          prisma.fieldConfig.upsert({
-            where: {
-              module_fieldKey: { module: field.module, fieldKey: field.fieldKey }
-            },
-            update: {},
-            create: {
-              module: field.module,
-              section: field.section,
-              fieldKey: field.fieldKey,
-              defaultLabel: field.defaultLabel,
-              customLabel: field.customLabel,
-              isVisible: field.isVisible,
-              order: field.order
-            }
-          })
-        )
+  // Seeding/Upserting missing fields automatically
+  if (defaults && fields.length < defaults.length) {
+    await prisma.$transaction(
+      defaults.map(field => 
+        prisma.fieldConfig.upsert({
+          where: {
+            module_fieldKey: { module: field.module, fieldKey: field.fieldKey }
+          },
+          update: {}, // preserve existing label & visibility changes
+          create: {
+            module: field.module,
+            section: field.section,
+            fieldKey: field.fieldKey,
+            defaultLabel: field.defaultLabel,
+            customLabel: field.customLabel,
+            isVisible: field.isVisible,
+            order: field.order
+          }
+        })
       )
+    )
 
-      fields = await prisma.fieldConfig.findMany({
-        where: { module: moduleKey },
-        orderBy: { order: 'asc' }
-      })
-    }
+    fields = await prisma.fieldConfig.findMany({
+      where: { module: moduleKey },
+      orderBy: { order: 'asc' }
+    })
   }
 
   const map: FieldConfigMap = {}
