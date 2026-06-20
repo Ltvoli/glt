@@ -62,19 +62,49 @@ export async function POST(req: NextRequest) {
     const extension = path.extname(file.name) || ('.' + file.name.split('.').pop())
     const fileName = `${storageName}${extension}`
     
-    // Upload local au lieu de Supabase
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads')
-    try {
-      await fs.mkdir(uploadDir, { recursive: true })
-    } catch(e) {}
+    let isLocal = true
+    let storagePath = ''
     
-    const filePath = path.join(uploadDir, fileName)
-    
-    try {
-      await fs.writeFile(filePath, buffer)
-    } catch (fsError) {
-      console.error('Local upload error:', fsError)
-      return NextResponse.json({ error: 'Erreur lors de la sauvegarde locale du fichier' }, { status: 500 })
+    const useSupabase = process.env.NEXT_PUBLIC_SUPABASE_URL && 
+                        process.env.NEXT_PUBLIC_SUPABASE_URL !== 'https://dummy.supabase.co' &&
+                        process.env.SUPABASE_SERVICE_ROLE_KEY &&
+                        process.env.SUPABASE_SERVICE_ROLE_KEY !== 'dummy'
+
+    if (useSupabase) {
+      try {
+        const { data: uploadData, error: uploadError } = await supabase
+          .storage
+          .from('crm-attachments')
+          .upload(`documents/${fileName}`, buffer, {
+            contentType: file.type,
+            upsert: false
+          })
+        
+        if (!uploadError) {
+          isLocal = false
+          storagePath = uploadData.path
+        } else {
+          console.error('Supabase upload error, falling back to local:', uploadError)
+        }
+      } catch (err) {
+        console.error('Supabase upload exception, falling back to local:', err)
+      }
+    }
+
+    if (isLocal) {
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+      try {
+        await fs.mkdir(uploadDir, { recursive: true })
+      } catch(e) {}
+      
+      const filePath = path.join(uploadDir, fileName)
+      try {
+        await fs.writeFile(filePath, buffer)
+        storagePath = filePath
+      } catch (fsError) {
+        console.error('Local upload error:', fsError)
+        return NextResponse.json({ error: 'Erreur lors de la sauvegarde locale du fichier' }, { status: 500 })
+      }
     }
 
     let extractedText = ''
@@ -104,7 +134,7 @@ export async function POST(req: NextRequest) {
       extension,
       mimeType: file.type,
       size: file.size,
-      storagePath: filePath,
+      storagePath,
       confidentiality,
       uploadedById: session.userId,
       extractedText: extractedText.trim() || null,

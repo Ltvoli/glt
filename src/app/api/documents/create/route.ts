@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs/promises'
+import { supabase } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,18 +30,49 @@ export async function POST(req: NextRequest) {
     const extension = '.md'
     const fileName = `${storageName}${extension}`
     
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads')
-    try {
-      await fs.mkdir(uploadDir, { recursive: true })
-    } catch(e) {}
+    let isLocal = true
+    let storagePath = ''
     
-    const filePath = path.join(uploadDir, fileName)
-    
-    try {
-      await fs.writeFile(filePath, buffer)
-    } catch (fsError) {
-      console.error('Local create doc file error:', fsError)
-      return NextResponse.json({ error: 'Erreur lors de la sauvegarde locale du document' }, { status: 500 })
+    const useSupabase = process.env.NEXT_PUBLIC_SUPABASE_URL && 
+                        process.env.NEXT_PUBLIC_SUPABASE_URL !== 'https://dummy.supabase.co' &&
+                        process.env.SUPABASE_SERVICE_ROLE_KEY &&
+                        process.env.SUPABASE_SERVICE_ROLE_KEY !== 'dummy'
+
+    if (useSupabase) {
+      try {
+        const { data: uploadData, error: uploadError } = await supabase
+          .storage
+          .from('crm-attachments')
+          .upload(`documents/${fileName}`, buffer, {
+            contentType: 'text/markdown',
+            upsert: false
+          })
+        
+        if (!uploadError) {
+          isLocal = false
+          storagePath = uploadData.path
+        } else {
+          console.error('Supabase create upload error, falling back to local:', uploadError)
+        }
+      } catch (err) {
+        console.error('Supabase create upload exception, falling back to local:', err)
+      }
+    }
+
+    if (isLocal) {
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+      try {
+        await fs.mkdir(uploadDir, { recursive: true })
+      } catch(e) {}
+      
+      const filePath = path.join(uploadDir, fileName)
+      try {
+        await fs.writeFile(filePath, buffer)
+        storagePath = `/uploads/${fileName}`
+      } catch (fsError) {
+        console.error('Local create doc file error:', fsError)
+        return NextResponse.json({ error: 'Erreur lors de la sauvegarde locale du document' }, { status: 500 })
+      }
     }
 
     const dataPayload: any = {
@@ -52,7 +84,7 @@ export async function POST(req: NextRequest) {
       extension,
       mimeType: 'text/markdown',
       size: buffer.length,
-      storagePath: `/uploads/${fileName}`,
+      storagePath,
       extractedText: content,
       uploadedById: session.userId,
       folderId: folderId || null,
