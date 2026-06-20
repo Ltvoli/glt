@@ -1018,3 +1018,241 @@ export async function saveSynthesisFullAction(
     return { success: false, error: error.message || 'Erreur de sauvegarde de la synthèse.' }
   }
 }
+
+// ----------------------------------------------------
+// MAIL / COURRIER ACTIONS
+// ----------------------------------------------------
+
+export async function addContactToMailList(permanenceId: string, contactId: string): Promise<ActionResult> {
+  try {
+    const auth = await checkPermission('permanences.update')
+    if (!auth.success || !auth.userId) return { success: false, error: auth.error }
+
+    // Check if already added
+    const existing = await prisma.permanenceMailContact.findFirst({
+      where: { permanenceId, contactId }
+    })
+    if (existing) return { success: false, error: 'Ce contact est déjà dans la liste.' }
+
+    const contact = await prisma.contact.findUnique({ where: { id: contactId } })
+    if (!contact) return { success: false, error: 'Contact CRM introuvable.' }
+
+    const street = [contact.streetNumber, contact.streetName].filter(Boolean).join(' ')
+    const details = [contact.apartment, contact.building, contact.addressComplement].filter(Boolean).join(', ')
+    const address = [street, details].filter(Boolean).join(', ') || contact.address || ''
+
+    await prisma.permanenceMailContact.create({
+      data: {
+        permanenceId,
+        contactId,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        address: address || null,
+        postalCode: contact.postalCode || null,
+        city: contact.city || null,
+        status: 'A_PREPARER'
+      }
+    })
+
+    await logAudit('mail_contact.added', 'PermanenceMailContact', contactId, auth.userId, { permanenceId })
+    await autoTransitionToInProgress(permanenceId, auth.userId)
+
+    revalidatePath(`/permanences/${permanenceId}/courrier`)
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erreur lors de l\'ajout.' }
+  }
+}
+
+export async function bulkAddContactsToMail(
+  permanenceId: string,
+  contactIds: string[]
+): Promise<ActionResult<{ added: number; skipped: number }>> {
+  try {
+    const auth = await checkPermission('permanences.update')
+    if (!auth.success || !auth.userId) return { success: false, error: auth.error }
+
+    let added = 0
+    let skipped = 0
+
+    for (const contactId of contactIds) {
+      const existing = await prisma.permanenceMailContact.findFirst({
+        where: { permanenceId, contactId }
+      })
+      if (existing) { skipped++; continue }
+
+      const contact = await prisma.contact.findUnique({ where: { id: contactId } })
+      if (!contact) { skipped++; continue }
+
+      const street = [contact.streetNumber, contact.streetName].filter(Boolean).join(' ')
+      const details = [contact.apartment, contact.building, contact.addressComplement].filter(Boolean).join(', ')
+      const address = [street, details].filter(Boolean).join(', ') || contact.address || ''
+
+      await prisma.permanenceMailContact.create({
+        data: {
+          permanenceId,
+          contactId,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          address: address || null,
+          postalCode: contact.postalCode || null,
+          city: contact.city || null,
+          status: 'A_PREPARER'
+        }
+      })
+      added++
+    }
+
+    await logAudit('mail_contact.bulk_add', 'MobilePermanence', permanenceId, auth.userId, { added, skipped })
+    await autoTransitionToInProgress(permanenceId, auth.userId)
+
+    revalidatePath(`/permanences/${permanenceId}/courrier`)
+    return { success: true, data: { added, skipped } }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erreur lors de l\'ajout en masse.' }
+  }
+}
+
+export async function importMailContactsAction(
+  permanenceId: string,
+  contacts: Array<{
+    firstName?: string
+    lastName?: string
+    address?: string
+    postalCode?: string
+    city?: string
+  }>
+): Promise<ActionResult<{ imported: number; updated: number }>> {
+  try {
+    const auth = await checkPermission('permanences.update')
+    if (!auth.success || !auth.userId) return { success: false, error: auth.error }
+
+    let imported = 0
+    let updated = 0
+
+    for (const item of contacts) {
+      if (!item.lastName || !item.firstName) continue
+
+      // Look for a contact in the CRM first to link it
+      const contactCRM = await prisma.contact.findFirst({
+        where: {
+          firstName: { equals: item.firstName, mode: 'insensitive' },
+          lastName: { equals: item.lastName, mode: 'insensitive' },
+          archivedAt: null
+        }
+      })
+
+      // Check if already in this permanence mail contacts
+      const existing = await prisma.permanenceMailContact.findFirst({
+        where: {
+          permanenceId,
+          firstName: { equals: item.firstName, mode: 'insensitive' },
+          lastName: { equals: item.lastName, mode: 'insensitive' }
+        }
+      })
+
+      if (existing) {
+        // Update details
+        await prisma.permanenceMailContact.update({
+          where: { id: existing.id },
+          data: {
+            contactId: contactCRM?.id || existing.contactId,
+            address: item.address || existing.address,
+            postalCode: item.postalCode || existing.postalCode,
+            city: item.city || existing.city,
+          }
+        })
+        updated++
+      } else {
+        await prisma.permanenceMailContact.create({
+          data: {
+            permanenceId,
+            contactId: contactCRM?.id || null,
+            firstName: item.firstName,
+            lastName: item.lastName,
+            address: item.address || null,
+            postalCode: item.postalCode || null,
+            city: item.city || null,
+            status: 'A_PREPARER'
+          }
+        })
+        imported++
+      }
+    }
+
+    await logAudit('mail_contact.import', 'MobilePermanence', permanenceId, auth.userId, { imported, updated })
+    await autoTransitionToInProgress(permanenceId, auth.userId)
+
+    revalidatePath(`/permanences/${permanenceId}/courrier`)
+    return { success: true, data: { imported, updated } }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erreur lors de l\'importation.' }
+  }
+}
+
+export async function updateMailContactStatus(
+  permanenceId: string,
+  mailContactId: string,
+  status: string
+): Promise<ActionResult> {
+  try {
+    const auth = await checkPermission('permanences.update')
+    if (!auth.success || !auth.userId) return { success: false, error: auth.error }
+
+    const mailContact = await prisma.permanenceMailContact.update({
+      where: { id: mailContactId },
+      data: { status }
+    })
+
+    // If the status is NPAI, update the CRM contact (if linked)
+    if (mailContact.contactId) {
+      const isNpai = status === 'NPAI'
+      await prisma.contact.update({
+        where: { id: mailContact.contactId },
+        data: { isNpai }
+      })
+      await logAudit(isNpai ? 'contact.npai_marked' : 'contact.npai_unmarked', 'Contact', mailContact.contactId, auth.userId, { permanenceId })
+    }
+
+    await logAudit('mail_contact.update_status', 'PermanenceMailContact', mailContactId, auth.userId, { permanenceId, status })
+    await autoTransitionToInProgress(permanenceId, auth.userId)
+
+    revalidatePath(`/permanences/${permanenceId}/courrier`)
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erreur de mise à jour du statut.' }
+  }
+}
+
+export async function deleteMailContact(
+  permanenceId: string,
+  mailContactId: string
+): Promise<ActionResult> {
+  try {
+    const auth = await checkPermission('permanences.update')
+    if (!auth.success || !auth.userId) return { success: false, error: auth.error }
+
+    const mailContact = await prisma.permanenceMailContact.findUnique({
+      where: { id: mailContactId }
+    })
+
+    // If the status was NPAI, revert the CRM contact status (if linked)
+    if (mailContact?.contactId && mailContact.status === 'NPAI') {
+      await prisma.contact.update({
+        where: { id: mailContact.contactId },
+        data: { isNpai: false }
+      })
+    }
+
+    await prisma.permanenceMailContact.delete({
+      where: { id: mailContactId }
+    })
+
+    await logAudit('mail_contact.deleted', 'PermanenceMailContact', mailContactId, auth.userId, { permanenceId })
+
+    revalidatePath(`/permanences/${permanenceId}/courrier`)
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Erreur de suppression.' }
+  }
+}

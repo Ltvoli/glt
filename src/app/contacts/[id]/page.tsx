@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import EditContactForm from './edit-contact-form'
 import ArchiveButton from './archive-button'
-import { MapPin, Phone, Mail, Building, Clock, CheckSquare, Mail as MailIcon, HelpCircle, Smartphone, ExternalLink, User, Briefcase, Calendar, Globe } from 'lucide-react'
+import { MapPin, Phone, Mail, Building, Clock, CheckSquare, Mail as MailIcon, HelpCircle, Smartphone, ExternalLink, User, Briefcase, Calendar, Globe, AlertTriangle } from 'lucide-react'
 import PrintButton from '@/components/PrintButton'
 import { getModuleFields } from '@/lib/fields'
 
@@ -124,6 +124,26 @@ export default async function ContactDetailPage({
 
   return (
     <div>
+      {contact.isNpai && (
+        <div style={{
+          backgroundColor: '#fef2f2',
+          border: '1px solid #fca5a5',
+          borderLeft: '4px solid #dc2626',
+          borderRadius: '8px',
+          padding: '1rem 1.5rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          color: '#b91c1c'
+        }} className="hide-on-print">
+          <AlertTriangle size={20} style={{ color: '#dc2626', flexShrink: 0 }} />
+          <div>
+            <strong style={{ display: 'block', fontSize: '0.95rem' }}>Adresse NPAI (N&apos;habite pas à l&apos;adresse indiquée)</strong>
+            <span style={{ fontSize: '0.85rem', color: '#7f1d1d' }}>Les courriers postaux envoyés à ce contact sont retournés. Veuillez mettre à jour son adresse.</span>
+          </div>
+        </div>
+      )}
       {/* ─── Header ─────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }} className="hide-on-print">
         <Link href="/contacts" className="button outline">← Retour</Link>

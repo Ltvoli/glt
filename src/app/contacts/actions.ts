@@ -42,6 +42,7 @@ export async function createContact(prevState: any, formData: FormData): Promise
   const linkedinUrl = formData.get('linkedinUrl') as string
   const notes = formData.get('notes') as string
   const profession = formData.get('profession') as string
+  const isNpai = formData.get('isNpai') === 'true'
   const tagsString = formData.get('tags') as string
 
   // New fields
@@ -65,7 +66,8 @@ export async function createContact(prevState: any, formData: FormData): Promise
     streetNumber, streetName, addressComplement, postalCode,
     supportLevel, meetingStep, territorySector, source, whatsappStatus, linkedinUrl, notes,
     profession, newsletter, smsConsent, consentDate: consentDateStr, consentSource,
-    ageRange, lastContactMobile: lastContactMobileStr, territory, department
+    ageRange, lastContactMobile: lastContactMobileStr, territory, department,
+    isNpai
   })
 
   if (!validatedFields.success) {
@@ -124,6 +126,7 @@ export async function createContact(prevState: any, formData: FormData): Promise
         linkedinUrl: validData.linkedinUrl || null,
         notes: validData.notes || null,
         profession: validData.profession || null,
+        isNpai: validData.isNpai,
         ageRange: validData.ageRange || null,
         lastContactMobile: validData.lastContactMobile || null,
         territory: validData.territory || null,

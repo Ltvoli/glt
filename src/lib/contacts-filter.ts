@@ -85,10 +85,16 @@ export function buildWhereClause(params: Record<string, string | undefined>) {
   }
 
   if (params.gender && params.gender !== 'all')         where.gender = params.gender
-  if (params.addressStatus === 'unknown') {
-    where.city = null
-    where.streetName = null
-    where.postalCode = null
+  if (params.addressStatus && params.addressStatus !== 'all') {
+    if (params.addressStatus === 'unknown') {
+      where.city = null
+      where.streetName = null
+      where.postalCode = null
+    } else if (params.addressStatus === 'npai') {
+      where.isNpai = true
+    } else if (params.addressStatus === 'valid') {
+      where.isNpai = false
+    }
   }
 
   if (andClauses.length > 0) where.AND = andClauses

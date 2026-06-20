@@ -76,6 +76,10 @@ export default function EditContactForm({ contact, allTags = [], dictionary = []
           ) : (
             <p style={{ color: '#94a3b8', gridColumn: '1 / -1' }}>Aucun champ configuré.</p>
           )}
+          <div className="form-group" style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <input type="checkbox" id="isNpai" name="isNpai" value="true" defaultChecked={contact.isNpai} />
+            <label htmlFor="isNpai" style={{ margin: 0, color: 'var(--danger)', fontWeight: 600 }}>NPAI (N&apos;habite pas à l&apos;adresse indiquée)</label>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem', marginBottom: '2rem' }}>

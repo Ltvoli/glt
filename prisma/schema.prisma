@@ -157,6 +157,7 @@ model Contact {
   source          String? // PERMANENCE, COURRIER, EVENEMENT, TERRAIN, AUTRE
   newsletter      Boolean   @default(false) // Consentement Email
   smsConsent      Boolean   @default(false) // Consentement SMS (RGPD)
+  isNpai          Boolean   @default(false)
   consentDate     DateTime? // Date d'obtention du consentement
   consentSource   String?   // Origine du consentement (ex: IMPORT_ADHERENTS, FORMULAIRE_WEB)
   whatsappStatus  String? // NON, ENVOYE, REJOINT
@@ -180,6 +181,7 @@ model Contact {
   duplicatesRight     DuplicateCandidate[]         @relation("Contact2")
   supportLevelHistory ContactSupportLevelHistory[] @relation("SupportLevelHistory")
   permanenceContacts  PermanenceContact[]
+  permanenceMailContacts PermanenceMailContact[]   @relation("MailContactRelation")
   permanenceLocations PermanenceLocation[]         @relation("LocationMairieContact")
   lists               ContactList[]
 
@@ -777,6 +779,7 @@ model MobilePermanence {
   locations     PermanenceLocation[]
   tasks         PermanenceTask[]
   contacts      PermanenceContact[]
+  mailContacts  PermanenceMailContact[]
   organizations PermanenceOrganization[]
   synthesis     PermanenceSynthesis?
 }
@@ -907,5 +910,22 @@ model BulkCommunication {
   createdAt    DateTime @default(now())
   createdBy    User     @relation("BulkCommsCreator", fields: [createdById], references: [id])
   createdById  String
+}
+
+model PermanenceMailContact {
+  id           String           @id @default(cuid())
+  permanenceId String
+  permanence   MobilePermanence @relation(fields: [permanenceId], references: [id], onDelete: Cascade)
+  contactId    String?
+  contact      Contact?         @relation("MailContactRelation", fields: [contactId], references: [id], onDelete: SetNull)
+  // Champs dénormalisés pour import CSV ou publipostage
+  firstName    String?
+  lastName     String?
+  address      String?
+  postalCode   String?
+  city         String?
+  status       String           @default("A_PREPARER") // "A_PREPARER", "ENVOYE", "NPAI"
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 }
 

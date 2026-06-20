@@ -523,7 +523,7 @@ export default function AdvancedFilters({
                   Localisation
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {[['all', 'Tous'], ['unknown', 'Adresse inconnue']].map(([v, l]) => (
+                  {[['all', 'Tous'], ['unknown', 'Adresse inconnue'], ['npai', 'NPAI (Adresse invalide)'], ['valid', 'Adresse valide (non NPAI)']].map(([v, l]) => (
                     <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
                       <input type="radio" name="localisation" value={v} checked={addressStatus === v} onChange={() => setAddressStatus(v)} />
                       {v === 'all' ? <strong>{l}</strong> : l}

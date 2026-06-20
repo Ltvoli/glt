@@ -54,6 +54,7 @@ export const contactSchema = z.object({
   whatsappStatus: emptyAsUndefined,
   linkedinUrl: emptyAsUndefined,
   notes: emptyAsUndefined,
+  isNpai: z.preprocess((val) => val === 'true' || val === true, z.boolean().optional().default(false)),
   profession: emptyAsUndefined,
   ageRange: emptyAsUndefined,
   lastContactMobile: z.preprocess(
