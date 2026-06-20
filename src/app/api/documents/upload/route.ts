@@ -5,9 +5,8 @@ import prisma from '@/lib/prisma'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
-// import Tesseract from 'tesseract.js'
 import fs from 'fs/promises'
-import { PDFParse } from 'pdf-parse'
+import pdfParse from 'pdf-parse'
 
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -112,21 +111,13 @@ export async function POST(req: NextRequest) {
     try {
       if (file.type === 'application/pdf') {
         try {
-          const parser = new PDFParse({ data: buffer })
-          const pdfData = await parser.getText()
+          const pdfData = await pdfParse(buffer)
           extractedText = pdfData.text
-          await parser.destroy()
         } catch (e) {
-          console.error("Erreur de parsing PDF (DOMMatrix/pdf-parse):", e)
+          console.error('Erreur de parsing PDF:', e)
         }
       }
-      // Image OCR using Tesseract is deactivated because it times out and crashes in serverless functions (like Vercel)
-      /*
-      else if (file.type.startsWith('image/')) {
-        const { data: { text } } = await Tesseract.recognize(buffer, 'fra')
-        extractedText = text
-      }
-      */
+      // Image OCR using Tesseract is deactivated (times out on Vercel serverless)
     } catch (ocrError) {
       console.error('OCR/Parse error:', ocrError)
     }
