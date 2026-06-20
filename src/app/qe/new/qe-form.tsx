@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react'
 import { createQE } from '../actions'
 import { renderQeField } from '../dynamic-qe-fields'
+import Autocomplete from '@/components/ui/autocomplete'
 
 const initialState = {
   error: ''
@@ -33,6 +34,11 @@ const MINISTRIES = [
 export default function QEForm({ users, contacts, tasks, mails, dictionary = [], fieldConfig = {} }: { users: {id: string; name: string}[], contacts: {id: string; firstName: string; lastName: string}[], tasks: {id: string; title: string}[], mails?: {id: string; subject: string; reference: string}[], dictionary?: any[], fieldConfig?: Record<string, any> }) {
   const [state, formAction, isPending] = useActionState(createQE, initialState)
   
+  const contactOptions = contacts.map((c: any) => ({
+    value: c.id,
+    label: `${c.lastName} ${c.firstName}${c.city ? ` (${c.city})` : ''}`
+  }))
+
   const [anNumber, setAnNumber] = useState('')
   const [legislature, setLegislature] = useState('17')
   const [isScraping, setIsScraping] = useState(false)
@@ -147,12 +153,12 @@ export default function QEForm({ users, contacts, tasks, mails, dictionary = [],
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
         <div className="form-group">
           <label htmlFor="contactId">Lier à un Contact</label>
-          <select id="contactId" name="contactId" className="form-control" defaultValue="">
-            <option value="">Aucun contact</option>
-            {contacts.map(c => (
-              <option key={c.id} value={c.id}>{c.lastName} {c.firstName}</option>
-            ))}
-          </select>
+          <Autocomplete 
+            options={contactOptions} 
+            defaultValue="" 
+            name="contactId" 
+            placeholder="Rechercher un contact..." 
+          />
           <small style={{ color: 'var(--text-muted)' }}>Lier cette question au lanceur d&apos;alerte.</small>
         </div>
         <div className="form-group">

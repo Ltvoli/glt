@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react'
 import { createMail } from '../actions'
 import { renderMailField } from '../dynamic-mail-fields'
+import Autocomplete from '@/components/ui/autocomplete'
 
 const initialState = {
   error: ''
@@ -11,6 +12,11 @@ const initialState = {
 export default function MailForm({ users, contacts, tasks, initialParentId, initialSubject, initialContactId, dictionary = [], fieldConfig = {} }: { users: any[], contacts: any[], tasks: any[], initialParentId?: string, initialSubject?: string, initialContactId?: string, dictionary?: any[], fieldConfig?: Record<string, any> }) {
   const [state, formAction, isPending] = useActionState(createMail, initialState)
   const [mailType, setMailType] = useState(initialParentId ? 'SORTANT' : 'ENTRANT')
+
+  const contactOptions = contacts.map(c => ({
+    value: c.id,
+    label: `${c.lastName} ${c.firstName}${c.city ? ` (${c.city})` : ''}`
+  }))
 
   const infoFields = Object.entries(fieldConfig || {})
     .map(([key, f]) => ({ key, ...(f as any) }))
@@ -82,12 +88,12 @@ export default function MailForm({ users, contacts, tasks, initialParentId, init
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
         <div className="form-group">
           <label htmlFor="contactId">Lier à un Contact</label>
-          <select id="contactId" name="contactId" className="form-control" defaultValue={initialContactId || ""}>
-            <option value="">Aucun contact</option>
-            {contacts.map(c => (
-              <option key={c.id} value={c.id}>{c.lastName} {c.firstName}</option>
-            ))}
-          </select>
+          <Autocomplete 
+            options={contactOptions} 
+            defaultValue={initialContactId || ""} 
+            name="contactId" 
+            placeholder="Rechercher un contact..." 
+          />
           <small style={{ color: 'var(--text-muted)' }}>Permet de retrouver ce courrier dans la fiche du contact.</small>
         </div>
         <div className="form-group">

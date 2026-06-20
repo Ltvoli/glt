@@ -33,8 +33,9 @@ export async function POST(req: NextRequest) {
     let isLocal = true
     let storagePath = ''
     
-    const useSupabase = process.env.NEXT_PUBLIC_SUPABASE_URL && 
-                        process.env.NEXT_PUBLIC_SUPABASE_URL !== 'https://dummy.supabase.co' &&
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+    const useSupabase = supabaseUrl && 
+                        supabaseUrl !== 'https://dummy.supabase.co' &&
                         process.env.SUPABASE_SERVICE_ROLE_KEY &&
                         process.env.SUPABASE_SERVICE_ROLE_KEY !== 'dummy'
 

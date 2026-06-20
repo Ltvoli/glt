@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateMail } from '../../actions'
 import { renderMailField } from '../../dynamic-mail-fields'
+import Autocomplete from '@/components/ui/autocomplete'
 
 const initialState = {
   error: ''
@@ -13,6 +14,11 @@ export default function EditMailForm({ mail, users, contacts, tasks, initialCont
   const updateMailWithId = updateMail.bind(null, mail.id)
   const [state, formAction, isPending] = useActionState(updateMailWithId, initialState)
   const [mailType, setMailType] = useState(mail.type || 'ENTRANT')
+
+  const contactOptions = contacts.map(c => ({
+    value: c.id,
+    label: `${c.lastName} ${c.firstName}${c.city ? ` (${c.city})` : ''}`
+  }))
   const router = useRouter()
 
   const infoFields = Object.entries(fieldConfig || {})
@@ -81,12 +87,12 @@ export default function EditMailForm({ mail, users, contacts, tasks, initialCont
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
         <div className="form-group">
           <label htmlFor="contactId">Lier à un Contact</label>
-          <select id="contactId" name="contactId" className="form-control" defaultValue={initialContactId || ""}>
-            <option value="">Aucun contact</option>
-            {contacts.map(c => (
-              <option key={c.id} value={c.id}>{c.lastName} {c.firstName}</option>
-            ))}
-          </select>
+          <Autocomplete 
+            options={contactOptions} 
+            defaultValue={initialContactId || ""} 
+            name="contactId" 
+            placeholder="Rechercher un contact..." 
+          />
           <small style={{ color: 'var(--text-muted)' }}>Permet de retrouver ce courrier dans la fiche du contact.</small>
         </div>
         <div className="form-group">
