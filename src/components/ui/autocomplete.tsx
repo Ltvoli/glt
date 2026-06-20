@@ -28,16 +28,16 @@ export default function Autocomplete({
   const [selectedValue, setSelectedValue] = useState(defaultValue)
   const wrapperRef = useRef<HTMLDivElement>(null)
 
-  // Find label of default value
-  useEffect(() => {
-    const selected = options.find(opt => opt.value === defaultValue)
-    if (selected) {
-      setSearch(selected.label)
-    } else {
-      setSearch('')
-    }
+  const [prevDefaultValue, setPrevDefaultValue] = useState(defaultValue)
+  const [prevOptions, setPrevOptions] = useState(options)
+
+  if (defaultValue !== prevDefaultValue || options !== prevOptions) {
+    setPrevDefaultValue(defaultValue)
+    setPrevOptions(options)
     setSelectedValue(defaultValue)
-  }, [defaultValue, options])
+    const selected = options.find(opt => opt.value === defaultValue)
+    setSearch(selected ? selected.label : '')
+  }
 
   // Handle clicking outside to close the list
   useEffect(() => {
