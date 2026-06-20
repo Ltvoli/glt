@@ -24,21 +24,26 @@ export default function MailStatusForm({ mailId, currentStatus, dictionary = [] 
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-      <label htmlFor="status" style={{ fontSize: '0.875rem', fontWeight: 500 }}>Statut :</label>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+      <label htmlFor="status" style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-muted)' }}>Statut :</label>
       <select 
         id="status" 
         value={status} 
         onChange={handleChange}
         disabled={isPending}
         style={{
-          padding: '0.5rem',
-          borderRadius: '4px',
+          padding: '0.5rem 1.75rem 0.5rem 0.75rem',
+          borderRadius: '8px',
           border: '1px solid var(--border)',
-          backgroundColor: 'var(--background)',
+          backgroundColor: 'white',
+          color: '#334155',
           fontWeight: 500,
+          fontSize: '0.875rem',
           cursor: isPending ? 'not-allowed' : 'pointer',
-          opacity: isPending ? 0.7 : 1
+          opacity: isPending ? 0.7 : 1,
+          outline: 'none',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+          transition: 'all 0.2s ease',
         }}
       >
         {dictionary.filter(d => d.type === 'MAIL_STATUS').map(d => (

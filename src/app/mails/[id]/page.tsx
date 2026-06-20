@@ -72,21 +72,21 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
           </div>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-              <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>{mail.subject}</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', margin: 0 }}>{mail.subject}</h1>
               {mail.urgency === 'HAUTE' && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', backgroundColor: '#fef2f2', color: 'var(--danger)', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600 }}>
                   <AlertCircle size={14} /> URGENT
                 </span>
               )}
             </div>
-            <p style={{ color: 'var(--text-muted)' }}>Référence : {mail.reference} • {mail.type}</p>
+            <p style={{ color: 'var(--text-muted)', margin: 0 }}>Référence : {mail.reference} • {mail.type}</p>
           </div>
           
 
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
             <Link href={`/tasks/new?title=Répondre au courrier : ${encodeURIComponent(mail.subject)}&dueDate=${mail.responseDueDate ? new Date(mail.responseDueDate).toISOString().split('T')[0] : ''}&mailId=${mail.id}`} className="button outline">
               Créer une tâche
             </Link>
