@@ -6,7 +6,6 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
 import fs from 'fs/promises'
-import pdfParse from 'pdf-parse'
 
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -111,7 +110,10 @@ export async function POST(req: NextRequest) {
     try {
       if (file.type === 'application/pdf') {
         try {
-          const pdfData = await pdfParse(buffer)
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const pdfParseLib = require('pdf-parse')
+          const pdfParseFn = pdfParseLib.default ?? pdfParseLib
+          const pdfData = await pdfParseFn(buffer)
           extractedText = pdfData.text
         } catch (e) {
           console.error('Erreur de parsing PDF:', e)
