@@ -29,7 +29,11 @@ export default async function ContactsPage({
       orderBy: { lastName: 'asc' },
       skip: (currentPage - 1) * itemsPerPage,
       take: itemsPerPage,
-      include: { tags: { include: { tag: true } } }
+      include: {
+        tags: { include: { tag: true } },
+        createdBy: { select: { firstName: true, lastName: true } },
+        updatedBy: { select: { firstName: true, lastName: true } }
+      }
     }),
     prisma.contact.count({ where }),
     prisma.duplicateCandidate.count({ where: { status: 'PENDING' } }),

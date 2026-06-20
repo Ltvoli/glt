@@ -51,12 +51,12 @@ export default function ContactForm({ allTags = [], dictionary = [], fieldConfig
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <div className="form-group">
-            <label htmlFor="mobilePhone">Portable</label>
-            <input type="tel" id="mobilePhone" name="mobilePhone" className="form-control" />
-          </div>
-          <div className="form-group">
             <label htmlFor="phone">Téléphone fixe</label>
             <input type="tel" id="phone" name="phone" className="form-control" />
+          </div>
+          <div className="form-group">
+            <label htmlFor="mobilePhone">Mobile</label>
+            <input type="tel" id="mobilePhone" name="mobilePhone" className="form-control" />
           </div>
         </div>
         <div className="form-group">

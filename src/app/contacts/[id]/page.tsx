@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import EditContactForm from './edit-contact-form'
 import ArchiveButton from './archive-button'
-import { MapPin, Phone, Mail, Building, Clock, CheckSquare, Mail as MailIcon, HelpCircle, Smartphone, ExternalLink, User, Briefcase } from 'lucide-react'
+import { MapPin, Phone, Mail, Building, Clock, CheckSquare, Mail as MailIcon, HelpCircle, Smartphone, ExternalLink, User, Briefcase, Calendar, Globe } from 'lucide-react'
 import PrintButton from '@/components/PrintButton'
 import { getModuleFields } from '@/lib/fields'
 
@@ -58,6 +58,7 @@ export default async function ContactDetailPage({
     where: { id, archivedAt: null },
     include: {
       createdBy: true,
+      updatedBy: true,
       tags: { include: { tag: true } }
     }
   })
@@ -208,7 +209,7 @@ export default async function ContactDetailPage({
                 )}
               </div>
 
-              {/* Portable */}
+              {/* Mobile */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <Smartphone size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
                 {contact.mobilePhone ? (
@@ -216,7 +217,7 @@ export default async function ContactDetailPage({
                     {contact.mobilePhone}
                   </a>
                 ) : (
-                  <span style={{ color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>Portable non renseigné</span>
+                  <span style={{ color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>Mobile non renseigné</span>
                 )}
               </div>
 
@@ -271,6 +272,66 @@ export default async function ContactDetailPage({
                   </span>
                 </div>
               )}
+
+              {/* Date de naissance */}
+              {contact.birthDate && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Calendar size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--foreground)', fontSize: '0.88rem' }}>
+                    Né(e) le : <strong>{new Date(contact.birthDate).toLocaleDateString('fr-FR')}</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Tranche d'âge */}
+              {contact.ageRange && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <User size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--foreground)', fontSize: '0.88rem' }}>
+                    Tranche d'âge : <strong>{contact.ageRange}</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Nationalité */}
+              {contact.nationality && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Globe size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--foreground)', fontSize: '0.88rem' }}>
+                    Nationalité : <strong>{contact.nationality}</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Territoire */}
+              {contact.territory && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Building size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--foreground)', fontSize: '0.88rem' }}>
+                    Territoire : <strong>{contact.territory}</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Département */}
+              {contact.department && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Building size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--foreground)', fontSize: '0.88rem' }}>
+                    Département : <strong>{contact.department}</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Dernier contact mobile */}
+              {contact.lastContactMobile && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Smartphone size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--foreground)', fontSize: '0.88rem' }}>
+                    Dernier contact mobile : <strong>{new Date(contact.lastContactMobile).toLocaleString('fr-FR')}</strong>
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Tags */}
@@ -301,13 +362,22 @@ export default async function ContactDetailPage({
               </div>
             )}
 
-            {/* Créé par */}
-            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8', fontSize: '0.78rem' }}>
-              <Clock size={13} />
-              <span>
-                Créé le {contact.createdAt.toLocaleDateString('fr-FR')}
-                {contact.createdBy && ` par ${contact.createdBy.firstName} ${contact.createdBy.lastName}`}
-              </span>
+            {/* Créé par & Modifié par */}
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.35rem', color: '#94a3b8', fontSize: '0.78rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Clock size={13} />
+                <span>
+                  Créé le {contact.createdAt.toLocaleDateString('fr-FR')}
+                  {contact.createdBy && ` par ${contact.createdBy.firstName} ${contact.createdBy.lastName}`}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Clock size={13} />
+                <span>
+                  Mis à jour le {contact.updatedAt.toLocaleDateString('fr-FR')}
+                  {contact.updatedBy && ` par ${contact.updatedBy.firstName} ${contact.updatedBy.lastName}`}
+                </span>
+              </div>
             </div>
           </div>
 

@@ -55,6 +55,13 @@ export const contactSchema = z.object({
   linkedinUrl: emptyAsUndefined,
   notes: emptyAsUndefined,
   profession: emptyAsUndefined,
+  ageRange: emptyAsUndefined,
+  lastContactMobile: z.preprocess(
+    (val) => (val === null || val === undefined || (typeof val === 'string' && val.trim() === '')) ? undefined : new Date(val as any),
+    z.date().optional()
+  ),
+  territory: emptyAsUndefined,
+  department: emptyAsUndefined,
   newsletter: z.preprocess((val) => val === 'true' || val === true, z.boolean().optional().default(false)),
   smsConsent: z.preprocess((val) => val === 'true' || val === true, z.boolean().optional().default(false)),
   consentDate: z.preprocess(

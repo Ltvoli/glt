@@ -29,47 +29,53 @@ function getContrastText(hexColor: string): string {
 type Column = { id: string; label: string; defaultVisible: boolean }
 
 const ALL_COLUMNS: Column[] = [
+  { id: 'gender',            label: 'Genre',                 defaultVisible: true  },
   { id: 'firstName',         label: 'Prénom',                defaultVisible: true  },
   { id: 'lastName',          label: 'Nom',                   defaultVisible: true  },
   { id: 'usageName',         label: 'Nom d\'usage',          defaultVisible: true  },
-  { id: 'address',           label: 'Adresse',               defaultVisible: true  },
-  { id: 'territorySector',   label: 'Territoire',            defaultVisible: true  },
+  { id: 'streetNumber',      label: 'Numéro',                defaultVisible: false },
+  { id: 'streetName',        label: 'Rue / Voie',            defaultVisible: false },
+  { id: 'building',          label: 'Bâtiment',              defaultVisible: false },
+  { id: 'addressComplement', label: 'Complément d\'adresse', defaultVisible: false },
+  { id: 'postalCode',        label: 'Code postal',           defaultVisible: false },
+  { id: 'city',              label: 'Ville',                 defaultVisible: true  },
   { id: 'email',             label: 'Email',                 defaultVisible: false },
-  { id: 'mobilePhone',       label: 'Portable',              defaultVisible: false },
-  { id: 'phone',             label: 'Tél. fixe',             defaultVisible: false },
-  { id: 'gender',            label: 'Genre',                 defaultVisible: false },
-  { id: 'supportLevel',      label: 'Niveau soutien',        defaultVisible: false },
-  { id: 'meetingStep',       label: 'Étape rencontre',       defaultVisible: false },
-  { id: 'tags',              label: 'Tags',                  defaultVisible: false },
-  { id: 'type',              label: 'Type',                  defaultVisible: false },
-  { id: 'profession',        label: 'Profession',            defaultVisible: false },
+  { id: 'phone',             label: 'Téléphone fixe',        defaultVisible: false },
+  { id: 'mobilePhone',       label: 'Mobile',                defaultVisible: true  },
+  { id: 'birthDate',         label: 'Date de naissance',     defaultVisible: false },
+  { id: 'ageRange',          label: 'Tranches d\'âge',       defaultVisible: false },
+  { id: 'supportLevel',      label: 'Niveau de soutien',     defaultVisible: false },
+  { id: 'tags',              label: 'Tags',                  defaultVisible: true  },
+  { id: 'tag1',              label: 'Tag 1',                 defaultVisible: false },
+  { id: 'tag2',              label: 'Tag 2',                 defaultVisible: false },
+  { id: 'nationality',       label: 'Nationalité',           defaultVisible: false },
+  { id: 'createdBy',         label: 'Créé par',              defaultVisible: false },
   { id: 'createdAt',         label: 'Créé le',               defaultVisible: false },
+  { id: 'updatedAt',         label: 'Mis à jour le',         defaultVisible: false },
+  { id: 'updatedBy',         label: 'Modifié par',           defaultVisible: false },
+  { id: 'lastContactMobile', label: 'Dernier contact via mobile', defaultVisible: false },
+  { id: 'territory',         label: 'Territoire',            defaultVisible: false },
+  { id: 'department',        label: 'Département',           defaultVisible: false },
 ]
 
 function renderCell(contact: any, columnId: string): React.ReactNode {
   switch (columnId) {
+    case 'gender':            return contact.gender || '-'
     case 'firstName':         return contact.firstName || '-'
     case 'lastName':          return contact.lastName || '-'
     case 'usageName':         return contact.usageName || '-'
-    case 'address':
-      const addressParts = [
-        contact.apartment,
-        contact.building,
-        contact.streetNumber ? `${contact.streetNumber} ${contact.streetName || ''}` : contact.streetName,
-        contact.addressComplement,
-        contact.postalCode ? `${contact.postalCode} ${contact.city || ''}` : contact.city
-      ].filter(Boolean)
-      return addressParts.join(', ') || '-'
-    case 'territorySector':   return contact.territorySector || '-'
+    case 'streetNumber':      return contact.streetNumber || '-'
+    case 'streetName':        return contact.streetName || '-'
+    case 'building':          return contact.building || '-'
+    case 'addressComplement': return contact.addressComplement || '-'
+    case 'postalCode':        return contact.postalCode || '-'
+    case 'city':              return contact.city || '-'
     case 'email':             return contact.email || '-'
-    case 'mobilePhone':       return contact.mobilePhone || '-'
     case 'phone':             return contact.phone || '-'
-    case 'gender':            return contact.gender || '-'
+    case 'mobilePhone':       return contact.mobilePhone || '-'
+    case 'birthDate':         return contact.birthDate ? new Date(contact.birthDate).toLocaleDateString('fr-FR') : '-'
+    case 'ageRange':          return contact.ageRange || '-'
     case 'supportLevel':      return contact.supportLevel || '-'
-    case 'meetingStep':       return contact.meetingStep || '-'
-    case 'type':              return contact.type || '-'
-    case 'profession':        return contact.profession || '-'
-    case 'createdAt':         return new Date(contact.createdAt).toLocaleDateString('fr-FR')
     case 'tags':
       if (!contact.tags?.length) return '-'
       return (
@@ -97,7 +103,68 @@ function renderCell(contact: any, columnId: string): React.ReactNode {
           })}
         </span>
       )
-    default: return '-'
+    case 'tag1':
+      if (!contact.tags?.[0]?.tag?.name) return '-'
+      const bg1      = contact.tags[0].tag.color || '#6366f1'
+      const textCol1 = getContrastText(bg1)
+      return (
+        <span
+          style={{
+            display: 'inline-block',
+            padding: '2px 8px',
+            borderRadius: '999px',
+            fontSize: '0.72rem',
+            fontWeight: 600,
+            backgroundColor: bg1,
+            color: textCol1,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {contact.tags[0].tag.name}
+        </span>
+      )
+    case 'tag2':
+      if (!contact.tags?.[1]?.tag?.name) return '-'
+      const bg2      = contact.tags[1].tag.color || '#6366f1'
+      const textCol2 = getContrastText(bg2)
+      return (
+        <span
+          style={{
+            display: 'inline-block',
+            padding: '2px 8px',
+            borderRadius: '999px',
+            fontSize: '0.72rem',
+            fontWeight: 600,
+            backgroundColor: bg2,
+            color: textCol2,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {contact.tags[1].tag.name}
+        </span>
+      )
+    case 'nationality':       return contact.nationality || '-'
+    case 'createdBy':
+      if (!contact.createdBy) return '-'
+      return `${contact.createdBy.firstName} ${contact.createdBy.lastName}`
+    case 'createdAt':         return new Date(contact.createdAt).toLocaleDateString('fr-FR')
+    case 'updatedAt':         return new Date(contact.updatedAt).toLocaleDateString('fr-FR')
+    case 'updatedBy':
+      if (!contact.updatedBy) return '-'
+      return `${contact.updatedBy.firstName} ${contact.updatedBy.lastName}`
+    case 'lastContactMobile':
+      return contact.lastContactMobile
+        ? new Date(contact.lastContactMobile).toLocaleString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        : '-'
+    case 'territory':         return contact.territory || '-'
+    case 'department':        return contact.department || '-'
+    default:                  return '-'
   }
 }
 
@@ -379,7 +446,7 @@ function ColumnConfigurator({
           position: 'absolute', top: '100%', right: 0, marginTop: '4px',
           background: 'white', border: '1px solid #e2e8f0',
           borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-          zIndex: 100, width: '280px', padding: '12px',
+          zIndex: 100, width: '420px', maxHeight: '450px', overflowY: 'auto', padding: '12px',
           display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px',
         }}>
           {ALL_COLUMNS.map(col => (
@@ -485,14 +552,14 @@ export default function ContactsTable({ contacts, totalContacts, filterParams }:
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('contactColumns_v2')
+      const saved = localStorage.getItem('contactColumns_v3')
       if (saved) { try { return JSON.parse(saved) } catch {} }
     }
     return ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.id)
   })
 
   useEffect(() => {
-    localStorage.setItem('contactColumns_v2', JSON.stringify(visibleColumns))
+    localStorage.setItem('contactColumns_v3', JSON.stringify(visibleColumns))
   }, [visibleColumns])
 
   const toggleColumn = (id: string) => {

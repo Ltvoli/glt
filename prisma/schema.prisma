@@ -148,6 +148,11 @@ model Contact {
   supportLevel    String? // e.g. "1", "2", "3", "4", "5"
   meetingStep     String? // Absent, Accepté, Refusé, Repassés, Pas encore contactés
 
+  ageRange          String?
+  lastContactMobile DateTime?
+  territory         String?
+  department        String?
+
   type            String // ELECTEUR, ELU, ASSO, PARTENAIRE, PRESSE, AUTRE
   source          String? // PERMANENCE, COURRIER, EVENEMENT, TERRAIN, AUTRE
   newsletter      Boolean   @default(false) // Consentement Email

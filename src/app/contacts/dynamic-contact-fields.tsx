@@ -115,6 +115,48 @@ export function renderContactField(fieldKey: string, label: string, contact: any
           <input type="text" id="door" name="door" className="form-control" defaultValue={contact.door || ''} />
         </div>
       )}
+
+      {fieldKey === 'ageRange' && (
+        <div className="form-group">
+          <label htmlFor="ageRange">{label}</label>
+          <select id="ageRange" name="ageRange" className="form-control" defaultValue={contact.ageRange || ''}>
+            <option value="">Non renseignée</option>
+            <option value="Moins de 18 ans">Moins de 18 ans</option>
+            <option value="18-25 ans">18-25 ans</option>
+            <option value="26-35 ans">26-35 ans</option>
+            <option value="36-50 ans">36-50 ans</option>
+            <option value="51-65 ans">51-65 ans</option>
+            <option value="Plus de 65 ans">Plus de 65 ans</option>
+          </select>
+        </div>
+      )}
+
+      {fieldKey === 'lastContactMobile' && (
+        <div className="form-group">
+          <label htmlFor="lastContactMobile">{label}</label>
+          <input 
+            type="datetime-local" 
+            id="lastContactMobile" 
+            name="lastContactMobile" 
+            className="form-control" 
+            defaultValue={contact.lastContactMobile ? new Date(contact.lastContactMobile).toISOString().slice(0, 16) : ''} 
+          />
+        </div>
+      )}
+
+      {fieldKey === 'territory' && (
+        <div className="form-group">
+          <label htmlFor="territory">{label}</label>
+          <input type="text" id="territory" name="territory" className="form-control" defaultValue={contact.territory || ''} />
+        </div>
+      )}
+
+      {fieldKey === 'department' && (
+        <div className="form-group">
+          <label htmlFor="department">{label}</label>
+          <input type="text" id="department" name="department" className="form-control" defaultValue={contact.department || ''} />
+        </div>
+      )}
     </React.Fragment>
   )
 }

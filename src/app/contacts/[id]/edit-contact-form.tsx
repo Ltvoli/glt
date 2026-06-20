@@ -54,15 +54,15 @@ export default function EditContactForm({ contact, allTags = [], dictionary = []
             <input type="email" id="email" name="email" className="form-control" defaultValue={contact.email || ''} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div className="form-group">
-              <label htmlFor="mobilePhone">Portable</label>
-              <input type="tel" id="mobilePhone" name="mobilePhone" className="form-control" defaultValue={contact.mobilePhone || ''} />
-            </div>
-            <div className="form-group">
-              <label htmlFor="phone">Téléphone fixe</label>
-              <input type="tel" id="phone" name="phone" className="form-control" defaultValue={contact.phone || ''} />
-            </div>
+          <div className="form-group">
+            <label htmlFor="phone">Téléphone fixe</label>
+            <input type="tel" id="phone" name="phone" className="form-control" defaultValue={contact.phone || ''} />
           </div>
+          <div className="form-group">
+            <label htmlFor="mobilePhone">Mobile</label>
+            <input type="tel" id="mobilePhone" name="mobilePhone" className="form-control" defaultValue={contact.mobilePhone || ''} />
+          </div>
+        </div>
           <div className="form-group">
             <label htmlFor="linkedinUrl">LinkedIn (URL)</label>
             <input type="url" id="linkedinUrl" name="linkedinUrl" className="form-control" defaultValue={contact.linkedinUrl || ''} placeholder="https://linkedin.com/in/..." />

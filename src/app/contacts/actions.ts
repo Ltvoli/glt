@@ -52,6 +52,10 @@ export async function createContact(prevState: any, formData: FormData): Promise
   const door = formData.get('door') as string
   const consentDateStr = formData.get('consentDate') as string
   const consentSource = formData.get('consentSource') as string
+  const ageRange = formData.get('ageRange') as string
+  const lastContactMobileStr = formData.get('lastContactMobile') as string
+  const territory = formData.get('territory') as string
+  const department = formData.get('department') as string
 
   const validatedFields = contactSchema.safeParse({
     firstName, lastName, usageName, email, phone, mobilePhone, type, city, gender,
@@ -60,7 +64,8 @@ export async function createContact(prevState: any, formData: FormData): Promise
     apartment, building, buildingType, floor, door,
     streetNumber, streetName, addressComplement, postalCode,
     supportLevel, meetingStep, territorySector, source, whatsappStatus, linkedinUrl, notes,
-    profession, newsletter, smsConsent, consentDate: consentDateStr, consentSource
+    profession, newsletter, smsConsent, consentDate: consentDateStr, consentSource,
+    ageRange, lastContactMobile: lastContactMobileStr, territory, department
   })
 
   if (!validatedFields.success) {
@@ -119,6 +124,10 @@ export async function createContact(prevState: any, formData: FormData): Promise
         linkedinUrl: validData.linkedinUrl || null,
         notes: validData.notes || null,
         profession: validData.profession || null,
+        ageRange: validData.ageRange || null,
+        lastContactMobile: validData.lastContactMobile || null,
+        territory: validData.territory || null,
+        department: validData.department || null,
         createdById: session.userId,
       }
     })
