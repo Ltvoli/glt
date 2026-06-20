@@ -8,6 +8,41 @@ import TaskAttachments from './task-attachments'
 
 import PrintButton from '@/components/PrintButton'
 
+// Helper to translate and format audit logs
+function getAuditText(log: any) {
+  const userName = log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Système'
+  const dateStr = new Date(log.createdAt).toLocaleString('fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+
+  let title = ''
+  let detailsText = ''
+
+  if (log.action === 'CREATE') {
+    title = 'Tâche créée'
+    const statusVal = log.details?.status || 'A_FAIRE'
+    const priorityVal = log.details?.priority || 'NORMALE'
+    detailsText = `Création initiale de la tâche (Statut: "${statusVal}", Priorité: "${priorityVal}").`
+  } else if (log.action === 'UPDATE_STATUS') {
+    title = 'Changement de statut'
+    const oldStatus = log.details?.oldStatus || 'inconnu'
+    const newStatus = log.details?.newStatus || 'inconnu'
+    detailsText = `Statut modifié : "${oldStatus}" ➔ "${newStatus}".`
+  } else if (log.action === 'UPDATE') {
+    title = 'Détails mis à jour'
+    detailsText = 'Les informations ou paramètres de la tâche ont été mis à jour.'
+  } else {
+    title = log.action
+    detailsText = log.details ? JSON.stringify(log.details) : ''
+  }
+
+  return { title, dateStr, userName, detailsText }
+}
+
 export default async function TaskDetailPage({
   params,
 }: {
@@ -15,16 +50,23 @@ export default async function TaskDetailPage({
 }) {
   const { id } = await params
   
-  const task = await prisma.task.findUnique({
-    where: { id },
-    include: { 
-      assignee: true,
-      subtasks: true,
-      documents: true,
-      comments: { orderBy: { createdAt: 'desc' } },
-      tags: { include: { tag: true } }
-    }
-  })
+  const [task, auditLogs] = await Promise.all([
+    prisma.task.findUnique({
+      where: { id },
+      include: { 
+        assignee: true,
+        subtasks: true,
+        documents: true,
+        comments: { orderBy: { createdAt: 'desc' } },
+        tags: { include: { tag: true } }
+      }
+    }),
+    prisma.auditLog.findMany({
+      where: { entity: 'Task', entityId: id },
+      orderBy: { createdAt: 'desc' },
+      include: { user: { select: { firstName: true, lastName: true } } }
+    })
+  ])
 
   if (!task) {
     notFound()
@@ -67,6 +109,44 @@ export default async function TaskDetailPage({
           <div className="card">
             <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Sous-tâches</h2>
             <SubtasksList taskId={task.id} initialSubtasks={JSON.parse(JSON.stringify(task.subtasks))} />
+          </div>
+
+          <div className="card">
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Historique & Traçabilité</h2>
+            {auditLogs.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Aucun historique disponible pour cette tâche.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', borderLeft: '2px solid #e2e8f0', paddingLeft: '1.25rem', marginLeft: '0.5rem', marginTop: '0.5rem' }}>
+                {auditLogs.map((log: any) => {
+                  const { title, dateStr, userName, detailsText } = getAuditText(log)
+                  return (
+                    <div key={log.id} style={{ position: 'relative' }}>
+                      {/* Timeline dot */}
+                      <div style={{
+                        position: 'absolute',
+                        left: '-1.625rem',
+                        top: '0.25rem',
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        backgroundColor: log.action === 'CREATE' ? '#10b981' : log.action === 'UPDATE_STATUS' ? 'var(--primary)' : '#94a3b8',
+                        border: '2px solid white'
+                      }}></div>
+                      
+                      <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--foreground)' }}>{title}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                        Par {userName} le {dateStr}
+                      </div>
+                      {detailsText && (
+                        <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                          {detailsText}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
 
