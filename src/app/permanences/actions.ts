@@ -421,7 +421,7 @@ export async function addTask(permanenceId: string, section: string, label: stri
     const auth = await checkPermission('permanences.update')
     if (!auth.success || !auth.userId) return { success: false, error: auth.error }
 
-    await prisma.permanenceTask.create({
+    const task = await prisma.permanenceTask.create({
       data: {
         permanenceId,
         section,
@@ -430,6 +430,15 @@ export async function addTask(permanenceId: string, section: string, label: stri
         assigneeUserId: assigneeUserId || null,
         dueDate: dueDateStr ? new Date(dueDateStr) : null,
         status: 'TODO'
+      }
+    })
+
+    await prisma.permanenceTaskHistory.create({
+      data: {
+        taskId: task.id,
+        userId: auth.userId,
+        action: 'CREATED',
+        newValue: label
       }
     })
 
@@ -461,6 +470,27 @@ export async function updateTask(permanenceId: string, taskId: string, data: { s
         label: data.label !== undefined ? data.label : undefined
       }
     })
+
+    if (data.status !== undefined && data.status !== task.status) {
+      await prisma.permanenceTaskHistory.create({
+        data: { taskId, userId: auth.userId, action: 'STATUS_CHANGE', oldValue: task.status, newValue: data.status }
+      })
+    }
+    if (data.assigneeUserId !== undefined && data.assigneeUserId !== task.assigneeUserId) {
+      await prisma.permanenceTaskHistory.create({
+        data: { taskId, userId: auth.userId, action: 'ASSIGNEE_CHANGE', oldValue: task.assigneeUserId || null, newValue: data.assigneeUserId || null }
+      })
+    }
+    if (data.comment !== undefined && data.comment !== task.comment) {
+      await prisma.permanenceTaskHistory.create({
+        data: { taskId, userId: auth.userId, action: 'COMMENT_CHANGE', oldValue: task.comment || null, newValue: data.comment || null }
+      })
+    }
+    if (data.label !== undefined && data.label !== task.label) {
+      await prisma.permanenceTaskHistory.create({
+        data: { taskId, userId: auth.userId, action: 'LABEL_CHANGE', oldValue: task.label, newValue: data.label }
+      })
+    }
 
     await computePermanenceScore(permanenceId)
     await autoTransitionToInProgress(permanenceId, auth.userId)

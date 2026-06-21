@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateTask, deleteTask, addTask } from '../actions'
-import { Trash2, Plus, Calendar, CheckSquare, Square } from 'lucide-react'
+import { Trash2, Plus, Calendar, CheckSquare, Square, ChevronDown, ChevronRight, Clock, User as UserIcon } from 'lucide-react'
 
 type TaskData = {
   id: string
@@ -13,6 +13,14 @@ type TaskData = {
   assigneeUserId: string | null
   dueDate: Date | null
   comment: string | null
+  histories?: {
+    id: string
+    action: string
+    oldValue: string | null
+    newValue: string | null
+    createdAt: Date
+    user: { firstName: string, lastName: string, avatarUrl: string | null }
+  }[]
 }
 
 type UserData = {
@@ -43,6 +51,7 @@ export default function TaskEditor({
   const [newDueDate, setNewDueDate] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
 
   const handleStatusChange = async (taskId: string, currentStatus: string) => {
     if (isReadOnly) return
@@ -137,18 +146,25 @@ export default function TaskEditor({
               <th>Statut détaillé</th>
               <th>Commentaire / Note</th>
               {!isReadOnly && <th style={{ width: '60px' }}></th>}
+              <th style={{ width: '40px' }}></th>
             </tr>
           </thead>
           <tbody>
             {tasks.length === 0 ? (
               <tr>
-                <td colSpan={isReadOnly ? 6 : 7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                <td colSpan={isReadOnly ? 7 : 8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                   Aucune tâche de préparation dans cette section.
                 </td>
               </tr>
             ) : (
               tasks.map(t => (
-                <tr key={t.id}>
+                <React.Fragment key={t.id}>
+                <tr style={{ backgroundColor: expandedTaskId === t.id ? '#f8fafc' : 'white', cursor: 'pointer' }} onClick={(e) => {
+                    if ((e.target as HTMLElement).tagName === 'SELECT' || (e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).closest('button')) {
+                      return
+                    }
+                    setExpandedTaskId(expandedTaskId === t.id ? null : t.id)
+                  }}>
                   <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                     <button
                       type="button"
@@ -232,7 +248,58 @@ export default function TaskEditor({
                       </button>
                     </td>
                   )}
+                  <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                    {expandedTaskId === t.id ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                  </td>
                 </tr>
+                {expandedTaskId === t.id && (
+                  <tr>
+                    <td colSpan={isReadOnly ? 7 : 8} style={{ padding: 0 }}>
+                      <div style={{ padding: '1rem 3rem', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+                        <h5 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <Clock size={14} /> Historique de la tâche
+                        </h5>
+                        
+                        {(!t.histories || t.histories.length === 0) ? (
+                          <div style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic' }}>Aucun historique disponible.</div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative' }}>
+                            <div style={{ position: 'absolute', top: 0, bottom: 0, left: '15px', width: '2px', backgroundColor: '#e2e8f0' }}></div>
+                            {t.histories.map((h, i) => (
+                              <div key={h.id} style={{ display: 'flex', gap: '1rem', position: 'relative', zIndex: 1 }}>
+                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'white', border: '2px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#64748b' }}>
+                                  {h.user.avatarUrl ? (
+                                    <img src={h.user.avatarUrl} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                  ) : (
+                                    <UserIcon size={14} />
+                                  )}
+                                </div>
+                                <div style={{ backgroundColor: 'white', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', flex: 1 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.25rem' }}>
+                                    <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155' }}>
+                                      {h.user.firstName} {h.user.lastName}
+                                    </span>
+                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                                      {new Date(h.createdAt).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: '0.875rem', color: '#475569' }}>
+                                    {h.action === 'CREATED' && <span>A créé la tâche</span>}
+                                    {h.action === 'STATUS_CHANGE' && <span>A passé le statut de <strong>{h.oldValue}</strong> à <strong>{h.newValue}</strong></span>}
+                                    {h.action === 'ASSIGNEE_CHANGE' && <span>A changé l'assignation de <strong>{h.oldValue ? users.find(u => u.id === h.oldValue)?.name || h.oldValue : 'Personne'}</strong> à <strong>{h.newValue ? users.find(u => u.id === h.newValue)?.name || h.newValue : 'Personne'}</strong></span>}
+                                    {h.action === 'COMMENT_CHANGE' && <span>A modifié le commentaire : <br/><em style={{ color: '#64748b' }}>"{h.newValue}"</em></span>}
+                                    {h.action === 'LABEL_CHANGE' && <span>A renommé la tâche de <strong>{h.oldValue}</strong> à <strong>{h.newValue}</strong></span>}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))
             )}
           </tbody>

@@ -83,6 +83,7 @@ model User {
   ownedPermanences     MobilePermanence[]    @relation("PermanenceOwner")
   validatedPermanences MobilePermanence[]    @relation("PermanenceValidator")
   permanenceTasks      PermanenceTask[]
+  permanenceTaskHistories PermanenceTaskHistory[]
   permanenceSyntheses  PermanenceSynthesis[]
   bulkCommunications   BulkCommunication[]   @relation("BulkCommsCreator")
 }
@@ -820,6 +821,19 @@ model PermanenceTask {
   order          Int              @default(0)
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
+  histories      PermanenceTaskHistory[]
+}
+
+model PermanenceTaskHistory {
+  id           String         @id @default(cuid())
+  taskId       String
+  task         PermanenceTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User           @relation(fields: [userId], references: [id])
+  action       String         // e.g. "STATUS_CHANGE", "ASSIGNEE_CHANGE", "COMMENT_ADD", "CREATED"
+  oldValue     String?
+  newValue     String?
+  createdAt    DateTime       @default(now())
 }
 
 model PermanenceContact {

@@ -21,15 +21,10 @@ export default function PermanenceHeader({ permanence }: HeaderProps) {
 
   const tabs = [
     { name: 'Tableau de bord', path: `/permanences/${permanence.id}` },
-    { name: 'Mes taches', path: `/permanences/${permanence.id}/mes-taches` },
+    { name: 'Mes tâches', path: `/permanences/${permanence.id}/mes-taches` },
+    { name: 'Préparation', path: `/permanences/${permanence.id}/preparation` },
     { name: 'Identification', path: `/permanences/${permanence.id}/locations` },
-    { name: 'Communication', path: `/permanences/${permanence.id}/communication` },
-    { name: 'Phoning', path: `/permanences/${permanence.id}/phoning` },
-    { name: 'Courrier', path: `/permanences/${permanence.id}/courrier` },
-    { name: 'Commerçants', path: `/permanences/${permanence.id}/commercants` },
-    { name: 'Institutionnel', path: `/permanences/${permanence.id}/institutionnel` },
-    { name: 'Logistique', path: `/permanences/${permanence.id}/logistique` },
-    { name: 'Synthese', path: `/permanences/${permanence.id}/synthese` },
+    { name: 'Synthèse', path: `/permanences/${permanence.id}/synthese` },
     { name: 'Paramètres', path: `/permanences/${permanence.id}/edit` },
   ]
 
