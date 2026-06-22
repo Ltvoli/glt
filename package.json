@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "DATABASE_URL=\"postgresql://postgres:7cdVZ!2Kpq4P2Qn@db.tpgqmkavpwpbrtpwhamn.supabase.co:5432/postgres\" npx prisma db push --accept-data-loss && prisma generate && next build",
-    "build:vercel": "DATABASE_URL=\"postgresql://postgres:7cdVZ!2Kpq4P2Qn@db.tpgqmkavpwpbrtpwhamn.supabase.co:5432/postgres\" npx prisma db push --accept-data-loss && prisma generate && next build",
+    "build": "DATABASE_URL=\"postgresql://postgres.prelovhrjunwfwxldjlg:7cdVZ!2Kpq4P2Qn@aws-0-eu-west-1.pooler.supabase.com:5432/postgres\" npx prisma db push --accept-data-loss && prisma generate && next build",
+    "build:vercel": "DATABASE_URL=\"postgresql://postgres.prelovhrjunwfwxldjlg:7cdVZ!2Kpq4P2Qn@aws-0-eu-west-1.pooler.supabase.com:5432/postgres\" npx prisma db push --accept-data-loss && prisma generate && next build",
     "start": "next start",
     "lint": "eslint"
   },
