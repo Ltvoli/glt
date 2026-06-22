@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateTask, deleteTask, addTask } from '../actions'
 import { Trash2, Plus, Calendar, CheckSquare, Square, ChevronDown, ChevronRight, Clock, User as UserIcon } from 'lucide-react'
+import { toast } from 'sonner'
 
 type TaskData = {
   id: string
@@ -65,7 +66,9 @@ export default function TaskEditor({
       // rollback
       setTasks(tasks.map(t => t.id === taskId ? { ...t, status: currentStatus } : t))
       setError(res.error || 'Erreur lors de la modification.')
+      toast.error(res.error || 'Erreur lors de la modification.')
     } else {
+      toast.success(nextStatus === 'DONE' ? 'Tâche marquée comme terminée' : 'Tâche marquée comme à faire')
       router.refresh()
     }
   }
@@ -83,7 +86,17 @@ export default function TaskEditor({
     const res = await updateTask(permanenceId, taskId, updateData)
     if (!res.success) {
       setError(res.error || 'Erreur lors de la sauvegarde.')
+      toast.error(res.error || 'Erreur lors de la sauvegarde.')
     } else {
+      if (field === 'assigneeUserId') {
+        const user = users.find(u => u.id === value)
+        const name = user ? user.name : 'non assigné'
+        toast.success(`Responsable mis à jour : ${name}`)
+      } else if (field === 'status') {
+        toast.success('Statut mis à jour avec succès')
+      } else if (field === 'comment') {
+        toast.success('Commentaire mis à jour avec succès')
+      }
       router.refresh()
     }
   }
@@ -95,8 +108,10 @@ export default function TaskEditor({
     const res = await deleteTask(permanenceId, taskId)
     if (!res.success) {
       setError(res.error || 'Erreur lors de la suppression.')
+      toast.error(res.error || 'Erreur lors de la suppression.')
     } else {
       setTasks(tasks.filter(t => t.id !== taskId))
+      toast.success('Tâche supprimée avec succès')
       router.refresh()
     }
   }
@@ -111,11 +126,13 @@ export default function TaskEditor({
     const res = await addTask(permanenceId, sectionKey, newLabel, newRequired, newAssignee, newDueDate)
     if (!res.success) {
       setError(res.error || 'Erreur de création de tâche.')
+      toast.error(res.error || 'Erreur lors de la création de la tâche.')
     } else {
       setNewLabel('')
       setNewRequired(false)
       setNewAssignee('')
       setNewDueDate('')
+      toast.success('Tâche ajoutée avec succès')
       // Refetch via router
       router.refresh()
       // We also update state if we get response with data, but here page revalidation handles it
