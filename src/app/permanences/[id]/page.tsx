@@ -139,6 +139,7 @@ export default async function PermanenceDashboardPage({
             score={permanence.score}
             hasBlockages={uncompletedRequired.length > 0}
             hasValidatePermission={hasValidatePermission}
+            hasDeletePermission={session.permissions.includes('permanences.delete') || session.role === 'SUPERADMIN'}
             isAdminOrSuper={isAdminOrSuper}
             isReadOnly={isReadOnly}
           />

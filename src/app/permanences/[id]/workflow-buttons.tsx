@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { transitionPermanenceStatus } from '../actions'
+import { transitionPermanenceStatus, deletePermanence } from '../actions'
 
 type WorkflowButtonsProps = {
   permanenceId: string
@@ -10,6 +10,7 @@ type WorkflowButtonsProps = {
   score: number
   hasBlockages: boolean
   hasValidatePermission: boolean
+  hasDeletePermission: boolean
   isAdminOrSuper: boolean
   isReadOnly: boolean
 }
@@ -20,6 +21,7 @@ export default function WorkflowButtons({
   score,
   hasBlockages,
   hasValidatePermission,
+  hasDeletePermission,
   isAdminOrSuper,
   isReadOnly
 }: WorkflowButtonsProps) {
@@ -41,6 +43,20 @@ export default function WorkflowButtons({
       router.refresh()
     }
     setLoading(false)
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('Voulez-vous vraiment supprimer (archiver) cette permanence ?')) return
+    setLoading(true)
+    setError(null)
+    const res = await deletePermanence(permanenceId)
+    if (!res.success) {
+      setError(res.error || 'Erreur lors de la suppression.')
+      setLoading(false)
+    } else {
+      router.push('/permanences')
+      router.refresh()
+    }
   }
 
   if (isReadOnly) {
@@ -169,6 +185,18 @@ export default function WorkflowButtons({
             </button>
           )}
         </div>
+      )}
+
+      {/* Delete/Archive Button for all non-archived statuses */}
+      {currentStatus !== 'ARCHIVED' && hasDeletePermission && (
+        <button
+          onClick={handleDelete}
+          disabled={loading}
+          className="button outline danger"
+          style={{ width: '100%', marginTop: '0.5rem' }}
+        >
+          {loading ? 'Traitement...' : 'Supprimer la permanence'}
+        </button>
       )}
     </div>
   )
