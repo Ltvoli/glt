@@ -33,9 +33,40 @@ export default function EditContactForm({ contact, allTags = [], dictionary = []
     .filter((f: any) => f.section === 'Adresse' && f.isVisible)
     .sort((a: any, b: any) => a.order - b.order)
 
+  const getAgeRange = (birthDateString: string): string => {
+    if (!birthDateString) return '';
+    const birthDate = new Date(birthDateString);
+    if (isNaN(birthDate.getTime())) return '';
+    
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    if (age < 18) return 'Moins de 18 ans';
+    if (age <= 25) return '18-25 ans';
+    if (age <= 35) return '26-35 ans';
+    if (age <= 50) return '36-50 ans';
+    if (age <= 65) return '51-65 ans';
+    return 'Plus de 65 ans';
+  };
+
+  const handleFormChange = (e: React.FormEvent<HTMLFormElement>) => {
+    const target = e.target as HTMLInputElement | HTMLSelectElement;
+    if (target.name === 'birthDate') {
+      const birthDateVal = target.value;
+      const ageRangeSelect = target.form?.elements.namedItem('ageRange') as HTMLSelectElement | null;
+      if (ageRangeSelect) {
+        ageRangeSelect.value = getAgeRange(birthDateVal);
+      }
+    }
+  };
+
   return (
     <div>
-      <form action={formAction}>
+      <form action={formAction} onChange={handleFormChange}>
         <input type="hidden" name="id" value={contact.id} />
         
         <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>État civil</h3>

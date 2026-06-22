@@ -148,7 +148,8 @@ export async function updateContact(prevState: any, formData: FormData): Promise
 
     return { success: true }
   } catch (error: any) {
-    return { error: 'Erreur lors de la mise à jour.' }
+    console.error('Error updating contact:', error)
+    return { error: `Erreur lors de la mise à jour : ${error.message || error}` }
   }
 }
 

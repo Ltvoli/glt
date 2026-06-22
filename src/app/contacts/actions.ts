@@ -170,9 +170,9 @@ export async function createContact(prevState: any, formData: FormData): Promise
 
     await logAudit('CREATE', 'Contact', newContact.id, session.userId, newContact)
 
-    return { success: true, id: newContact.id }
-  } catch (error) {
-    return { error: 'Erreur lors de la création du contact.' }
+  } catch (error: any) {
+    console.error('Error creating contact:', error)
+    return { error: `Erreur lors de la création du contact : ${error.message || error}` }
   }
 }
 
