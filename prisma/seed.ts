@@ -27,6 +27,43 @@ async function main() {
   }
   console.log('Settings seeded.')
 
+  // 1.5. App Dictionary
+  const dictionary = [
+    { type: 'CONTACT_TYPE', code: 'ELECTEUR', label: 'Électeur', order: 0, isDefault: true },
+    { type: 'CONTACT_TYPE', code: 'ELU', label: 'Élu', order: 1, isDefault: false },
+    { type: 'CONTACT_TYPE', code: 'ASSO', label: 'Association', order: 2, isDefault: false },
+    { type: 'CONTACT_TYPE', code: 'PARTENAIRE', label: 'Partenaire', order: 3, isDefault: false },
+    { type: 'CONTACT_TYPE', code: 'PRESSE', label: 'Presse', order: 4, isDefault: false },
+    { type: 'CONTACT_TYPE', code: 'AUTRE', label: 'Autre', order: 5, isDefault: false },
+    { type: 'TASK_PRIORITY', code: 'HAUTE', label: 'Haute', color: '#ef4444', order: 0, isDefault: false },
+    { type: 'TASK_PRIORITY', code: 'NORMALE', label: 'Normale', color: '#3b82f6', order: 1, isDefault: true },
+    { type: 'TASK_PRIORITY', code: 'BASSE', label: 'Basse', color: '#10b981', order: 2, isDefault: false },
+    { type: 'TASK_STATUS', code: 'A_FAIRE', label: 'À faire', color: '#64748b', order: 0, isDefault: true },
+    { type: 'TASK_STATUS', code: 'EN_COURS', label: 'En cours', color: '#3b82f6', order: 1, isDefault: false },
+    { type: 'TASK_STATUS', code: 'EN_ATTENTE', label: 'En attente', color: '#f59e0b', order: 2, isDefault: false },
+    { type: 'TASK_STATUS', code: 'TERMINEE', label: 'Terminée', color: '#10b981', order: 3, isDefault: false },
+    { type: 'TASK_STATUS', code: 'ANNULEE', label: 'Annulée', color: '#ef4444', order: 4, isDefault: false },
+    { type: 'MAIL_STATUS', code: 'RECU', label: 'Reçu', color: '#3b82f6', order: 0, isDefault: true },
+    { type: 'MAIL_STATUS', code: 'LU', label: 'Lu', color: '#64748b', order: 1, isDefault: false },
+    { type: 'MAIL_STATUS', code: 'EN_TRAITEMENT', label: 'En traitement', color: '#f59e0b', order: 2, isDefault: false },
+    { type: 'MAIL_STATUS', code: 'REPONDU', label: 'Répondu', color: '#10b981', order: 3, isDefault: false },
+    { type: 'MAIL_STATUS', code: 'CLASSE', label: 'Classé', color: '#94a3b8', order: 4, isDefault: false },
+    { type: 'MAIL_STATUS', code: 'ENVOYE', label: 'Envoyé', color: '#10b981', order: 5, isDefault: false },
+    { type: 'QE_STATUS', code: 'A_REDIGER', label: 'À rédiger', color: '#f59e0b', order: 0, isDefault: true },
+    { type: 'QE_STATUS', code: 'VALIDER', label: 'À valider', color: '#3b82f6', order: 1, isDefault: false },
+    { type: 'QE_STATUS', code: 'REFUSE', label: 'Refusée', color: '#ef4444', order: 2, isDefault: false },
+    { type: 'QE_STATUS', code: 'TERMINE', label: 'Terminée', color: '#10b981', order: 3, isDefault: false }
+  ]
+
+  for (const d of dictionary) {
+    await prisma.appDictionary.upsert({
+      where: { type_code: { type: d.type, code: d.code } },
+      update: {},
+      create: d
+    })
+  }
+  console.log('AppDictionary seeded.')
+
   // 2. Workspace settings singleton
   await prisma.workspaceSettings.upsert({
     where: { id: 'singleton' },

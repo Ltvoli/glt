@@ -28,7 +28,7 @@ const DEFAULT_TASKS_FIELDS = [
   { module: 'tasks', section: 'Informations', fieldKey: 'title', defaultLabel: 'Titre de la tâche', customLabel: null, isVisible: true, order: 0 },
   { module: 'tasks', section: 'Informations', fieldKey: 'description', defaultLabel: 'Description', customLabel: null, isVisible: true, order: 1 },
   { module: 'tasks', section: 'Informations', fieldKey: 'expectedDeliverable', defaultLabel: 'Livrable attendu', customLabel: null, isVisible: true, order: 2 },
-  { module: 'tasks', section: 'Informations', fieldKey: 'tags', defaultLabel: 'Tags', customLabel: null, isVisible: true, order: 3 },
+  { module: 'tasks', section: 'Informations', fieldKey: 'tags', defaultLabel: 'Tags', customLabel: null, isVisible: false, order: 3 },
   { module: 'tasks', section: 'Planification', fieldKey: 'priority', defaultLabel: 'Priorité', customLabel: null, isVisible: true, order: 4 },
   { module: 'tasks', section: 'Planification', fieldKey: 'status', defaultLabel: 'Statut', customLabel: null, isVisible: true, order: 5 },
   { module: 'tasks', section: 'Planification', fieldKey: 'assigneeId', defaultLabel: 'Assigner à', customLabel: null, isVisible: true, order: 6 },

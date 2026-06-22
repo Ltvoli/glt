@@ -48,9 +48,17 @@ export function renderTaskField(
         <div className="form-group">
           <label htmlFor="priority">{label}</label>
           <select id="priority" name="priority" className="form-control" defaultValue={task.priority || "NORMALE"}>
-            {dictionary.filter(d => d.type === 'TASK_PRIORITY').map(d => (
-              <option key={d.code} value={d.code}>{d.label}</option>
-            ))}
+            {dictionary.filter(d => d.type === 'TASK_PRIORITY').length > 0 ? (
+              dictionary.filter(d => d.type === 'TASK_PRIORITY').map(d => (
+                <option key={d.code} value={d.code}>{d.label}</option>
+              ))
+            ) : (
+              <>
+                <option value="HAUTE">Haute</option>
+                <option value="NORMALE">Normale</option>
+                <option value="BASSE">Basse</option>
+              </>
+            )}
           </select>
         </div>
       )}
@@ -59,9 +67,19 @@ export function renderTaskField(
         <div className="form-group">
           <label htmlFor="status">{label}</label>
           <select id="status" name="status" className="form-control" defaultValue={task.status || "A_FAIRE"}>
-            {dictionary.filter(d => d.type === 'TASK_STATUS').map(d => (
-              <option key={d.code} value={d.code}>{d.label}</option>
-            ))}
+            {dictionary.filter(d => d.type === 'TASK_STATUS').length > 0 ? (
+              dictionary.filter(d => d.type === 'TASK_STATUS').map(d => (
+                <option key={d.code} value={d.code}>{d.label}</option>
+              ))
+            ) : (
+              <>
+                <option value="A_FAIRE">À faire</option>
+                <option value="EN_COURS">En cours</option>
+                <option value="EN_ATTENTE">En attente</option>
+                <option value="TERMINEE">Terminée</option>
+                <option value="ANNULEE">Annulée</option>
+              </>
+            )}
           </select>
         </div>
       )}
