@@ -38,12 +38,26 @@ function parseGender(civilite: string): string | null {
  */
 function parseDate(raw: string): Date | null {
   if (!raw) return null
+
+  // Si c'est un nombre pur de 5 chiffres (format date série Excel, ex: 31864)
+  if (/^\d{5}$/.test(raw.trim())) {
+    const num = parseInt(raw.trim())
+    const d = new Date((num - 25569) * 86400 * 1000)
+    return isNaN(d.getTime()) ? null : d
+  }
+
   // DD/MM/YYYY
   const dmy = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
   if (dmy) {
     const d = new Date(`${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`)
     return isNaN(d.getTime()) ? null : d
   }
+
+  // Éviter de parser des années simples en futur lointain (ex: "2026")
+  if (/^\d{4}$/.test(raw.trim())) {
+    return null
+  }
+
   // ISO YYYY-MM-DD
   const iso = new Date(raw)
   return isNaN(iso.getTime()) ? null : iso
