@@ -52,7 +52,10 @@ async function main() {
     { type: 'QE_STATUS', code: 'A_REDIGER', label: 'À rédiger', color: '#f59e0b', order: 0, isDefault: true },
     { type: 'QE_STATUS', code: 'VALIDER', label: 'À valider', color: '#3b82f6', order: 1, isDefault: false },
     { type: 'QE_STATUS', code: 'REFUSE', label: 'Refusée', color: '#ef4444', order: 2, isDefault: false },
-    { type: 'QE_STATUS', code: 'TERMINE', label: 'Terminée', color: '#10b981', order: 3, isDefault: false }
+    { type: 'QE_STATUS', code: 'TERMINE', label: 'Terminée', color: '#10b981', order: 3, isDefault: false },
+    { type: 'QE_TYPE', code: 'QE', label: 'Question Écrite (QE)', order: 0, isDefault: true },
+    { type: 'QE_TYPE', code: 'QAG', label: 'Question au Gouvernement (QAG)', order: 1, isDefault: false },
+    { type: 'QE_TYPE', code: 'AMENDEMENT', label: 'Amendement', order: 2, isDefault: false }
   ]
 
   for (const d of dictionary) {

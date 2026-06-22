@@ -75,9 +75,17 @@ export function renderQeField(
         <div className="form-group">
           <label htmlFor="type">{label} *</label>
           <select id="type" name="type" className="form-control" required defaultValue={qe.type || dictionary.find(d => d.type === 'QE_TYPE' && d.isDefault)?.code || "QE"}>
-            {dictionary.filter(d => d.type === 'QE_TYPE').map(d => (
-              <option key={d.code} value={d.code}>{d.label}</option>
-            ))}
+            {dictionary.filter(d => d.type === 'QE_TYPE').length > 0 ? (
+              dictionary.filter(d => d.type === 'QE_TYPE').map(d => (
+                <option key={d.code} value={d.code}>{d.label}</option>
+              ))
+            ) : (
+              <>
+                <option value="QE">Question Écrite (QE)</option>
+                <option value="QAG">Question au Gouvernement (QAG)</option>
+                <option value="AMENDEMENT">Amendement</option>
+              </>
+            )}
           </select>
         </div>
       )}
