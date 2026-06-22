@@ -32,6 +32,6 @@ jobs:
       run: npx prisma generate
 
     - name: Build Next.js
-      run: npm run build
+      run: npx next build
       env:
         DATABASE_URL: "postgresql://ci_user:ci_pass@localhost:5432/ci_db?schema=public"
