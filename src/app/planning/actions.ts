@@ -144,3 +144,43 @@ export async function upsertEmployeeSetting(employeeId: string, annualWorkingDay
   revalidatePath('/planning/settings')
   revalidatePath('/planning')
 }
+
+export async function updatePlanningComment(dateStr: string, content: string) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_PLANNING')
+
+  const dateObj = new Date(dateStr)
+  const normalizedDate = new Date(Date.UTC(
+    dateObj.getUTCFullYear(),
+    dateObj.getUTCMonth(),
+    dateObj.getUTCDate()
+  ))
+
+  const cleanContent = content ? content.trim() : ''
+
+  if (!cleanContent) {
+    try {
+      await prisma.planningComment.delete({
+        where: { date: normalizedDate }
+      })
+    } catch (e) {
+      // Ignore if not found
+    }
+  } else {
+    await prisma.planningComment.upsert({
+      where: { date: normalizedDate },
+      update: { content: cleanContent },
+      create: { date: normalizedDate, content: cleanContent }
+    })
+  }
+
+  await logAudit(
+    'UPDATE_PLANNING_COMMENT',
+    'PlanningComment',
+    normalizedDate.toISOString(),
+    session.userId,
+    { content: cleanContent }
+  )
+
+  revalidatePath('/planning')
+}

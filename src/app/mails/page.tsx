@@ -73,7 +73,12 @@ export default async function MailsPage({
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Courriers</h1>
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {(session?.dbRole === 'ADMINISTRATEUR' || session?.dbRole === 'SUPERVISEUR') && (
+            <Link href="/mails/validation" className="button outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--primary)', color: 'var(--primary)', fontWeight: 600 }}>
+              <Clock size={16} /> Validation Express
+            </Link>
+          )}
           <a href={`/api/export/mails${filter ? `?filter=${filter}` : ''}`} className="button outline">
             Exporter CSV
           </a>

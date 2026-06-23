@@ -14,6 +14,7 @@ export default function EditMailForm({ mail, users, contacts, tasks, initialCont
   const updateMailWithId = updateMail.bind(null, mail.id)
   const [state, formAction, isPending] = useActionState(updateMailWithId, initialState)
   const [mailType, setMailType] = useState(mail.type || 'ENTRANT')
+  const [valStatus, setValStatus] = useState(mail.validationStatus || '')
 
   const contactOptions = contacts.map(c => ({
     value: c.id,
@@ -114,12 +115,34 @@ export default function EditMailForm({ mail, users, contacts, tasks, initialCont
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+        <input type="hidden" name="validationStatus" value={valStatus} />
         <button type="button" className="button outline" onClick={() => router.push(`/mails/${mail.id}`)}>
           Annuler
         </button>
-        <button type="submit" className="button" disabled={isPending}>
-          {isPending ? 'Enregistrement...' : 'Enregistrer le courrier'}
-        </button>
+        {mailType === 'SORTANT' ? (
+          <>
+            <button 
+              type="submit" 
+              className="button outline" 
+              disabled={isPending}
+              onClick={() => setValStatus('BROUILLON')}
+            >
+              Enregistrer comme Brouillon
+            </button>
+            <button 
+              type="submit" 
+              className="button" 
+              disabled={isPending}
+              onClick={() => setValStatus('A_VALIDER')}
+            >
+              Enregistrer et Soumettre
+            </button>
+          </>
+        ) : (
+          <button type="submit" className="button" disabled={isPending}>
+            {isPending ? 'Enregistrement...' : 'Enregistrer le courrier'}
+          </button>
+        )}
       </div>
     </form>
   )

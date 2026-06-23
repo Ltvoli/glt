@@ -68,6 +68,8 @@ model User {
   contactsUpdated   Contact[]         @relation("ContactUpdater")
   tasksAssigned     Task[]
   mailCases         MailCase[]
+  versionsCreated   MailVersion[]     @relation("VersionEditor")
+  mailComments      MailComment[]     @relation("CommentAuthor")
   writtenQuestions  WrittenQuestion[]
   questionsCreated  WrittenQuestion[] @relation("QuestionCreator")
   importLogs        ImportLog[]
@@ -285,8 +287,12 @@ model MailCase {
   urgency       String    @default("NORMALE")
   status        String    @default("RECU") // RECU, LU, EN_TRAITEMENT, REPONDU, CLASSE, ENVOYE
   validationStatus String? // A_VALIDER, VALIDE, REJETE (null si non applicable)
+  rejectionReason  String?
   content       String?
   notes         String?
+
+  versions      MailVersion[] @relation("MailVersions")
+  comments      MailComment[] @relation("MailComments")
 
   responseDueDate  DateTime?
   responseSentDate DateTime?
@@ -310,6 +316,29 @@ model MailCase {
   @@index([subject])
   @@index([senderName])
   @@index([recipientName])
+}
+
+model MailVersion {
+  id         String   @id @default(cuid())
+  mailCaseId String
+  mailCase   MailCase @relation("MailVersions", fields: [mailCaseId], references: [id], onDelete: Cascade)
+  content    String?
+  subject    String
+  editedById String
+  editedBy   User     @relation("VersionEditor", fields: [editedById], references: [id])
+  createdAt  DateTime @default(now())
+  @@index([mailCaseId])
+}
+
+model MailComment {
+  id         String   @id @default(cuid())
+  mailCaseId String
+  mailCase   MailCase @relation("MailComments", fields: [mailCaseId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation("CommentAuthor", fields: [authorId], references: [id])
+  content    String
+  createdAt  DateTime @default(now())
+  @@index([mailCaseId])
 }
 
 model WrittenQuestion {
@@ -942,5 +971,14 @@ model PermanenceMailContact {
   status       String           @default("A_PREPARER") // "A_PREPARER", "ENVOYE", "NPAI"
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
+}
+
+model PlanningComment {
+  id        String   @id @default(cuid())
+  date      DateTime @unique
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([date])
 }
 

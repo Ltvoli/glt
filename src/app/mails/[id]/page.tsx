@@ -8,6 +8,8 @@ import MailAttachments from './mail-attachments'
 import PrintButton from '@/components/PrintButton'
 import GenerateLetterButton from '@/components/GenerateLetterButton'
 import MailValidationActions from './mail-validation-actions'
+import MailSubmitButton from './mail-submit-button'
+import MailCollaborationTabs from './mail-collaboration-tabs'
 
 export default async function MailDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -20,6 +22,14 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
     include: {
       assignee: { select: { name: true } },
       documents: true,
+      versions: {
+        include: { editedBy: { select: { firstName: true, lastName: true } } },
+        orderBy: { createdAt: 'desc' }
+      },
+      comments: {
+        include: { author: { select: { firstName: true, lastName: true } } },
+        orderBy: { createdAt: 'asc' }
+      },
       links: {
         include: {
           contact: { select: { id: true, firstName: true, lastName: true } },
@@ -55,6 +65,16 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
           <ArrowLeft size={16} /> Retour aux courriers
         </Link>
         
+        {mail.validationStatus === 'BROUILLON' && (
+          <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af' }}>
+              <AlertCircle size={20} />
+              <span style={{ fontWeight: 500 }}>Ce courrier est en cours de rédaction (Brouillon). Il doit être soumis pour validation.</span>
+            </div>
+            <MailSubmitButton mailId={mail.id} />
+          </div>
+        )}
+
         {isPendingValidation && (
           <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: '#fff7ed', border: '1px solid #fdba74', borderRadius: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#c2410c' }}>
@@ -66,9 +86,17 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
         )}
 
         {mail.validationStatus === 'REJETE' && (
-          <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#b91c1c' }}>
-            <AlertCircle size={20} />
-            <span style={{ fontWeight: 500 }}>Ce courrier a été rejeté. Veuillez le modifier et demander une nouvelle validation (ou en créer un nouveau).</span>
+          <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', color: '#b91c1c' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <AlertCircle size={20} />
+              <span style={{ fontWeight: 600 }}>Ce courrier a été rejeté (à corriger).</span>
+            </div>
+            {mail.rejectionReason && (
+              <div style={{ padding: '0.75rem', backgroundColor: '#fff', borderLeft: '4px solid #ef4444', borderRadius: '4px', fontSize: '0.9rem', color: '#374151', marginTop: '0.25rem' }}>
+                <strong>Motif du rejet :</strong> {mail.rejectionReason}
+              </div>
+            )}
+            <span style={{ fontSize: '0.875rem' }}>Veuillez le modifier ci-dessous et le soumettre à nouveau pour validation.</span>
           </div>
         )}
 
@@ -159,14 +187,7 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
               </div>
             </div>
 
-            {mail.content && (
-              <div style={{ marginTop: '2rem' }}>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Contenu du courrier</p>
-                <div style={{ backgroundColor: '#ffffff', padding: '1.5rem', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.875rem', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-                  {mail.content}
-                </div>
-              </div>
-            )}
+            <MailCollaborationTabs mail={mail as any} currentUserId={session.userId} />
 
             {mail.notes && (
               <div style={{ marginTop: '2rem' }}>

@@ -97,6 +97,35 @@ export async function GET(request: Request) {
   wsDetail['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 40 }]
   xlsx.utils.book_append_sheet(wb, wsDetail, 'Export-Import')
 
+  // --- Onglet 3 : Commentaires ---
+  const dbComments = await prisma.planningComment.findMany({
+    where: {
+      date: {
+        gte: startOfMonth,
+        lte: endOfMonth
+      }
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  })
+
+  const commentsSheetData = [
+    ['Date', 'Commentaire / Réunion AP']
+  ]
+  for (const c of dbComments) {
+    const d = new Date(c.date)
+    const dateStr = `${d.getUTCDate().toString().padStart(2, '0')}/${(d.getUTCMonth()+1).toString().padStart(2, '0')}/${d.getUTCFullYear()}`
+    commentsSheetData.push([
+      dateStr,
+      c.content
+    ])
+  }
+
+  const wsComments = xlsx.utils.aoa_to_sheet(commentsSheetData)
+  wsComments['!cols'] = [{ wch: 15 }, { wch: 60 }]
+  xlsx.utils.book_append_sheet(wb, wsComments, 'Commentaires')
+
   const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' })
 
   return new NextResponse(buf, {

@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight, Settings } from 'lucide-react'
 import Link from 'next/link'
-import { updateEmployeeDayType } from './actions'
+import { updateEmployeeDayType, updatePlanningComment } from './actions'
 import PlanningImportModal from './PlanningImportModal'
 import PlanningUsersModal from './PlanningUsersModal'
 
@@ -18,22 +18,39 @@ type UserData = {
   monthCalendar: { dateStr: string; dayType: string; isHoliday: boolean; isWeekend: boolean; notes: string | null }[]
 }
 
+type CommentData = { dateStr: string; content: string }
+
 export default function PlanningGrid({
   users,
   currentYear,
   currentMonth,
-  isMagaliOrAdmin
+  isMagaliOrAdmin,
+  initialComments = []
 }: {
   users: UserData[]
   currentYear: number
   currentMonth: number
   isMagaliOrAdmin: boolean
+  initialComments?: CommentData[]
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   
   // Selection
   const [selectedCell, setSelectedCell] = useState<{ userId: string; dateStr: string; dayType: string; notes: string } | null>(null)
+  const [comments, setComments] = useState<CommentData[]>(initialComments)
+  const [selectedCommentCell, setSelectedCommentCell] = useState<CommentData | null>(null)
+
+  const handleCommentUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedCommentCell) return
+
+    startTransition(async () => {
+      await updatePlanningComment(selectedCommentCell.dateStr, selectedCommentCell.content)
+      setComments(prev => prev.map(c => c.dateStr === selectedCommentCell.dateStr ? { ...c, content: selectedCommentCell.content } : c))
+      setSelectedCommentCell(null)
+    })
+  }
 
   const monthDate = new Date(Date.UTC(currentYear, currentMonth, 1))
   const monthName = monthDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -151,6 +168,10 @@ export default function PlanningGrid({
                           <span style={{ color: 'var(--text-muted)' }}>Mois:</span>
                           <strong>{c.workedMonth}j</strong>
                         </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Année:</span>
+                          <strong>{c.workedYear}j / {c.annualDays}j</strong>
+                        </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: showAlert ? 'var(--danger)' : 'inherit' }}>
                           <span style={{ color: showAlert ? 'var(--danger)' : 'var(--text-muted)' }}>Reste:</span>
                           <strong style={{ color: showAlert ? 'var(--danger)' : 'inherit' }}>{c.remaining}j</strong>
@@ -181,6 +202,72 @@ export default function PlanningGrid({
                   </tr>
                 )
               })}
+
+              {/* LIGNE DE COMMENTAIRES GENERAUX */}
+              <tr>
+                <td style={{ position: 'sticky', left: 0, backgroundColor: '#f8fafc', zIndex: 10, fontWeight: 'bold', borderRight: '1px solid var(--border)' }}>
+                  Commentaires / Réunions AP
+                </td>
+                <td style={{ borderRight: '2px solid var(--border)', backgroundColor: '#f8fafc' }}></td>
+                {comments.map((c, i) => {
+                  const hasComment = c.content && c.content.trim() !== ''
+                  const dayDate = new Date(c.dateStr)
+                  const isWE = dayDate.getUTCDay() === 0 || dayDate.getUTCDay() === 6
+                  return (
+                    <td
+                      key={i}
+                      style={{
+                        padding: 0,
+                        border: '1px solid var(--border)',
+                        backgroundColor: isWE ? '#f1f5f9' : '#f8fafc',
+                        cursor: isMagaliOrAdmin ? 'pointer' : 'default',
+                        position: 'relative'
+                      }}
+                      onClick={() => {
+                        if (isMagaliOrAdmin) {
+                          setSelectedCommentCell({ dateStr: c.dateStr, content: c.content })
+                        }
+                      }}
+                      title={c.content || 'Ajouter un commentaire...'}
+                    >
+                      <div 
+                        style={{ 
+                          width: '100%', 
+                          height: '40px', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          fontSize: '0.75rem',
+                          color: 'var(--primary)',
+                          fontWeight: 500,
+                          padding: '2px',
+                          textAlign: 'center',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {hasComment ? (
+                          <span style={{ 
+                            backgroundColor: '#eff6ff', 
+                            color: '#1e40af', 
+                            padding: '0.1rem 0.25rem', 
+                            borderRadius: '4px', 
+                            border: '1px solid #bfdbfe',
+                            maxWidth: '100%',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {c.content}
+                          </span>
+                        ) : (
+                          isMagaliOrAdmin && <span style={{ color: '#ccc', fontSize: '0.85rem' }}>+</span>
+                        )}
+                      </div>
+                    </td>
+                  )
+                })}
+              </tr>
             </tbody>
           </table>
         </div>
@@ -224,6 +311,38 @@ export default function PlanningGrid({
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
                 <button type="button" className="button outline" onClick={() => setSelectedCell(null)} disabled={isPending}>Annuler</button>
+                <button type="submit" className="button primary" disabled={isPending}>{isPending ? 'Enregistrement...' : 'Enregistrer'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITION COMMENTAIRE */}
+      {selectedCommentCell && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div className="card" style={{ width: '400px', backgroundColor: 'white' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem' }}>
+              Commentaire / Réunion AP <br/>
+              <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>
+                {new Date(selectedCommentCell.dateStr).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}
+              </span>
+            </h3>
+            
+            <form onSubmit={handleCommentUpdate}>
+              <div className="form-group">
+                <label>Commentaire</label>
+                <textarea 
+                  className="form-control" 
+                  rows={3}
+                  placeholder="Saisir un commentaire (ex: Réunion AP, Déplacement...)"
+                  value={selectedCommentCell.content}
+                  onChange={e => setSelectedCommentCell({ ...selectedCommentCell, content: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
+                <button type="button" className="button outline" onClick={() => setSelectedCommentCell(null)} disabled={isPending}>Annuler</button>
                 <button type="submit" className="button primary" disabled={isPending}>{isPending ? 'Enregistrement...' : 'Enregistrer'}</button>
               </div>
             </form>

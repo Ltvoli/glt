@@ -12,6 +12,7 @@ const initialState = {
 export default function MailForm({ users, contacts, tasks, initialParentId, initialSubject, initialContactId, dictionary = [], fieldConfig = {} }: { users: any[], contacts: any[], tasks: any[], initialParentId?: string, initialSubject?: string, initialContactId?: string, dictionary?: any[], fieldConfig?: Record<string, any> }) {
   const [state, formAction, isPending] = useActionState(createMail, initialState)
   const [mailType, setMailType] = useState(initialParentId ? 'SORTANT' : 'ENTRANT')
+  const [valStatus, setValStatus] = useState(initialParentId ? 'BROUILLON' : '')
 
   const contactOptions = contacts.map(c => ({
     value: c.id,
@@ -120,10 +121,32 @@ export default function MailForm({ users, contacts, tasks, initialParentId, init
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button type="submit" className="button" disabled={isPending}>
-          {isPending ? 'Enregistrement...' : 'Enregistrer le courrier'}
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+        <input type="hidden" name="validationStatus" value={valStatus} />
+        {mailType === 'SORTANT' ? (
+          <>
+            <button 
+              type="submit" 
+              className="button outline" 
+              disabled={isPending}
+              onClick={() => setValStatus('BROUILLON')}
+            >
+              Enregistrer comme Brouillon
+            </button>
+            <button 
+              type="submit" 
+              className="button" 
+              disabled={isPending}
+              onClick={() => setValStatus('A_VALIDER')}
+            >
+              Enregistrer et Soumettre
+            </button>
+          </>
+        ) : (
+          <button type="submit" className="button" disabled={isPending}>
+            {isPending ? 'Enregistrement...' : 'Enregistrer le courrier'}
+          </button>
+        )}
       </div>
     </form>
   )

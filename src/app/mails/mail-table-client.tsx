@@ -4,10 +4,16 @@ import { useState } from 'react'
 import { Archive, CheckCircle, MailOpen, AlertCircle, Package, Mail, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { batchUpdateMailStatus } from './actions'
+import { useRouter } from 'next/navigation'
 
 export default function MailTableClient({ mails }: { mails: any[] }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isPending, setIsPending] = useState(false)
+  const router = useRouter()
+
+  const handleRowClick = (id: string) => {
+    router.push(`/mails/${id}`)
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -81,8 +87,15 @@ export default function MailTableClient({ mails }: { mails: any[] }) {
               </tr>
             ) : (
               mails.map(mail => (
-                <tr key={mail.id} style={{ borderLeft: mail.urgency === 'HAUTE' ? '4px solid var(--danger)' : '4px solid transparent' }}>
-                  <td>
+                <tr 
+                  key={mail.id} 
+                  onClick={() => handleRowClick(mail.id)}
+                  style={{ 
+                    borderLeft: mail.urgency === 'HAUTE' ? '4px solid var(--danger)' : '4px solid transparent',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <td onClick={(e) => e.stopPropagation()}>
                     <input 
                       type="checkbox" 
                       checked={selectedIds.includes(mail.id)}
@@ -133,7 +146,7 @@ export default function MailTableClient({ mails }: { mails: any[] }) {
                       </div>
                     )}
                   </td>
-                  <td>
+                  <td onClick={(e) => e.stopPropagation()}>
                     <Link href={`/mails/${mail.id}`} className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
                       Voir
                     </Link>

@@ -103,7 +103,9 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
         channel: validData.channel,
         category: validData.category || null,
         urgency: validData.urgency || 'NORMALE',
-        validationStatus: validData.validationStatus !== undefined ? validData.validationStatus : (validData.type === 'SORTANT' ? 'A_VALIDER' : null),
+        validationStatus: (validData.validationStatus && validData.validationStatus !== '') 
+          ? validData.validationStatus 
+          : (validData.type === 'SORTANT' ? 'BROUILLON' : null),
         receiveDate,
         sentDate,
         content: validData.content || null,
@@ -245,6 +247,27 @@ export async function updateMail(mailId: string, prevState: any, formData: FormD
   }
 
   try {
+    const existing = await prisma.mailCase.findUnique({ where: { id: mailId } })
+    if (!existing) return { error: 'Courrier introuvable.' }
+
+    // Enregistrer une nouvelle version si le sujet ou le contenu a changé
+    if (existing.subject !== validData.subject || existing.content !== validData.content) {
+      await prisma.mailVersion.create({
+        data: {
+          mailCaseId: mailId,
+          subject: existing.subject,
+          content: existing.content,
+          editedById: session.userId
+        }
+      })
+    }
+
+    let finalValidationStatus = validData.validationStatus !== undefined ? validData.validationStatus : undefined
+    if (existing.validationStatus === 'REJETE' && finalValidationStatus === undefined) {
+      // Repasse en brouillon si on modifie un courrier qui était rejeté
+      finalValidationStatus = 'BROUILLON'
+    }
+
     await prisma.mailCase.update({
       where: { id: mailId },
       data: {
@@ -256,7 +279,8 @@ export async function updateMail(mailId: string, prevState: any, formData: FormD
         channel: validData.channel,
         category: validData.category || null,
         urgency: validData.urgency || 'NORMALE',
-        validationStatus: validData.validationStatus !== undefined ? validData.validationStatus : undefined,
+        validationStatus: finalValidationStatus,
+        rejectionReason: (finalValidationStatus === 'BROUILLON' || finalValidationStatus === 'A_VALIDER' || finalValidationStatus === 'VALIDE') ? null : undefined,
         receiveDate,
         sentDate,
         content: validData.content || null,
@@ -342,27 +366,130 @@ export async function validateMail(mailId: string) {
     return { error: 'Non autorisé. Seul un administrateur peut valider ce courrier.' }
   }
 
-  await prisma.mailCase.update({
+  const updatedMail = await prisma.mailCase.update({
     where: { id: mailId },
-    data: { validationStatus: 'VALIDE' }
+    data: { 
+      validationStatus: 'VALIDE',
+      rejectionReason: null
+    }
   })
+
+  // Notify assignee
+  if (updatedMail.assigneeId) {
+    await prisma.notification.create({
+      data: {
+        userId: updatedMail.assigneeId,
+        type: 'STATUS_CHANGE',
+        title: 'Courrier validé par le député',
+        message: `Le courrier "${updatedMail.subject}" (${updatedMail.reference}) a été validé !`,
+        relatedType: 'MailCase',
+        relatedId: mailId,
+        severity: 'INFO'
+      }
+    })
+  }
+
   revalidatePath('/mails')
   revalidatePath('/mails/' + mailId)
   return { success: true }
 }
 
-export async function rejectMail(mailId: string) {
+export async function rejectMail(mailId: string, reason?: string) {
   const session = await requireWriteAccess()
   if (session.dbRole !== 'ADMINISTRATEUR') {
     return { error: 'Non autorisé. Seul un administrateur peut rejeter ce courrier.' }
   }
 
-  await prisma.mailCase.update({
+  const updatedMail = await prisma.mailCase.update({
     where: { id: mailId },
-    data: { validationStatus: 'REJETE' }
+    data: { 
+      validationStatus: 'REJETE',
+      rejectionReason: reason || null
+    }
   })
+
+  // Notify assignee
+  if (updatedMail.assigneeId) {
+    await prisma.notification.create({
+      data: {
+        userId: updatedMail.assigneeId,
+        type: 'STATUS_CHANGE',
+        title: 'Courrier à corriger (rejeté)',
+        message: `Le courrier "${updatedMail.subject}" (${updatedMail.reference}) a été rejeté par le député.${reason ? ` Motif : ${reason}` : ''}`,
+        relatedType: 'MailCase',
+        relatedId: mailId,
+        severity: 'WARNING'
+      }
+    })
+  }
+
   revalidatePath('/mails')
   revalidatePath('/mails/' + mailId)
   return { success: true }
+}
+
+export async function submitMailForValidation(mailId: string) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_MAILS')
+
+  const mail = await prisma.mailCase.findUnique({ where: { id: mailId } })
+  if (!mail) return { error: 'Courrier introuvable' }
+
+  await prisma.mailCase.update({
+    where: { id: mailId },
+    data: { validationStatus: 'A_VALIDER' }
+  })
+
+  // Notify all Admins and Supervisors
+  const supervisorsAndAdmins = await prisma.user.findMany({
+    where: { 
+      role: { in: ['ADMINISTRATEUR', 'SUPERVISEUR'] },
+      isActive: true
+    }
+  })
+
+  for (const user of supervisorsAndAdmins) {
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        type: 'STATUS_CHANGE',
+        title: 'Courrier à valider',
+        message: `Le courrier "${mail.subject}" (${mail.reference}) a été soumis pour validation.`,
+        relatedType: 'MailCase',
+        relatedId: mail.id,
+        severity: 'INFO'
+      }
+    })
+  }
+
+  revalidatePath('/mails')
+  revalidatePath('/mails/' + mailId)
+  return { success: true }
+}
+
+export async function addMailComment(mailId: string, content: string) {
+  if (!content || !content.trim()) return { error: 'Le commentaire ne peut pas être vide' }
+
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_MAILS')
+
+  const comment = await prisma.mailComment.create({
+    data: {
+      mailCaseId: mailId,
+      authorId: session.userId,
+      content: content.trim()
+    },
+    include: {
+      author: {
+        select: {
+          firstName: true,
+          lastName: true
+        }
+      }
+    }
+  })
+
+  revalidatePath('/mails/' + mailId)
+  return { success: true, comment }
 }
 

@@ -251,8 +251,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <p style={{ margin: 0, opacity: 0.9 }}>Vous avez {mailsToValidateCount} courrier{mailsToValidateCount > 1 ? 's' : ''} sortant{mailsToValidateCount > 1 ? 's' : ''} en attente de votre validation.</p>
             </div>
           </div>
-          <Link href="/mails" className="button" style={{ backgroundColor: '#ea580c', borderColor: '#ea580c', color: 'white' }}>
-            Voir les courriers
+          <Link href="/mails/validation" className="button" style={{ backgroundColor: '#ea580c', borderColor: '#ea580c', color: 'white' }}>
+            Validation Express
           </Link>
         </div>
       )}

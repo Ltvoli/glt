@@ -49,3 +49,12 @@ next-env.d.ts
 /check_users.ts
 
 .vercel
+
+# AI / agent files
+.agents/
+agents/
+docs/specs/
+previous.prisma
+temp_update.sql
+update.sql
+

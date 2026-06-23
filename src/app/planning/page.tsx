@@ -94,12 +94,34 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
     }
   })
 
+  // Récupérer les commentaires du planning pour ce mois
+  const dbComments = await prisma.planningComment.findMany({
+    where: {
+      date: {
+        gte: startOfMonth,
+        lte: endOfMonth
+      }
+    }
+  })
+
+  const formattedComments = []
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(Date.UTC(currentYear, currentMonth, d))
+    const time = date.getTime()
+    const dbComment = dbComments.find(c => c.date.getTime() === time)
+    formattedComments.push({
+      dateStr: date.toISOString(),
+      content: dbComment ? dbComment.content : ''
+    })
+  }
+
   return (
     <PlanningGrid 
       users={formattedUsers} 
       currentYear={currentYear} 
       currentMonth={currentMonth} 
       isMagaliOrAdmin={isMagaliOrAdmin}
+      initialComments={formattedComments}
     />
   )
 }

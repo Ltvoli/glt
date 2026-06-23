@@ -21,10 +21,11 @@ export default function MailValidationActions({ mailId }: { mailId: string }) {
   }
 
   const handleReject = async () => {
-    if (!confirm('Êtes-vous sûr de vouloir rejeter ce courrier ?')) return
+    const reason = prompt('Motif du rejet (optionnel) :')
+    if (reason === null) return // Annulé
     setIsPending(true)
     try {
-      const res = await rejectMail(mailId)
+      const res = await rejectMail(mailId, reason)
       if (res.error) toast.error(res.error)
       else toast.success('Courrier rejeté')
     } catch (e) {
