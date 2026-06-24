@@ -16,6 +16,8 @@ async function main() {
     { key: 'email.smtp_port', value: '587', type: SettingType.NUMBER, category: 'email', label: 'Port SMTP' },
     { key: 'rgpd.retention_days', value: '365', type: SettingType.NUMBER, category: 'rgpd', label: 'Durée de rétention des données' },
     { key: 'rgpd.audit_purge_days', value: '90', type: SettingType.NUMBER, category: 'rgpd', label: 'Durée de rétention des logs d\'audit' },
+    { key: 'ai.mail_enabled', value: 'true', type: SettingType.BOOLEAN, category: 'ai', label: 'IA Courrier activée' },
+    { key: 'ai.auto_analyze_on_import', value: 'true', type: SettingType.BOOLEAN, category: 'ai', label: 'Analyse automatique à l\'import' },
   ]
 
   for (const s of settings) {

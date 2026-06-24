@@ -10,7 +10,7 @@ import {
   Compass, Save, Loader2, Mail, Clock, FileText,
   ChevronDown, ChevronRight, Lock, Users, CheckSquare,
   MapPin, CalendarDays, HelpCircle, Folder, ShieldAlert, Bell,
-  Edit2, Trash2, Plus, Palette, Type, AlignLeft
+  Edit2, Trash2, Plus, Palette, Type, AlignLeft, Sparkles
 } from 'lucide-react'
 
 // ─── Meta données modules ────────────────────────────────────
@@ -98,7 +98,7 @@ export default function ModulesClient({ currentUserRole, modules: initialModules
   const [modules, setModules]         = useState<Module[]>(initialModules)
   const [pages, setPages]             = useState<Page[]>(initialPages)
   const [settings, setSettings]       = useState<Setting[]>(initialSettings)
-  const [settingsCategory, setSettingsCategory] = useState<'general' | 'auth' | 'email' | 'rgpd'>('general')
+  const [settingsCategory, setSettingsCategory] = useState<'general' | 'auth' | 'email' | 'rgpd' | 'ai'>('general')
 
   // Edition page
   const [editingPage, setEditingPage] = useState<Page | null>(null)
@@ -265,6 +265,7 @@ export default function ModulesClient({ currentUserRole, modules: initialModules
     { key: 'auth',    label: 'Sécurité & Sessions', icon: Lock,      description: 'Durée de session, tentatives' },
     { key: 'email',   label: 'Envoi d\'e-mails',    icon: Mail,      description: 'Serveur SMTP sortant' },
     { key: 'rgpd',    label: 'Conformité RGPD',     icon: FileText,  description: 'Rétention et suppression données' },
+    { key: 'ai',      label: 'Intelligence Artificielle', icon: Sparkles,  description: 'Assistant IA, analyse automatique' },
   ] as const
 
   return (

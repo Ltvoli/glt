@@ -10,6 +10,7 @@ import GenerateLetterButton from '@/components/GenerateLetterButton'
 import MailValidationActions from './mail-validation-actions'
 import MailSubmitButton from './mail-submit-button'
 import MailCollaborationTabs from './mail-collaboration-tabs'
+import AiAssistant from './ai-assistant'
 
 export default async function MailDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -35,11 +36,25 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
           contact: { select: { id: true, firstName: true, lastName: true } },
           task: { select: { id: true, title: true, status: true } }
         }
+      },
+      replies: {
+        select: {
+          id: true,
+          reference: true,
+          subject: true,
+          status: true,
+          validationStatus: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' }
       }
     }
   })
 
   if (!mail) redirect('/mails')
+
+  const mailEnabledSetting = await prisma.setting.findUnique({ where: { key: 'ai.mail_enabled' } })
+  const isAiMailEnabled = mailEnabledSetting?.value === 'true'
 
   const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
 
@@ -138,7 +153,7 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isAiMailEnabled ? '1.8fr 1.2fr' : '2fr 1fr', gap: '2rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
           <div className="card" style={{ position: 'relative' }}>
@@ -198,6 +213,57 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
               </div>
             )}
           </div>
+
+          {/* Réponses & Brouillons associés */}
+          {mail.replies && mail.replies.length > 0 && (
+            <div className="card">
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                Réponses & Brouillons associés
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {mail.replies.map((reply: any) => (
+                  <div key={reply.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <div>
+                      <Link href={`/mails/${reply.id}`} style={{ fontWeight: 600, color: 'var(--primary)' }}>
+                        {reply.subject}
+                      </Link>
+                      <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Réf : {reply.reference} • Créé le {new Date(reply.createdAt).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <span style={{ 
+                        fontSize: '0.7rem', 
+                        padding: '0.2rem 0.5rem', 
+                        borderRadius: '9999px', 
+                        fontWeight: 600, 
+                        backgroundColor: reply.status === 'BROUILLON' ? '#eff6ff' : '#f1f5f9',
+                        color: reply.status === 'BROUILLON' ? '#1d4ed8' : '#475569' 
+                      }}>
+                        {reply.status}
+                      </span>
+                      {reply.validationStatus && (
+                        <span style={{ 
+                          fontSize: '0.7rem', 
+                          padding: '0.2rem 0.5rem', 
+                          borderRadius: '9999px', 
+                          fontWeight: 600, 
+                          backgroundColor: 
+                            reply.validationStatus === 'VALIDE' ? '#d1fae5' : 
+                            reply.validationStatus === 'REJETE' ? '#fee2e2' : '#fef3c7',
+                          color: 
+                            reply.validationStatus === 'VALIDE' ? '#065f46' : 
+                            reply.validationStatus === 'REJETE' ? '#991b1b' : '#854d0e' 
+                        }}>
+                          {reply.validationStatus.replace('_', ' ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           
           <div className="card">
             <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Pièces jointes</h3>
@@ -207,6 +273,16 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
+          {isAiMailEnabled && (
+            <AiAssistant 
+              mailId={mail.id}
+              aiAnalysis={mail.aiAnalysis}
+              aiSuggestions={mail.aiSuggestions}
+              hideAiAssistant={mail.hideAiAssistant}
+              hasAttachments={mail.documents.length > 0}
+            />
+          )}
+
           <div className="card">
             <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>Assignation</h3>
             {mail.assignee ? (

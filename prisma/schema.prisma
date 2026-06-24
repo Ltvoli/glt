@@ -309,6 +309,10 @@ model MailCase {
   content       String?
   notes         String?
 
+  aiAnalysis       Json?
+  aiSuggestions    Json?
+  hideAiAssistant  Boolean   @default(false)
+
   versions      MailVersion[] @relation("MailVersions")
   comments      MailComment[] @relation("MailComments")
 

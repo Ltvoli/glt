@@ -7,6 +7,10 @@ import { revalidatePath } from 'next/cache'
 import { logAudit } from '@/lib/audit'
 import { mailCaseSchema } from '@/lib/validations'
 import { requirePermission } from '@/lib/permissions'
+import { promises as fs } from 'fs'
+import path from 'path'
+import { supabase } from '@/lib/supabase'
+import { analyzeIncomingMail, generateReplies } from '@/lib/gemini'
 
 // Utility to generate unique reference e.g., COU-2026-0042
 async function generateReference() {
@@ -491,5 +495,158 @@ export async function addMailComment(mailId: string, content: string) {
 
   revalidatePath('/mails/' + mailId)
   return { success: true, comment }
+}
+
+async function getDocumentBuffer(doc: any): Promise<Buffer> {
+  let filePath = doc.storagePath
+  if (filePath.startsWith('/uploads/')) {
+    filePath = path.join(process.cwd(), 'public', filePath)
+  }
+
+  const isSupabasePath = !filePath.startsWith('/') && !filePath.includes(':\\')
+
+  if (isSupabasePath) {
+    const { data, error } = await supabase
+      .storage
+      .from('crm-attachments')
+      .download(filePath)
+
+    if (error) {
+      throw new Error(`Supabase download error: ${error.message}`)
+    }
+    const arrayBuffer = await data.arrayBuffer()
+    return Buffer.from(arrayBuffer)
+  } else {
+    return await fs.readFile(filePath)
+  }
+}
+
+export async function analyzeMailCaseAction(mailCaseId: string) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_MAILS')
+
+  const mailEnabledSetting = await prisma.setting.findUnique({ where: { key: 'ai.mail_enabled' } })
+  if (mailEnabledSetting?.value !== 'true') {
+    return { error: 'L\'assistant IA est désactivé globalement.' }
+  }
+
+  const mail = await prisma.mailCase.findUnique({
+    where: { id: mailCaseId },
+    include: { documents: true }
+  })
+  if (!mail) return { error: 'Courrier introuvable.' }
+
+  try {
+    let contentForAi = mail.content || ""
+    let mimeType = "text/plain"
+
+    const doc = mail.documents[0]
+    if (doc) {
+      const buffer = await getDocumentBuffer(doc)
+      contentForAi = buffer.toString('base64')
+      mimeType = doc.mimeType
+    }
+
+    if (!contentForAi) {
+      return { error: "Le courrier n'a pas de contenu textuel ni de document joint." }
+    }
+
+    const aiResult = await analyzeIncomingMail(contentForAi, mimeType)
+
+    // Save back to MailCase
+    await prisma.mailCase.update({
+      where: { id: mailCaseId },
+      data: {
+        aiAnalysis: aiResult,
+        aiSuggestions: aiResult.pistes_reponse || []
+      }
+    })
+
+    revalidatePath(`/mails/${mailCaseId}`)
+    return { success: true }
+  } catch (err: any) {
+    console.error('[analyzeMailCaseAction] error:', err)
+    return { error: `Erreur lors de l'analyse IA : ${err.message || err}` }
+  }
+}
+
+export async function generateMailResponsesAction(
+  mailCaseId: string,
+  selectedSuggestionIds: number[],
+  customInstruction?: string
+) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_MAILS')
+
+  const mail = await prisma.mailCase.findUnique({
+    where: { id: mailCaseId }
+  })
+  if (!mail) return { error: 'Courrier introuvable.' }
+
+  const suggestions = (mail.aiSuggestions as any[]) || []
+  const selectedSuggestions = suggestions.filter((s: any) => selectedSuggestionIds.includes(s.id))
+
+  if (selectedSuggestions.length === 0) {
+    return { error: 'Aucune piste de réponse sélectionnée.' }
+  }
+
+  try {
+    const responseDrafts = await generateReplies(
+      mail.content || mail.subject,
+      mail.aiAnalysis,
+      selectedSuggestions,
+      customInstruction
+    )
+
+    const generatedMails = []
+
+    for (const draft of responseDrafts.courriers || []) {
+      const reference = await generateReference()
+      // Create child MailCase record
+      const childMail = await prisma.mailCase.create({
+        data: {
+          reference,
+          type: 'SORTANT',
+          status: 'BROUILLON',
+          validationStatus: 'BROUILLON',
+          subject: draft.objet || `Réponse - ${mail.subject}`,
+          recipientName: draft.destinataire_nom || mail.senderName || '',
+          content: `${draft.corps}\n\n${draft.formule_politesse}`,
+          parentMailCaseId: mailCaseId,
+          channel: 'MAIL',
+          notes: draft.champs_a_completer?.length > 0 
+            ? `Champs à compléter générés par l'IA :\n${draft.champs_a_completer.map((c: string) => `- ${c}`).join('\n')}` 
+            : null
+        }
+      })
+
+      await logAudit('CONTACT_CREATED', 'MailCase', childMail.id, session.userId, childMail)
+      generatedMails.push(childMail)
+    }
+
+    revalidatePath(`/mails/${mailCaseId}`)
+    return { success: true, count: generatedMails.length }
+  } catch (err: any) {
+    console.error('[generateMailResponsesAction] error:', err)
+    return { error: `Erreur lors de la génération des réponses : ${err.message || err}` }
+  }
+}
+
+export async function toggleAiAssistantAction(mailCaseId: string, hide: boolean) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_MAILS')
+
+  try {
+    await prisma.mailCase.update({
+      where: { id: mailCaseId },
+      data: { hideAiAssistant: hide }
+    })
+
+    revalidatePath(`/mails/${mailCaseId}`)
+    return { success: true }
+  } catch (err: any) {
+    console.error('[toggleAiAssistantAction] error:', err)
+    return { error: `Erreur de modification : ${err.message || err}` }
+  }
 }
 
