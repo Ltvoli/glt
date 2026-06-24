@@ -208,6 +208,7 @@ export default function AdvancedFilters({
   const [tag, setTag]                         = useState(searchParams.get('tag') || '')
   const [contactType, setContactType]         = useState(searchParams.get('contactType') || 'all')
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setChips(buildChipsFromParams())
     setLastInteraction(searchParams.get('lastInteraction') || '')
@@ -219,6 +220,7 @@ export default function AdvancedFilters({
     setTag(searchParams.get('tag') || '')
     setContactType(searchParams.get('contactType') || 'all')
   }, [searchParams])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const inputRef = useRef<HTMLInputElement>(null)
 
