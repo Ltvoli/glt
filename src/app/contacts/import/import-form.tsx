@@ -102,7 +102,8 @@ export default function ImportForm() {
           </h3>
           <ul style={{ listStyle: 'disc', paddingLeft: '1.5rem', color: '#15803d', marginBottom: '1.5rem' }}>
             <li>Contacts créés : <strong>{results.created}</strong></li>
-            <li>Doublons détectés (mis en attente) : <strong>{results.duplicates}</strong></li>
+            <li>Fiches mises à jour : <strong>{results.updated}</strong></li>
+            <li>Doublons potentiels détectés (à fusionner) : <strong>{results.duplicates}</strong></li>
             <li>Erreurs de format : <strong>{results.errors}</strong></li>
           </ul>
           <div style={{ display: 'flex', gap: '1rem' }}>

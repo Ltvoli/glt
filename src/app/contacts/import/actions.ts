@@ -118,8 +118,9 @@ function parseSupportLevel(raw: string, dbLevels: { label: string; order: number
 // ─── Action principale ───────────────────────────────────────
 
 async function importRows(rows: Record<string, string>[], file: File, forceConsent: boolean, userId: string): Promise<any> {
-  let created    = 0
-  let duplicates = 0
+  let created     = 0
+  let updated     = 0
+  let duplicates  = 0
   let errorsCount = 0
 
   // ── Charger les niveaux de soutien configurés en BDD ──
@@ -145,7 +146,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     const postalCode = col(row, 'CODE POSTAL', 'Code postal', 'code_postal', 'CP', 'cp', 'zip')
     const city       = col(row, 'COMMUNE',  'Ville',    'commune',   'Ville',     'city')
     const profession = col(row, 'PROFESSION','profession', 'Profession')
-    const tagsRaw    = col(row, 'Tags',      'TAGS',     'tags',      'mots_cles')
+    const tagsRaw    = col(row, 'Tags', 'TAGS', 'tags', 'mots_cles', 'mots clés', 'Mots clés')
     const newsletter = col(row, 'Newsletter','newsletter','NEWSLETTER')
     const notes      = col(row, 'Notes',     'NOTES',    'notes')
     const supportRaw = col(row, 'Niveau de Soutien', 'NIVEAU DE SOUTIEN', 'niveau_soutien', 'support_level')
@@ -205,12 +206,76 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     }
 
     let insertedContact: any = null
+    let existingContact: any = null
 
     try {
-      insertedContact = await prisma.contact.create({ data: dataToInsert })
-      created++
-    } catch (insertErr: any) {
-      console.error('[Qomon Import] Erreur insertion :', lastName, firstName, insertErr?.message)
+      // 1. Recherche par email si fourni
+      if (email) {
+        existingContact = await prisma.contact.findFirst({
+          where: {
+            firstName: { equals: firstName, mode: 'insensitive' },
+            lastName: { equals: lastName, mode: 'insensitive' },
+            email: { equals: email, mode: 'insensitive' },
+            archivedAt: null
+          }
+        })
+      }
+
+      // 2. Recherche par portable/téléphone si fourni et pas trouvé par email
+      if (!existingContact && (mobile || phone)) {
+        existingContact = await prisma.contact.findFirst({
+          where: {
+            firstName: { equals: firstName, mode: 'insensitive' },
+            lastName: { equals: lastName, mode: 'insensitive' },
+            OR: [
+              ...(mobile ? [{ mobilePhone: mobile }] : []),
+              ...(phone ? [{ phone: phone }] : [])
+            ],
+            archivedAt: null
+          }
+        })
+      }
+
+      if (existingContact) {
+        // Fusionner les notes
+        let mergedNotes = existingContact.notes
+        if (fullNotes) {
+          if (mergedNotes) {
+            if (!mergedNotes.includes(fullNotes)) {
+              mergedNotes = `${mergedNotes}\n\n[Import] ${fullNotes}`
+            }
+          } else {
+            mergedNotes = fullNotes
+          }
+        }
+
+        // Mettre à jour le contact existant
+        insertedContact = await prisma.contact.update({
+          where: { id: existingContact.id },
+          data: {
+            notes: mergedNotes,
+            supportLevel: supportLevel || existingContact.supportLevel,
+            // Renseigne uniquement les champs vides
+            email: existingContact.email || email || null,
+            phone: existingContact.phone || phone || null,
+            mobilePhone: existingContact.mobilePhone || mobile || null,
+            streetNumber: existingContact.streetNumber || streetNumber,
+            streetName: existingContact.streetName || streetName,
+            postalCode: existingContact.postalCode || postalCode || null,
+            city: existingContact.city || city || null,
+            profession: existingContact.profession || profession || null,
+            gender: existingContact.gender || gender,
+            birthDate: existingContact.birthDate || birthDate,
+          }
+        })
+        updated++
+      } else {
+        // Créer un nouveau contact
+        insertedContact = await prisma.contact.create({ data: dataToInsert })
+        created++
+      }
+    } catch (err: any) {
+      console.error('[Qomon Import] Erreur insertion/mise à jour :', lastName, firstName, err?.message)
       errorsCount++
       continue
     }
@@ -317,15 +382,15 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       data: {
         filename:     file.name,
         status:       errorsCount > 0 && created === 0 ? 'ERROR' : 'SUCCESS',
-        rowsImported: created + duplicates,
+        rowsImported: created + updated + duplicates,
         userId:       userId,
       }
     })
   } catch { /* importLog non critique */ }
 
-  console.log(`[Qomon Import] Résultat → créés: ${created}, doublons: ${duplicates}, erreurs: ${errorsCount}`)
+  console.log(`[Qomon Import] Résultat → créés: ${created}, mis à jour: ${updated}, doublons: ${duplicates}, erreurs: ${errorsCount}`)
 
-  return { created, duplicates, errors: errorsCount }
+  return { created, updated, duplicates, errors: errorsCount }
 }
 
 export async function processImport(formData: FormData) {
