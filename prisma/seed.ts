@@ -231,11 +231,78 @@ async function main() {
 
   // 9. Communes (Top 5 Demonstration)
   const communesData = [
-    { name: 'Nice', zipCode: '06000', inseeCode: '06088', department: 'Alpes-Maritimes' },
-    { name: 'Antibes', zipCode: '06600', inseeCode: '06004', department: 'Alpes-Maritimes' },
-    { name: 'Cagnes-sur-Mer', zipCode: '06800', inseeCode: '06027', department: 'Alpes-Maritimes' },
+    { name: 'Aiglun', zipCode: '06910', inseeCode: '06001', department: 'Alpes-Maritimes' },
+    { name: 'Amirat', zipCode: '06910', inseeCode: '06002', department: 'Alpes-Maritimes' },
+    { name: 'Andon', zipCode: '06750', inseeCode: '06003', department: 'Alpes-Maritimes' },
+    { name: 'Ascros', zipCode: '06260', inseeCode: '06005', department: 'Alpes-Maritimes' },
+    { name: 'Auvare', zipCode: '06260', inseeCode: '06008', department: 'Alpes-Maritimes' },
+    { name: 'Bairols', zipCode: '06420', inseeCode: '06009', department: 'Alpes-Maritimes' },
+    { name: 'Beuil', zipCode: '06470', inseeCode: '06016', department: 'Alpes-Maritimes' },
+    { name: 'Bézaudun-les-Alpes', zipCode: '06510', inseeCode: '06017', department: 'Alpes-Maritimes' },
+    { name: 'Bonson', zipCode: '06830', inseeCode: '06021', department: 'Alpes-Maritimes' },
+    { name: 'Bouyon', zipCode: '06510', inseeCode: '06022', department: 'Alpes-Maritimes' },
+    { name: 'Briançonnet', zipCode: '06850', inseeCode: '06024', department: 'Alpes-Maritimes' },
+    { name: 'Le Broc', zipCode: '06510', inseeCode: '06025', department: 'Alpes-Maritimes' },
+    { name: 'Cabris', zipCode: '06530', inseeCode: '06026', department: 'Alpes-Maritimes' },
+    { name: 'Caille', zipCode: '06750', inseeCode: '06028', department: 'Alpes-Maritimes' },
+    { name: 'Carros', zipCode: '06510', inseeCode: '06033', department: 'Alpes-Maritimes' },
+    { name: "Châteauneuf-d'Entraunes", zipCode: '06470', inseeCode: '06040', department: 'Alpes-Maritimes' },
+    { name: 'Cipières', zipCode: '06620', inseeCode: '06041', department: 'Alpes-Maritimes' },
+    { name: 'Collongues', zipCode: '06910', inseeCode: '06045', department: 'Alpes-Maritimes' },
+    { name: 'Conségudes', zipCode: '06510', inseeCode: '06047', department: 'Alpes-Maritimes' },
+    { name: 'Coursegoules', zipCode: '06140', inseeCode: '06050', department: 'Alpes-Maritimes' },
+    { name: 'La Croix-sur-Roudoule', zipCode: '06260', inseeCode: '06051', department: 'Alpes-Maritimes' },
+    { name: 'Cuébris', zipCode: '06910', inseeCode: '06052', department: 'Alpes-Maritimes' },
+    { name: 'Daluis', zipCode: '06470', inseeCode: '06053', department: 'Alpes-Maritimes' },
+    { name: 'Entraunes', zipCode: '06470', inseeCode: '06056', department: 'Alpes-Maritimes' },
+    { name: 'Escragnolles', zipCode: '06460', inseeCode: '06058', department: 'Alpes-Maritimes' },
+    { name: 'Les Ferres', zipCode: '06510', inseeCode: '06061', department: 'Alpes-Maritimes' },
+    { name: 'Gars', zipCode: '06850', inseeCode: '06063', department: 'Alpes-Maritimes' },
+    { name: 'Gattières', zipCode: '06510', inseeCode: '06064', department: 'Alpes-Maritimes' },
+    { name: 'La Gaude', zipCode: '06610', inseeCode: '06065', department: 'Alpes-Maritimes' },
+    { name: 'Gilette', zipCode: '06830', inseeCode: '06066', department: 'Alpes-Maritimes' },
+    { name: 'Grasse', zipCode: '06130', inseeCode: '06069', department: 'Alpes-Maritimes' },
+    { name: 'Gréolières', zipCode: '06620', inseeCode: '06070', department: 'Alpes-Maritimes' },
+    { name: 'Guillaumes', zipCode: '06470', inseeCode: '06071', department: 'Alpes-Maritimes' },
+    { name: 'Lieuche', zipCode: '06260', inseeCode: '06076', department: 'Alpes-Maritimes' },
+    { name: 'Malaussène', zipCode: '06710', inseeCode: '06078', department: 'Alpes-Maritimes' },
+    { name: 'Le Mas', zipCode: '06910', inseeCode: '06081', department: 'Alpes-Maritimes' },
+    { name: 'Massoins', zipCode: '06710', inseeCode: '06082', department: 'Alpes-Maritimes' },
+    { name: 'Les Mujouls', zipCode: '06910', inseeCode: '06087', department: 'Alpes-Maritimes' },
+    { name: 'La Penne', zipCode: '06260', inseeCode: '06093', department: 'Alpes-Maritimes' },
+    { name: 'Péone', zipCode: '06470', inseeCode: '06094', department: 'Alpes-Maritimes' },
+    { name: 'Peymeinade', zipCode: '06530', inseeCode: '06095', department: 'Alpes-Maritimes' },
+    { name: 'Pierlas', zipCode: '06260', inseeCode: '06096', department: 'Alpes-Maritimes' },
+    { name: 'Pierrefeu', zipCode: '06910', inseeCode: '06097', department: 'Alpes-Maritimes' },
+    { name: 'Puget-Rostang', zipCode: '06260', inseeCode: '06098', department: 'Alpes-Maritimes' },
+    { name: 'Puget-Théniers', zipCode: '06260', inseeCode: '06099', department: 'Alpes-Maritimes' },
+    { name: 'Revest-les-Roches', zipCode: '06830', inseeCode: '06100', department: 'Alpes-Maritimes' },
+    { name: 'Rigaud', zipCode: '06260', inseeCode: '06101', department: 'Alpes-Maritimes' },
+    { name: 'Roquestéron', zipCode: '06910', inseeCode: '06106', department: 'Alpes-Maritimes' },
+    { name: 'La Roque-en-Provence', zipCode: '06910', inseeCode: '06107', department: 'Alpes-Maritimes' },
+    { name: 'Saint-Antonin', zipCode: '06260', inseeCode: '06115', department: 'Alpes-Maritimes' },
+    { name: 'Saint-Auban', zipCode: '06850', inseeCode: '06116', department: 'Alpes-Maritimes' },
+    { name: 'Saint-Cézaire-sur-Siagne', zipCode: '06530', inseeCode: '06118', department: 'Alpes-Maritimes' },
+    { name: 'Saint-Jeannet', zipCode: '06640', inseeCode: '06122', department: 'Alpes-Maritimes' },
+    { name: 'Saint-Léger', zipCode: '06260', inseeCode: '06124', department: 'Alpes-Maritimes' },
+    { name: "Saint-Martin-d'Entraunes", zipCode: '06470', inseeCode: '06125', department: 'Alpes-Maritimes' },
+    { name: 'Saint-Vallier-de-Thiey', zipCode: '06460', inseeCode: '06130', department: 'Alpes-Maritimes' },
+    { name: 'Sallagriffon', zipCode: '06910', inseeCode: '06131', department: 'Alpes-Maritimes' },
+    { name: 'Sauze', zipCode: '06470', inseeCode: '06133', department: 'Alpes-Maritimes' },
+    { name: 'Séranon', zipCode: '06750', inseeCode: '06134', department: 'Alpes-Maritimes' },
+    { name: 'Sigale', zipCode: '06910', inseeCode: '06135', department: 'Alpes-Maritimes' },
+    { name: 'Spéracèdes', zipCode: '06530', inseeCode: '06137', department: 'Alpes-Maritimes' },
+    { name: 'Thiéry', zipCode: '06710', inseeCode: '06139', department: 'Alpes-Maritimes' },
+    { name: 'Le Tignet', zipCode: '06530', inseeCode: '06140', department: 'Alpes-Maritimes' },
+    { name: 'Toudon', zipCode: '06830', inseeCode: '06141', department: 'Alpes-Maritimes' },
+    { name: 'Touët-sur-Var', zipCode: '06710', inseeCode: '06143', department: 'Alpes-Maritimes' },
+    { name: 'La Tour', zipCode: '06420', inseeCode: '06144', department: 'Alpes-Maritimes' },
+    { name: 'Tourette-du-Château', zipCode: '06830', inseeCode: '06145', department: 'Alpes-Maritimes' },
+    { name: 'Tournefort', zipCode: '06420', inseeCode: '06146', department: 'Alpes-Maritimes' },
+    { name: 'Valderoure', zipCode: '06750', inseeCode: '06154', department: 'Alpes-Maritimes' },
     { name: 'Vence', zipCode: '06140', inseeCode: '06157', department: 'Alpes-Maritimes' },
-    { name: 'Saint-Laurent-du-Var', zipCode: '06700', inseeCode: '06123', department: 'Alpes-Maritimes' },
+    { name: 'Villars-sur-Var', zipCode: '06710', inseeCode: '06158', department: 'Alpes-Maritimes' },
+    { name: "Villeneuve-d'Entraunes", zipCode: '06470', inseeCode: '06160', department: 'Alpes-Maritimes' },
   ]
 
   const seededCommunes: Record<string, string> = {}
@@ -252,9 +319,9 @@ async function main() {
 
   // 10. Organizations (3 commerces de démo rattachés à Nice)
   const orgsData = [
-    { name: 'Boulangerie du Port', type: OrgType.COMMERCE, sector: 'Alimentation', city: 'Nice', zipCode: '06000', notes: 'Très favorable, engagée localement.' },
-    { name: 'Café de la Place', type: OrgType.COMMERCE, sector: 'Restauration', city: 'Nice', zipCode: '06000', notes: 'Neutre, préoccupations sur la sécurité.' },
-    { name: 'Pharmacie Centrale', type: OrgType.COMMERCE, sector: 'Santé', city: 'Nice', zipCode: '06000', notes: 'Défavorable ou sceptique.' },
+    { name: 'Boulangerie du Port', type: OrgType.COMMERCE, sector: 'Alimentation', city: 'Vence', zipCode: '06140', notes: 'Très favorable, engagée localement.' },
+    { name: 'Café de la Place', type: OrgType.COMMERCE, sector: 'Restauration', city: 'Vence', zipCode: '06140', notes: 'Neutre, préoccupations sur la sécurité.' },
+    { name: 'Pharmacie Centrale', type: OrgType.COMMERCE, sector: 'Santé', city: 'Vence', zipCode: '06140', notes: 'Défavorable ou sceptique.' },
   ]
 
   for (const o of orgsData) {
@@ -324,12 +391,12 @@ async function main() {
   await prisma.permanenceLocation.create({
     data: {
       permanenceId: permValidated.id,
-      communeId: seededCommunes['Nice'],
-      communeName: 'Nice',
+      communeId: seededCommunes['Vence'],
+      communeName: 'Vence',
       date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       startTime: '09:00',
       endTime: '12:00',
-      address: 'Place Garibaldi',
+      address: 'Place du Grand Jardin',
       parkingStatus: 'DONE'
     }
   })
@@ -337,12 +404,12 @@ async function main() {
   await prisma.permanenceLocation.create({
     data: {
       permanenceId: permInProgress.id,
-      communeId: seededCommunes['Antibes'],
-      communeName: 'Antibes',
+      communeId: seededCommunes['Carros'],
+      communeName: 'Carros',
       date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
       startTime: '14:00',
       endTime: '17:00',
-      address: 'Port Vauban',
+      address: 'Place du Forum',
       parkingStatus: 'TODO'
     }
   })
@@ -350,12 +417,12 @@ async function main() {
   await prisma.permanenceLocation.create({
     data: {
       permanenceId: permDraft.id,
-      communeId: seededCommunes['Cagnes-sur-Mer'],
-      communeName: 'Cagnes-sur-Mer',
+      communeId: seededCommunes['La Gaude'],
+      communeName: 'La Gaude',
       date: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
       startTime: '10:00',
       endTime: '13:00',
-      address: 'Promenade de la Plage',
+      address: 'Rue centrale',
       parkingStatus: 'TODO'
     }
   })
