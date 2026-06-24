@@ -32,13 +32,14 @@ export async function createContact(prevState: any, formData: FormData): Promise
   const addressComplement = formData.get('addressComplement') as string
   const postalCode = formData.get('postalCode') as string
   const supportLevel = formData.get('supportLevel') as string
-  const meetingStep = formData.get('meetingStep') as string
 
-  const territorySector = formData.get('territorySector') as string
-  const source = formData.get('source') as string
   const whatsappStatus = formData.get('whatsappStatus') as string
-  const newsletter = formData.get('newsletter') === 'true'
-  const smsConsent = formData.get('smsConsent') === 'true'
+  const consentEmail = formData.get('consentEmail') as string
+  const consentPhone = formData.get('consentPhone') as string
+  const consentSms = formData.get('consentSms') as string
+  const consentPostal = formData.get('consentPostal') as string
+  const consentCustom = formData.get('consentCustom') as string
+  const noContact = formData.get('noContact') === 'true'
   const linkedinUrl = formData.get('linkedinUrl') as string
   const notes = formData.get('notes') as string
   const profession = formData.get('profession') as string
@@ -64,8 +65,9 @@ export async function createContact(prevState: any, formData: FormData): Promise
     nationality, address,
     apartment, building, buildingType, floor, door,
     streetNumber, streetName, addressComplement, postalCode,
-    supportLevel, meetingStep, territorySector, source, whatsappStatus, linkedinUrl, notes,
-    profession, newsletter, smsConsent, consentDate: consentDateStr, consentSource,
+    supportLevel, whatsappStatus, linkedinUrl, notes,
+    profession, consentEmail, consentPhone, consentSms, consentPostal, consentCustom, noContact,
+    consentDate: consentDateStr, consentSource,
     ageRange, lastContactMobile: lastContactMobileStr, territory, department,
     isNpai
   })
@@ -115,12 +117,13 @@ export async function createContact(prevState: any, formData: FormData): Promise
         addressComplement: validData.addressComplement || null,
         postalCode: validData.postalCode || null,
         supportLevel: validData.supportLevel || null,
-        territorySector: validData.territorySector || null,
-        source: validData.source || null,
         whatsappStatus: validData.whatsappStatus || null,
-        meetingStep: validData.meetingStep || null,
-        newsletter: validData.newsletter,
-        smsConsent: validData.smsConsent,
+        consentEmail: validData.consentEmail,
+        consentPhone: validData.consentPhone,
+        consentSms: validData.consentSms,
+        consentPostal: validData.consentPostal,
+        consentCustom: validData.consentCustom,
+        noContact: validData.noContact,
         consentDate: validData.consentDate || null,
         consentSource: validData.consentSource || null,
         linkedinUrl: validData.linkedinUrl || null,

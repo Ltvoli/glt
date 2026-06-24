@@ -60,14 +60,10 @@ export function buildWhereClause(params: Record<string, string | undefined>) {
   }
 
   // ── Advanced filters ────────────────────────────────────
-  if (params.sector)  where.territorySector = params.sector
+  if (params.contactType && params.contactType !== 'all') where.type = params.contactType
   if (params.tag)     where.tags = { some: { tag: { name: params.tag } } }
   if (params.lastInteraction) where.lastInteraction = { gte: new Date(params.lastInteraction) }
   if (params.supportLevel)    where.supportLevel = params.supportLevel
-
-  if (params.meetingStep && params.meetingStep !== 'all') {
-    where.meetingStep = params.meetingStep
-  }
 
   if (params.emailStatus && params.emailStatus !== 'all') {
     if (params.emailStatus === 'has_email') where.email = { not: null }

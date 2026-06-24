@@ -113,13 +113,6 @@ export default function EditContactForm({ contact, allTags = [], dictionary = []
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-          <div className="form-group">
-            <label htmlFor="territorySector">Secteur / Canton</label>
-            <input type="text" id="territorySector" name="territorySector" className="form-control" defaultValue={contact.territorySector || ''} placeholder="Ex: Canton de Grasse-1" />
-          </div>
-        </div>
-
         <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Profil</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
           <div className="form-group">
@@ -133,6 +126,7 @@ export default function EditContactForm({ contact, allTags = [], dictionary = []
                 <>
                   <option value="ELECTEUR">Électeur</option>
                   <option value="ELU">Élu</option>
+                  <option value="CONTACT_MAIRIE">Contact Mairie</option>
                   <option value="ASSO">Association</option>
                   <option value="PARTENAIRE">Partenaire</option>
                   <option value="PRESSE">Presse</option>
@@ -161,31 +155,6 @@ export default function EditContactForm({ contact, allTags = [], dictionary = []
             </select>
           </div>
           <div className="form-group">
-            <label htmlFor="meetingStep">Étape de la rencontre</label>
-            <select id="meetingStep" name="meetingStep" className="form-control" defaultValue={contact.meetingStep || ''}>
-              <option value="">Sélectionnez une étape</option>
-              <option value="Absent">Absent</option>
-              <option value="Accepté">Accepté</option>
-              <option value="Refusé">Refusé</option>
-              <option value="Repassés">Repassés</option>
-              <option value="Pas encore contactés">Pas encore contactés</option>
-            </select>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div className="form-group">
-            <label htmlFor="source">Source d&apos;acquisition</label>
-            <select id="source" name="source" className="form-control" defaultValue={contact.source || 'PERMANENCE'}>
-              <option value="PERMANENCE">Permanence</option>
-              <option value="COURRIER">Courrier</option>
-              <option value="EVENEMENT">Événement</option>
-              <option value="TERRAIN">Terrain / Porte à porte</option>
-              <option value="QOMON">Import Qomon</option>
-              <option value="AUTRE">Autre</option>
-            </select>
-          </div>
-          <div className="form-group">
             <label htmlFor="whatsappStatus">Statut WhatsApp</label>
             <select id="whatsappStatus" name="whatsappStatus" className="form-control" defaultValue={contact.whatsappStatus || 'NON'}>
               <option value="NON">Non invité</option>
@@ -196,23 +165,61 @@ export default function EditContactForm({ contact, allTags = [], dictionary = []
         </div>
 
         <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="tags">Tags</label>
-        <TagSelector 
-          allTags={allTags} 
-          defaultValue={contact.tags?.map((ct: any) => ct.tag.name).join(', ') || ''} 
-          name="tags" 
-          placeholder="Ex: Chasseur, Retraité, Buraliste..." 
-        />
-      </div>
-
-        <div className="form-group" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <input type="checkbox" id="newsletter" name="newsletter" value="true" defaultChecked={contact.newsletter} />
-          <label htmlFor="newsletter" style={{ margin: 0 }}>Abonné à la Newsletter (Consentement RGPD Email validé)</label>
+          <label htmlFor="tags">Tags</label>
+          <TagSelector 
+            allTags={allTags} 
+            defaultValue={contact.tags?.map((ct: any) => ct.tag.name).join(', ') || ''} 
+            name="tags" 
+            placeholder="Ex: Chasseur, Retraité, Buraliste..." 
+          />
         </div>
 
-        <div className="form-group" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <input type="checkbox" id="smsConsent" name="smsConsent" value="true" defaultChecked={contact.smsConsent} />
-          <label htmlFor="smsConsent" style={{ margin: 0 }}>Consentement SMS (RGPD validé)</label>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Consentements (RGPD)</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+          <div className="form-group">
+            <label htmlFor="consentEmail">Consentement E-mail</label>
+            <select id="consentEmail" name="consentEmail" className="form-control" defaultValue={contact.consentEmail === null ? "" : String(contact.consentEmail)}>
+              <option value="">Non renseigné</option>
+              <option value="true">Consenti (Oui)</option>
+              <option value="false">Refusé (Non)</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="consentPhone">Consentement Téléphone</label>
+            <select id="consentPhone" name="consentPhone" className="form-control" defaultValue={contact.consentPhone === null ? "" : String(contact.consentPhone)}>
+              <option value="">Non renseigné</option>
+              <option value="true">Consenti (Oui)</option>
+              <option value="false">Refusé (Non)</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="consentSms">Consentement SMS</label>
+            <select id="consentSms" name="consentSms" className="form-control" defaultValue={contact.consentSms === null ? "" : String(contact.consentSms)}>
+              <option value="">Non renseigné</option>
+              <option value="true">Consenti (Oui)</option>
+              <option value="false">Refusé (Non)</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="consentPostal">Consentement Postal (Courrier)</label>
+            <select id="consentPostal" name="consentPostal" className="form-control" defaultValue={contact.consentPostal === null ? "" : String(contact.consentPostal)}>
+              <option value="">Non renseigné</option>
+              <option value="true">Consenti (Oui)</option>
+              <option value="false">Refusé (Non)</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="consentCustom">Consentement Personnalisé</label>
+            <select id="consentCustom" name="consentCustom" className="form-control" defaultValue={contact.consentCustom === null ? "" : String(contact.consentCustom)}>
+              <option value="">Non renseigné</option>
+              <option value="true">Consenti (Oui)</option>
+              <option value="false">Refusé (Non)</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <input type="checkbox" id="noContact" name="noContact" value="true" defaultChecked={contact.noContact} />
+            <label htmlFor="noContact" style={{ margin: 0, color: 'var(--danger)', fontWeight: 600 }}>Ne plus jamais contacter (Opposition absolue / Liste rouge)</label>
+          </div>
         </div>
 
         <div className="form-group" style={{ marginBottom: '2rem' }}>

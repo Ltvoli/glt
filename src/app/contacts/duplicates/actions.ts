@@ -65,8 +65,9 @@ export async function advancedMergeDuplicate(prevState: any, formData: FormData)
   const FIELDS = [
     'firstName','lastName','email','mobilePhone','phone',
     'streetNumber','streetName','postalCode','city',
-    'gender','birthDate','type','supportLevel','territorySector',
-    'notes','profession','newsletter','meetingStep',
+    'gender','birthDate','type','supportLevel',
+    'notes','profession','consentEmail','consentPhone',
+    'consentSms','consentPostal','consentCustom','noContact',
   ]
 
   const dataToUpdate: Record<string, any> = {}
@@ -83,9 +84,16 @@ export async function advancedMergeDuplicate(prevState: any, formData: FormData)
     dataToUpdate.birthDate = isNaN(d.getTime()) ? null : d
   }
 
-  // Traitement du booléen newsletter
-  if (dataToUpdate.newsletter !== undefined) {
-    dataToUpdate.newsletter = dataToUpdate.newsletter === 'true'
+  // Traitement des consentements (trois états)
+  for (const f of ['consentEmail', 'consentPhone', 'consentSms', 'consentPostal', 'consentCustom']) {
+    if (dataToUpdate[f] !== undefined && dataToUpdate[f] !== null) {
+      dataToUpdate[f] = dataToUpdate[f] === 'true' ? true : dataToUpdate[f] === 'false' ? false : null
+    }
+  }
+
+  // Traitement du booléen noContact
+  if (dataToUpdate.noContact !== undefined && dataToUpdate.noContact !== null) {
+    dataToUpdate.noContact = dataToUpdate.noContact === 'true'
   }
 
   try {

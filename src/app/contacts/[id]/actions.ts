@@ -31,13 +31,14 @@ export async function updateContact(prevState: any, formData: FormData): Promise
   const addressComplement = formData.get('addressComplement') as string
   const postalCode = formData.get('postalCode') as string
   const supportLevel = formData.get('supportLevel') as string
-  const meetingStep = formData.get('meetingStep') as string
 
-  const territorySector = formData.get('territorySector') as string
-  const source = formData.get('source') as string
   const whatsappStatus = formData.get('whatsappStatus') as string
-  const newsletter = formData.get('newsletter') === 'true'
-  const smsConsent = formData.get('smsConsent') === 'true'
+  const consentEmail = formData.get('consentEmail') as string
+  const consentPhone = formData.get('consentPhone') as string
+  const consentSms = formData.get('consentSms') as string
+  const consentPostal = formData.get('consentPostal') as string
+  const consentCustom = formData.get('consentCustom') as string
+  const noContact = formData.get('noContact') === 'true'
   const linkedinUrl = formData.get('linkedinUrl') as string
   const notes = formData.get('notes') as string
   const profession = formData.get('profession') as string
@@ -63,8 +64,9 @@ export async function updateContact(prevState: any, formData: FormData): Promise
     nationality, address,
     apartment, building, buildingType, floor, door,
     streetNumber, streetName, addressComplement, postalCode,
-    supportLevel, meetingStep, territorySector, source, whatsappStatus, linkedinUrl, notes,
-    profession, newsletter, smsConsent, consentDate: consentDateStr, consentSource,
+    supportLevel, whatsappStatus, linkedinUrl, notes,
+    profession, consentEmail, consentPhone, consentSms, consentPostal, consentCustom, noContact,
+    consentDate: consentDateStr, consentSource,
     ageRange, lastContactMobile: lastContactMobileStr, territory, department,
     isNpai
   })
@@ -107,12 +109,13 @@ export async function updateContact(prevState: any, formData: FormData): Promise
         addressComplement: validData.addressComplement || null,
         postalCode: validData.postalCode || null,
         supportLevel: validData.supportLevel || null,
-        meetingStep: validData.meetingStep || null,
-        territorySector: validData.territorySector || null,
-        source: validData.source || null,
         whatsappStatus: validData.whatsappStatus || null,
-        newsletter: validData.newsletter,
-        smsConsent: validData.smsConsent,
+        consentEmail: validData.consentEmail,
+        consentPhone: validData.consentPhone,
+        consentSms: validData.consentSms,
+        consentPostal: validData.consentPostal,
+        consentCustom: validData.consentCustom,
+        noContact: validData.noContact,
         consentDate: validData.consentDate || null,
         consentSource: validData.consentSource || null,
         linkedinUrl: validData.linkedinUrl || null,
@@ -137,7 +140,7 @@ export async function updateContact(prevState: any, formData: FormData): Promise
           where: { name: tagName },
           update: {},
           create: { name: tagName, color: '#e2e8f0' }
-        })
+         })
         await prisma.contactTag.create({
           data: { contactId: id, tagId: tag.id }
         })
@@ -168,4 +171,63 @@ export async function archiveContact(contactId: string) {
 
   revalidatePath('/contacts')
   revalidatePath(`/contacts/${contactId}`)
+}
+
+export async function createContactInteraction(
+  contactId: string,
+  type: string,
+  notes?: string
+) {
+  const session = await requireWriteAccess()
+
+  const validTypes = ['APPEL_ENTRANT', 'APPEL_SORTANT', 'RENCONTRE_PHYSIQUE', 'SMS']
+  if (!validTypes.includes(type)) {
+    throw new Error('Type d\'interaction invalide')
+  }
+
+  const interaction = await prisma.contactInteraction.create({
+    data: {
+      contactId,
+      type,
+      notes: notes || null,
+      createdById: session.userId
+    }
+  })
+
+  await logAudit('CREATE', 'ContactInteraction', interaction.id, session.userId, interaction)
+
+  revalidatePath(`/contacts/${contactId}`)
+  return interaction
+}
+
+export async function updateContactConsents(
+  contactId: string,
+  consents: {
+    consentEmail: boolean | null
+    consentPhone: boolean | null
+    consentSms: boolean | null
+    consentPostal: boolean | null
+    consentCustom: boolean | null
+    noContact: boolean
+  }
+) {
+  const session = await requireWriteAccess()
+
+  const updatedContact = await prisma.contact.update({
+    where: { id: contactId },
+    data: {
+      consentEmail: consents.consentEmail,
+      consentPhone: consents.consentPhone,
+      consentSms: consents.consentSms,
+      consentPostal: consents.consentPostal,
+      consentCustom: consents.consentCustom,
+      noContact: consents.noContact,
+      updatedById: session.userId,
+    }
+  })
+
+  await logAudit('UPDATE', 'ContactConsents', contactId, session.userId, updatedContact)
+
+  revalidatePath(`/contacts/${contactId}`)
+  return { success: true }
 }

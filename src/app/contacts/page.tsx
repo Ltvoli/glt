@@ -23,7 +23,7 @@ export default async function ContactsPage({
 
   const where = buildWhereClause(params)
 
-  const [contacts, totalContacts, pendingDuplicates, allTags, allSectors, allCities] = await Promise.all([
+  const [contacts, totalContacts, pendingDuplicates, allTags, allCities] = await Promise.all([
     prisma.contact.findMany({
       where,
       orderBy: { lastName: 'asc' },
@@ -39,11 +39,6 @@ export default async function ContactsPage({
     prisma.duplicateCandidate.count({ where: { status: 'PENDING' } }),
     prisma.tag.findMany({ orderBy: { name: 'asc' } }),
     prisma.contact.findMany({
-      where: { archivedAt: null, territorySector: { not: null } },
-      select: { territorySector: true },
-      distinct: ['territorySector'],
-    }),
-    prisma.contact.findMany({
       where: { archivedAt: null, city: { not: null } },
       select: { city: true },
       distinct: ['city'],
@@ -52,14 +47,13 @@ export default async function ContactsPage({
   ])
 
   const totalPages    = Math.ceil(totalContacts / itemsPerPage)
-  const uniqueSectors = allSectors.map(s => s.territorySector).filter(Boolean) as string[]
   const uniqueCities  = allCities.map(c => c.city).filter(Boolean) as string[]
 
   // Serialize filter params for client-side export URLs
   const filterParamsObj = new URLSearchParams()
-  const filterKeys = ['city', 'nameQ', 'phone', 'streetQ', 'q', 'sector', 'tag',
-    'lastInteraction', 'supportLevel', 'meetingStep', 'emailStatus', 'phoneStatus',
-    'gender', 'addressStatus']
+  const filterKeys = ['city', 'nameQ', 'phone', 'streetQ', 'q', 'tag',
+    'lastInteraction', 'supportLevel', 'emailStatus', 'phoneStatus',
+    'gender', 'addressStatus', 'contactType']
   for (const key of filterKeys) {
     if (params[key]) filterParamsObj.set(key, params[key]!)
   }
@@ -104,7 +98,7 @@ export default async function ContactsPage({
       )}
 
       {/* ─── Smart Search ─── */}
-      <AdvancedFilters allTags={allTags} uniqueSectors={uniqueSectors} uniqueCities={uniqueCities} />
+      <AdvancedFilters allTags={allTags} uniqueCities={uniqueCities} />
 
       {/* ─── Count ─── */}
       <div style={{ marginBottom: '8px', color: '#64748b', fontSize: '0.83rem', display: 'flex', alignItems: 'center', gap: '8px' }}>

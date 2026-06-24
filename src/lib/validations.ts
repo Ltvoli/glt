@@ -48,9 +48,6 @@ export const contactSchema = z.object({
     message: "Le code postal doit contenir exactement 5 chiffres."
   }).transform(val => val === '' ? undefined : val),
   supportLevel: emptyAsUndefined,
-  meetingStep: emptyAsUndefined,
-  territorySector: emptyAsUndefined,
-  source: emptyAsUndefined,
   whatsappStatus: emptyAsUndefined,
   linkedinUrl: emptyAsUndefined,
   notes: emptyAsUndefined,
@@ -63,8 +60,12 @@ export const contactSchema = z.object({
   ),
   territory: emptyAsUndefined,
   department: emptyAsUndefined,
-  newsletter: z.preprocess((val) => val === 'true' || val === true, z.boolean().optional().default(false)),
-  smsConsent: z.preprocess((val) => val === 'true' || val === true, z.boolean().optional().default(false)),
+  consentEmail: z.preprocess((val) => val === 'true' ? true : val === 'false' ? false : null, z.boolean().nullable().optional()),
+  consentPhone: z.preprocess((val) => val === 'true' ? true : val === 'false' ? false : null, z.boolean().nullable().optional()),
+  consentSms: z.preprocess((val) => val === 'true' ? true : val === 'false' ? false : null, z.boolean().nullable().optional()),
+  consentPostal: z.preprocess((val) => val === 'true' ? true : val === 'false' ? false : null, z.boolean().nullable().optional()),
+  consentCustom: z.preprocess((val) => val === 'true' ? true : val === 'false' ? false : null, z.boolean().nullable().optional()),
+  noContact: z.preprocess((val) => val === 'true' || val === true, z.boolean().optional().default(false)),
   consentDate: z.preprocess(
     (val) => {
       if (val === null || val === undefined || (typeof val === 'string' && val.trim() === '')) return undefined;

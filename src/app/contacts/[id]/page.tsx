@@ -6,6 +6,8 @@ import ArchiveButton from './archive-button'
 import { MapPin, Phone, Mail, Building, Clock, CheckSquare, Mail as MailIcon, HelpCircle, Smartphone, ExternalLink, User, Briefcase, Calendar, Globe, AlertTriangle } from 'lucide-react'
 import PrintButton from '@/components/PrintButton'
 import { getModuleFields } from '@/lib/fields'
+import ContactConsentsCard from './contact-consents-card'
+import ContactInteractionsTimeline from './contact-interactions-timeline'
 
 // ── Contraste auto pour les tags ────────────────────────────
 function getContrastText(hexColor: string): string {
@@ -39,12 +41,13 @@ function auditLabel(action: string): string {
 
 // ── Label type contact ───────────────────────────────────────
 const TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  ELECTEUR:    { label: 'Électeur',   color: '#1d4ed8', bg: '#dbeafe' },
-  ELU:         { label: 'Élu',        color: '#7c3aed', bg: '#ede9fe' },
-  ASSO:        { label: 'Association',color: '#065f46', bg: '#d1fae5' },
-  PARTENAIRE:  { label: 'Partenaire', color: '#92400e', bg: '#fef3c7' },
-  PRESSE:      { label: 'Presse',     color: '#be185d', bg: '#fce7f3' },
-  AUTRE:       { label: 'Autre',      color: '#374151', bg: '#f3f4f6' },
+  ELECTEUR:       { label: 'Électeur',   color: '#1d4ed8', bg: '#dbeafe' },
+  ELU:            { label: 'Élu',        color: '#7c3aed', bg: '#ede9fe' },
+  CONTACT_MAIRIE: { label: 'Contact Mairie', color: '#b45309', bg: '#fef3c7' },
+  ASSO:           { label: 'Association',color: '#065f46', bg: '#d1fae5' },
+  PARTENAIRE:     { label: 'Partenaire', color: '#92400e', bg: '#fef3c7' },
+  PRESSE:         { label: 'Presse',     color: '#be185d', bg: '#fce7f3' },
+  AUTRE:          { label: 'Autre',      color: '#374151', bg: '#f3f4f6' },
 }
 
 export default async function ContactDetailPage({
@@ -59,7 +62,11 @@ export default async function ContactDetailPage({
     include: {
       createdBy: true,
       updatedBy: true,
-      tags: { include: { tag: true } }
+      tags: { include: { tag: true } },
+      interactions: {
+        include: { createdBy: { select: { firstName: true, lastName: true } } },
+        orderBy: { date: 'desc' }
+      }
     }
   })
 
@@ -273,15 +280,7 @@ export default async function ContactDetailPage({
                 </div>
               </div>
 
-              {/* Secteur */}
-              {contact.territorySector && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <Building size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                  <span style={{ color: 'var(--foreground)', fontSize: '0.88rem' }}>
-                    Secteur : <strong>{contact.territorySector}</strong>
-                  </span>
-                </div>
-              )}
+
 
               {/* Profession */}
               {contact.profession && (
@@ -401,8 +400,20 @@ export default async function ContactDetailPage({
             </div>
           </div>
 
+          <ContactConsentsCard
+            contactId={contact.id}
+            initialConsents={{
+              consentEmail: contact.consentEmail,
+              consentPhone: contact.consentPhone,
+              consentSms: contact.consentSms,
+              consentPostal: contact.consentPostal,
+              consentCustom: contact.consentCustom,
+              noContact: contact.noContact
+            }}
+          />
+
           {/* Historique */}
-          <div className="card" style={{ padding: '1.25rem' }}>
+          <div id="history-card" className="card" style={{ padding: '1.25rem' }}>
             <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Clock size={16} style={{ color: 'var(--primary)' }} /> Historique
             </h2>
@@ -560,6 +571,11 @@ export default async function ContactDetailPage({
               </p>
             )}
           </div>
+
+          <ContactInteractionsTimeline
+            contactId={contact.id}
+            initialInteractions={JSON.parse(JSON.stringify(contact.interactions))}
+          />
 
           {/* Formulaire d'édition */}
           <div className="card" style={{ padding: '1.25rem' }}>

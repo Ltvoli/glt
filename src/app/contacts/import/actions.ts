@@ -148,7 +148,6 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     const tagsRaw    = col(row, 'Tags',      'TAGS',     'tags',      'mots_cles')
     const newsletter = col(row, 'Newsletter','newsletter','NEWSLETTER')
     const notes      = col(row, 'Notes',     'NOTES',    'notes')
-    const secteur    = col(row, 'Secteur',   'SECTEUR',  'secteur',   'canton')
     const supportRaw = col(row, 'Niveau de Soutien', 'NIVEAU DE SOUTIEN', 'niveau_soutien', 'support_level')
     const supportLevel = parseSupportLevel(supportRaw, dbSupportLevels)
 
@@ -169,18 +168,17 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       adresse2 ? `Complément d'adresse : ${adresse2}` : '',
     ].filter(Boolean).join('\n') || null
 
-    let hasNewsletter = false
+    let consentEmail: boolean | null = null
     let consentDate = null
     let consentSource = null
 
     if (forceConsent) {
-      hasNewsletter = true
+      consentEmail = true
       consentDate = new Date()
       consentSource = 'IMPORT_MASSE'
-    } else {
-      hasNewsletter = newsletter
-        ? (newsletter.toLowerCase() === 'oui' || newsletter.toLowerCase() === 'true' || newsletter === '1')
-        : false
+    } else if (newsletter) {
+      const isYes = (newsletter.toLowerCase() === 'oui' || newsletter.toLowerCase() === 'true' || newsletter === '1')
+      consentEmail = isYes ? true : false
     }
 
     // ── Données à insérer ────────────────────────────
@@ -197,14 +195,12 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       gender,
       birthDate,
       supportLevel: supportLevel || null,
-      territorySector: secteur || null,
       notes:        fullNotes,
       profession:   profession || null,
-      newsletter:   hasNewsletter,
+      consentEmail: consentEmail,
       consentDate:  consentDate,
       consentSource: consentSource,
       type:         'ELECTEUR' as const,
-      source:       'QOMON'   as const,
       createdById:  userId,
     }
 

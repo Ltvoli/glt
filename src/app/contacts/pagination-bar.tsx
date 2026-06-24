@@ -12,9 +12,9 @@ interface PaginationBarProps {
 
 function buildUrl(params: Record<string, string | undefined>, newPage: number, newPerPage?: number) {
   const p = new URLSearchParams()
-  const keys = ['city', 'nameQ', 'phone', 'streetQ', 'q', 'sector', 'tag',
-    'lastInteraction', 'supportLevel', 'meetingStep', 'emailStatus', 'phoneStatus',
-    'gender', 'addressStatus']
+  const keys = ['city', 'nameQ', 'phone', 'streetQ', 'q', 'tag',
+    'lastInteraction', 'supportLevel', 'emailStatus', 'phoneStatus',
+    'gender', 'addressStatus', 'contactType']
   for (const key of keys) {
     if (params[key]) p.set(key, params[key]!)
   }

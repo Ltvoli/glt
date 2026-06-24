@@ -167,11 +167,9 @@ function Suggestions({
 // ──────────────────────────────────────────────
 export default function AdvancedFilters({
   allTags,
-  uniqueSectors,
   uniqueCities = [],
 }: {
   allTags: any[]
-  uniqueSectors: string[]
   uniqueCities?: string[]
 }) {
   const router = useRouter()
@@ -203,18 +201,29 @@ export default function AdvancedFilters({
   // Advanced filters state
   const [lastInteraction, setLastInteraction] = useState(searchParams.get('lastInteraction') || '')
   const [supportLevel, setSupportLevel]       = useState(searchParams.get('supportLevel') || '')
-  const [meetingStep, setMeetingStep]         = useState(searchParams.get('meetingStep') || '')
-  const [territorySector, setTerritorySector] = useState(searchParams.get('sector') || '')
   const [emailStatus, setEmailStatus]         = useState(searchParams.get('emailStatus') || 'all')
   const [phoneStatus, setPhoneStatus]         = useState(searchParams.get('phoneStatus') || 'all')
   const [gender, setGender]                   = useState(searchParams.get('gender') || 'all')
   const [addressStatus, setAddressStatus]     = useState(searchParams.get('addressStatus') || 'all')
   const [tag, setTag]                         = useState(searchParams.get('tag') || '')
+  const [contactType, setContactType]         = useState(searchParams.get('contactType') || 'all')
+
+  useEffect(() => {
+    setChips(buildChipsFromParams())
+    setLastInteraction(searchParams.get('lastInteraction') || '')
+    setSupportLevel(searchParams.get('supportLevel') || '')
+    setEmailStatus(searchParams.get('emailStatus') || 'all')
+    setPhoneStatus(searchParams.get('phoneStatus') || 'all')
+    setGender(searchParams.get('gender') || 'all')
+    setAddressStatus(searchParams.get('addressStatus') || 'all')
+    setTag(searchParams.get('tag') || '')
+    setContactType(searchParams.get('contactType') || 'all')
+  }, [searchParams])
 
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const hasAdvancedFilters = lastInteraction || supportLevel || meetingStep || territorySector ||
-    (emailStatus !== 'all') || (phoneStatus !== 'all') || (gender !== 'all') || (addressStatus !== 'all') || tag
+  const hasAdvancedFilters = lastInteraction || supportLevel ||
+    (emailStatus !== 'all') || (phoneStatus !== 'all') || (gender !== 'all') || (addressStatus !== 'all') || tag || (contactType !== 'all')
 
   // Build URL and navigate
   const buildAndNavigate = (newChips: Chip[], extraParams?: Record<string, string>) => {
@@ -228,15 +237,22 @@ export default function AdvancedFilters({
 
     if (lastInteraction)              params.set('lastInteraction', lastInteraction)
     if (supportLevel)                 params.set('supportLevel', supportLevel)
-    if (meetingStep && meetingStep !== 'all') params.set('meetingStep', meetingStep)
-    if (territorySector)              params.set('sector', territorySector)
     if (emailStatus && emailStatus !== 'all')   params.set('emailStatus', emailStatus)
     if (phoneStatus && phoneStatus !== 'all')   params.set('phoneStatus', phoneStatus)
     if (gender && gender !== 'all')             params.set('gender', gender)
     if (addressStatus && addressStatus !== 'all') params.set('addressStatus', addressStatus)
     if (tag)                          params.set('tag', tag)
+    if (contactType && contactType !== 'all')   params.set('contactType', contactType)
 
-    if (extraParams) Object.entries(extraParams).forEach(([k, v]) => params.set(k, v))
+    if (extraParams) {
+      Object.entries(extraParams).forEach(([k, v]) => {
+        if (v === 'all' || v === '') {
+          params.delete(k)
+        } else {
+          params.set(k, v)
+        }
+      })
+    }
 
     router.push(`/contacts?${params.toString()}`)
   }
@@ -265,13 +281,12 @@ export default function AdvancedFilters({
     setInputValue('')
     setLastInteraction('')
     setSupportLevel('')
-    setMeetingStep('')
-    setTerritorySector('')
     setEmailStatus('all')
     setPhoneStatus('all')
     setGender('all')
     setAddressStatus('all')
     setTag('')
+    setContactType('all')
     router.push('/contacts')
     setShowAdvanced(false)
   }
@@ -352,6 +367,30 @@ export default function AdvancedFilters({
 
         {/* Divider */}
         <div style={{ width: '1px', height: '24px', background: 'var(--border)', flexShrink: 0 }} />
+
+        {/* Quick NPAI toggle */}
+        <button
+          onClick={() => {
+            const isCurrentlyNpai = searchParams.get('addressStatus') === 'npai';
+            buildAndNavigate(chips, { addressStatus: isCurrentlyNpai ? 'all' : 'npai' });
+          }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '0.4rem',
+            padding: '0.4rem 0.75rem',
+            borderRadius: '6px',
+            border: searchParams.get('addressStatus') === 'npai' ? '1px solid #d97706' : '1px solid var(--border)',
+            cursor: 'pointer',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            backgroundColor: searchParams.get('addressStatus') === 'npai' ? '#fef3c7' : 'transparent',
+            color: searchParams.get('addressStatus') === 'npai' ? '#d97706' : 'var(--text-muted)',
+            transition: 'all 0.15s',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
+        >
+          <span>⚠️ NPAI uniquement</span>
+        </button>
 
         {/* Advanced filters toggle */}
         <button
@@ -440,30 +479,23 @@ export default function AdvancedFilters({
                   <option value="5">5 — Très favorable</option>
                 </select>
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Étape de rencontre
-                </label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {['all', 'Absent', 'Accepté', 'Refusé', 'Repassés', 'Pas encore contactés'].map(opt => (
-                    <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                      <input type="radio" name="meetingStep" value={opt} checked={meetingStep === opt || (opt === 'all' && !meetingStep)} onChange={() => setMeetingStep(opt === 'all' ? '' : opt)} />
-                      {opt === 'all' ? <strong>Tous</strong> : opt}
-                    </label>
-                  ))}
-                </div>
-              </div>
             </div>
 
             {/* Col 2 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Secteur
+                  Type de contact
                 </label>
-                <select value={territorySector} onChange={e => setTerritorySector(e.target.value)} className="form-control" style={{ fontSize: '0.875rem' }}>
-                  <option value="">Tous les secteurs</option>
-                  {uniqueSectors.map(s => <option key={s} value={s}>{s}</option>)}
+                <select value={contactType} onChange={e => setContactType(e.target.value)} className="form-control" style={{ fontSize: '0.875rem' }}>
+                  <option value="all">Tous les types</option>
+                  <option value="ELECTEUR">Électeur</option>
+                  <option value="ELU">Élu</option>
+                  <option value="CONTACT_MAIRIE">Contact Mairie</option>
+                  <option value="ASSO">Association</option>
+                  <option value="PARTENAIRE">Partenaire</option>
+                  <option value="PRESSE">Presse</option>
+                  <option value="AUTRE">Autre</option>
                 </select>
               </div>
               <div>

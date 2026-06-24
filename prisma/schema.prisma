@@ -89,6 +89,7 @@ model User {
   permanenceTaskHistories PermanenceTaskHistory[]
   permanenceSyntheses  PermanenceSynthesis[]
   bulkCommunications   BulkCommunication[]   @relation("BulkCommsCreator")
+  interactionsCreated  ContactInteraction[]
 }
 
 model UserSession {
@@ -148,22 +149,23 @@ model Contact {
   floor        String? // Étage
   door         String? // Porte
 
-  territorySector String?
   supportLevel    String? // e.g. "1", "2", "3", "4", "5"
-  meetingStep     String? // Absent, Accepté, Refusé, Repassés, Pas encore contactés
 
   ageRange          String?
   lastContactMobile DateTime?
   territory         String?
   department        String?
 
-  type            String // ELECTEUR, ELU, ASSO, PARTENAIRE, PRESSE, AUTRE
-  source          String? // PERMANENCE, COURRIER, EVENEMENT, TERRAIN, AUTRE
-  newsletter      Boolean   @default(false) // Consentement Email
-  smsConsent      Boolean   @default(false) // Consentement SMS (RGPD)
+  type            String // ELECTEUR, ELU, ASSO, PARTENAIRE, PRESSE, AUTRE, CONTACT_MAIRIE
+  consentEmail    Boolean? // Consentement Email (RGPD)
+  consentPhone    Boolean? // Consentement Téléphone (RGPD)
+  consentSms      Boolean? // Consentement SMS (RGPD)
+  consentPostal   Boolean? // Consentement Postal (RGPD)
+  consentCustom   Boolean? // Consentement Personnalisé (RGPD)
+  noContact       Boolean   @default(false) // Ne plus jamais contacter
   isNpai          Boolean   @default(false)
   consentDate     DateTime? // Date d'obtention du consentement
-  consentSource   String?   // Origine du consentement (ex: IMPORT_ADHERENTS, FORMULAIRE_WEB)
+  consentSource   String?   // Origine du consentement
   whatsappStatus  String? // NON, ENVOYE, REJOINT
   linkedinUrl     String?
   notes           String?
@@ -188,6 +190,7 @@ model Contact {
   permanenceMailContacts PermanenceMailContact[]   @relation("MailContactRelation")
   permanenceLocations PermanenceLocation[]         @relation("LocationMairieContact")
   lists               ContactList[]
+  interactions        ContactInteraction[]
 
   @@index([lastName])
   @@index([email])
@@ -195,6 +198,21 @@ model Contact {
   @@index([lastName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_lastName_trgm_idx")
   @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_email_trgm_idx")
   @@index([city(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_city_trgm_idx")
+}
+
+model ContactInteraction {
+  id          String   @id @default(cuid())
+  contactId   String
+  contact     Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  type        String   // APPEL_ENTRANT, APPEL_SORTANT, RENCONTRE_PHYSIQUE, SMS
+  date        DateTime @default(now())
+  notes       String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contactId])
 }
 
 model Tag {
