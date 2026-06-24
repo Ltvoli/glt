@@ -181,6 +181,17 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
       })
     }
 
+    // Trigger auto-analysis if enabled and type is ENTRANT
+    const autoAnalyzeSetting = await prisma.setting.findUnique({ where: { key: 'ai.auto_analyze_on_import' } })
+    if (autoAnalyzeSetting?.value === 'true' && validData.type === 'ENTRANT') {
+      try {
+        await analyzeMailCaseAction(newMail.id)
+      } catch (ae: any) {
+        console.error('[createMail] auto-analysis error:', ae)
+        // Do not block mail creation if auto-analysis fails
+      }
+    }
+
   } catch (error) {
     console.error(error)
     return { error: 'Erreur lors de la création du courrier.' }

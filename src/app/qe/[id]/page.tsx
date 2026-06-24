@@ -7,6 +7,7 @@ import QEStatusForm from './qe-status-form'
 import QEAttachments from './qe-attachments'
 import QEResponseForm from './qe-response-form'
 import PrintButton from '@/app/reports/weekly/print-button'
+import QeAiWriter from './ai-writer'
 
 export default async function QEDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -30,6 +31,9 @@ export default async function QEDetailPage({ params }: { params: Promise<{ id: s
   })
 
   if (!qe) redirect('/qe')
+
+  const mailEnabledSetting = await prisma.setting.findUnique({ where: { key: 'ai.mail_enabled' } })
+  const isAiMailEnabled = mailEnabledSetting?.value === 'true'
 
   const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
 
@@ -86,7 +90,7 @@ export default async function QEDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isAiMailEnabled && qe.status === 'A_REDIGER' ? '1.8fr 1.2fr' : '2fr 1fr', gap: '2rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
           <div className="card">
@@ -158,6 +162,10 @@ export default async function QEDetailPage({ params }: { params: Promise<{ id: s
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
+          {isAiMailEnabled && qe.status === 'A_REDIGER' && (
+            <QeAiWriter qeId={qe.id} hasContent={!!qe.content} />
+          )}
+
           <div className="card">
             <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>Assignation</h3>
             {qe.assignee ? (

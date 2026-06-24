@@ -88,6 +88,25 @@ const RESPONSE_GENERATION_SCHEMA = {
   required: ["courriers"]
 }
 
+const QE_GENERATION_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    texte: { 
+      type: "STRING", 
+      description: "Le texte rédigé de la question écrite au format officiel de l'Assemblée nationale, sans en-tête ni signature. Les informations manquantes sont balisées sous la forme [À COMPLÉTER : ...]" 
+    },
+    ministere: { 
+      type: "STRING", 
+      description: "Le ministère recommandé pour adresser la question (ex: Ministère de la Santé, Ministère de l'Intérieur, etc.)" 
+    },
+    theme: { 
+      type: "STRING", 
+      description: "La thématique principale de la question (ex: Transports, Santé, Environnement, etc.)" 
+    }
+  },
+  required: ["texte", "ministere", "theme"]
+}
+
 // ─── API Client Wrapper ──────────────────────────────────────
 
 async function getApiKey(): Promise<string> {
@@ -307,4 +326,43 @@ Rédige les courriers de réponse correspondant aux pistes validées.
 
   const parts: GeminiPart[] = [{ text: userMessage }]
   return await callGemini(systemInstruction, parts, RESPONSE_GENERATION_SCHEMA)
+}
+
+export async function generateWrittenQuestion(
+  title: string,
+  theme: string | null,
+  notes: string | null,
+  customInstruction?: string
+): Promise<any> {
+  const deputyName = process.env.DEPUTE_NOM || "Lionel Tivoli"
+  const deputyCirco = process.env.DEPUTE_CIRCO || "2e circonscription des Alpes-Maritimes"
+  
+  const systemInstruction = `
+Tu es un conseiller parlementaire expérimenté chargé de rédiger une Question Écrite (QE) officielle à l'attention du gouvernement au nom du député ${deputyName} (député de la ${deputyCirco}).
+
+RÈGLES DE RÉDACTION :
+- La question écrite doit impérativement commencer par la formule rituelle :
+  "M. ${deputyName} appelle l'attention de M. le ministre de [Nom du Ministère] sur [le sujet de la question]."
+- Le style doit être d'une grande rigueur juridique et législative, digne du Journal Officiel.
+- Structure de la question :
+  1. EXPOSÉ DES FAITS : Présenter les faits constatés sur le terrain ou les alertes reçues dans la circonscription (Alpes-Maritimes).
+  2. ANALYSE LÉGALE/RÉGLEMENTAIRE : Expliquer en quoi le cadre actuel pose problème, quelles sont les lacunes ou les incohérences juridiques.
+  3. INTERROGATION : Formuler de manière très précise la ou les questions adressées au ministre sur les mesures qu'il compte prendre.
+- N'invente aucun chiffre ou fait non étayé. S'il manque des informations, utilise des balises [À COMPLÉTER : ...].
+- Pas de salutations finales ni de signature.
+`
+
+  const userMessage = `
+TITRE/SUJET DE LA QUESTION :
+${title}
+
+THÉMATIQUE ACTUELLE : ${theme || "Non renseignée"}
+NOTES INTERNES / CONTEXTE APPORTÉ : ${notes || "Aucun"}
+CONSIGNE LIBRE SUPPLÉMENTAIRE : ${customInstruction || "Aucune"}
+
+Génère la Question Écrite en remplissant le texte de la question et en recommandant le ministère et le thème les plus pertinents.
+`
+
+  const parts = [{ text: userMessage }]
+  return await callGemini(systemInstruction, parts, QE_GENERATION_SCHEMA)
 }

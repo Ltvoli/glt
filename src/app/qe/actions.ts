@@ -377,3 +377,47 @@ export async function batchUpdateQeStatus(qeIds: string[], status: string) {
 
   revalidatePath('/qe')
 }
+
+export async function generateQeContentAction(qeId: string, customInstruction?: string) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_QE')
+
+  const qe = await prisma.writtenQuestion.findUnique({
+    where: { id: qeId }
+  })
+  if (!qe) return { error: 'Question introuvable.' }
+
+  try {
+    const { generateWrittenQuestion } = await import('@/lib/gemini')
+    const aiResult = await generateWrittenQuestion(
+      qe.title,
+      qe.theme,
+      qe.notes,
+      customInstruction
+    )
+
+    // Update content, and theme/ministry if they were empty
+    const updateData: any = {
+      content: aiResult.texte
+    }
+    if (!qe.theme && aiResult.theme) {
+      updateData.theme = aiResult.theme
+    }
+    if (!qe.ministry && aiResult.ministere) {
+      updateData.ministry = aiResult.ministere
+    }
+
+    await prisma.writtenQuestion.update({
+      where: { id: qeId },
+      data: updateData
+    })
+
+    await logAudit('UPDATE', 'WrittenQuestion', qeId, session.userId, { action: 'AI_GENERATION', ...updateData })
+    
+    revalidatePath(`/qe/${qeId}`)
+    return { success: true }
+  } catch (err: any) {
+    console.error('[generateQeContentAction] error:', err)
+    return { error: `Erreur lors de la génération par l'IA : ${err.message || err}` }
+  }
+}
