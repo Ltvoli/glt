@@ -375,7 +375,15 @@ export default async function ContactDetailPage({
             {contact.notes && (
               <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600, marginBottom: '0.35rem' }}>Notes internes</div>
-                <p style={{ fontSize: '0.85rem', color: '#334155', whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.5 }}>
+                <p style={{
+                  fontSize: '0.85rem',
+                  color: '#334155',
+                  whiteSpace: 'pre-wrap',
+                  margin: 0,
+                  lineHeight: 1.5,
+                  overflowWrap: 'break-word',
+                  wordBreak: 'break-word'
+                }}>
                   {contact.notes}
                 </p>
               </div>
