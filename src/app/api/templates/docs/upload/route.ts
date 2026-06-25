@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession()
-    if (!session || session.role !== 'ADMIN') {
+    if (!session || (session.dbRole !== 'ADMINISTRATEUR' && session.dbRole !== 'SUPERVISEUR')) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
