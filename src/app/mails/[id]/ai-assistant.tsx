@@ -16,7 +16,7 @@ import {
   ShieldAlert,
   UserCheck
 } from 'lucide-react'
-import { analyzeMailCaseAction, generateMailResponsesAction, toggleAiAssistantAction } from '../actions'
+import { analyzeMailCaseAction, generateMailResponsesAction, toggleAiAssistantAction, applyMailMetadataAction } from '../actions'
 import { toast } from 'sonner'
 
 interface MailAiAnalysis {
@@ -59,6 +59,7 @@ interface MailAiAnalysis {
 
 interface AiAssistantProps {
   mailId: string
+  mailType: string
   aiAnalysis: any // JsonValue
   aiSuggestions: any // JsonValue
   hideAiAssistant: boolean
@@ -67,6 +68,7 @@ interface AiAssistantProps {
 
 export default function AiAssistant({ 
   mailId, 
+  mailType,
   aiAnalysis, 
   aiSuggestions, 
   hideAiAssistant,
@@ -147,6 +149,25 @@ export default function AiAssistant({
         }
       } catch (err: any) {
         toast.error("Erreur lors de la génération : " + err.message)
+      } finally {
+        setLoadingStep('')
+      }
+    })
+  }
+
+  // Apply metadata to mailCase card
+  const handleApplyMetadata = () => {
+    startTransition(async () => {
+      setLoadingStep("Application des métadonnées sur la fiche...")
+      try {
+        const res = await applyMailMetadataAction(mailId)
+        if (res.error) {
+          toast.error(res.error)
+        } else {
+          toast.success("Fiche du courrier mise à jour avec succès !")
+        }
+      } catch (err: any) {
+        toast.error("Erreur technique : " + err.message)
       } finally {
         setLoadingStep('')
       }
@@ -381,6 +402,62 @@ export default function AiAssistant({
                   </span>
                 )}
               </div>
+
+              {/* Encart Métadonnées Détectées */}
+              {analysis.metadata && (
+                <div style={{
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid var(--border)',
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem'
+                }}>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Données d'identité détectées
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>{mailType === 'ENTRANT' ? 'Expéditeur :' : 'Destinataire :'}</span>
+                    <span style={{ fontWeight: 600 }}>{analysis.metadata.expediteur_nom || '-'}</span>
+                    
+                    <span style={{ color: 'var(--text-muted)' }}>Objet :</span>
+                    <span style={{ fontWeight: 600 }}>{analysis.metadata.objet || '-'}</span>
+                    
+                    <span style={{ color: 'var(--text-muted)' }}>Commune :</span>
+                    <span style={{ fontWeight: 600 }}>{analysis.metadata.commune || '-'}</span>
+                    
+                    <span style={{ color: 'var(--text-muted)' }}>Catégorie :</span>
+                    <span style={{ fontWeight: 600 }}>
+                      {analysis.analyse?.type_courrier === 'demande_intervention' ? "Demande d'intervention" :
+                       analysis.analyse?.type_courrier === 'reclamation' ? 'Réclamation' :
+                       analysis.analyse?.type_courrier === 'invitation' ? 'Invitation' :
+                       analysis.analyse?.type_courrier === 'demande_rdv' ? 'Rendez-vous' :
+                       analysis.analyse?.type_courrier === 'demande_soutien' ? 'Soutien' : 'Information'}
+                    </span>
+                  </div>
+                  
+                  <button
+                    onClick={handleApplyMetadata}
+                    className="button outline"
+                    style={{ 
+                      width: '100%', 
+                      fontSize: '0.8rem', 
+                      padding: '0.4rem 0.8rem',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      borderColor: 'var(--primary)',
+                      color: 'var(--primary)'
+                    }}
+                    disabled={isPending}
+                  >
+                    <Sparkles size={14} />
+                    Appliquer ces données à la fiche
+                  </button>
+                </div>
+              )}
 
               {/* Résumé de l'analyse */}
               {analysis.analyse?.resume && (

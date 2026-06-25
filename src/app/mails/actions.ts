@@ -661,3 +661,70 @@ export async function toggleAiAssistantAction(mailCaseId: string, hide: boolean)
   }
 }
 
+export async function applyMailMetadataAction(mailCaseId: string) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_MAILS')
+
+  const mail = await prisma.mailCase.findUnique({ where: { id: mailCaseId } })
+  if (!mail) return { error: 'Courrier introuvable.' }
+  if (!mail.aiAnalysis) return { error: "Aucune analyse IA disponible pour ce courrier." }
+
+  const analysis = mail.aiAnalysis as any
+  const metadata = analysis.metadata || {}
+  const analyseDetails = analysis.analyse || {}
+
+  const updateData: any = {}
+
+  if (metadata.expediteur_nom) {
+    if (mail.type === 'ENTRANT') {
+      updateData.senderName = metadata.expediteur_nom
+    } else {
+      updateData.recipientName = metadata.expediteur_nom
+    }
+  }
+
+  if (metadata.objet) {
+    updateData.subject = metadata.objet
+  }
+
+  if (metadata.commune) {
+    updateData.city = metadata.commune
+  }
+
+  if (analyseDetails.urgence) {
+    updateData.urgency = analyseDetails.urgence === 'élevée' ? 'HAUTE' : 'NORMALE'
+  }
+
+  if (analyseDetails.type_courrier) {
+    switch (analyseDetails.type_courrier) {
+      case 'demande_intervention':
+      case 'demande_soutien':
+        updateData.category = 'DEMANDE_INTERVENTION'
+        break
+      case 'invitation':
+      case 'demande_rdv':
+        updateData.category = 'INVITATION'
+        break
+      case 'reclamation':
+        updateData.category = 'RECLAMATION'
+        break
+      case 'autre':
+      default:
+        updateData.category = 'INFORMATION'
+        break
+    }
+  }
+
+  try {
+    await prisma.mailCase.update({
+      where: { id: mailCaseId },
+      data: updateData
+    })
+    revalidatePath(`/mails/${mailCaseId}`)
+    return { success: true }
+  } catch (err: any) {
+    console.error('[applyMailMetadataAction] error:', err)
+    return { error: `Erreur lors de la mise à jour : ${err.message || err}` }
+  }
+}
+

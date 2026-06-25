@@ -276,6 +276,7 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
           {isAiMailEnabled && (
             <AiAssistant 
               mailId={mail.id}
+              mailType={mail.type}
               aiAnalysis={mail.aiAnalysis}
               aiSuggestions={mail.aiSuggestions}
               hideAiAssistant={mail.hideAiAssistant}
