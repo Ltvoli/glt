@@ -4,10 +4,11 @@ import { getSession } from '@/lib/session'
 import Sidebar from '@/components/Sidebar'
 import TopBar from '@/components/TopBar'
 import Omnisearch from '@/components/Omnisearch'
-import { Inter } from 'next/font/google'
+import { Lexend, Source_Sans_3 } from 'next/font/google'
 import { Toaster } from 'sonner'
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const lexend = Lexend({ subsets: ['latin'], variable: '--font-lexend' })
+const sourceSans = Source_Sans_3({ subsets: ['latin'], variable: '--font-source-sans' })
 
 export const metadata: Metadata = {
   title: 'Bureau Parlementaire',
@@ -47,8 +48,8 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="fr" className={inter.variable}>
-      <body className={inter.variable}>
+    <html lang="fr" className={`${lexend.variable} ${sourceSans.variable}`}>
+      <body className={`${lexend.variable} ${sourceSans.variable}`}>
         {session ? (
           <div style={{ display: 'flex', minHeight: '100vh' }}>
             <Sidebar
