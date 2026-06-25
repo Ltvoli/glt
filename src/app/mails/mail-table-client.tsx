@@ -140,9 +140,23 @@ export default function MailTableClient({ mails }: { mails: any[] }) {
                       )}
                     </div>
                     {mail.responseDueDate && mail.status !== 'REPONDU' && mail.status !== 'CLASSE' && (
-                      <div style={{ fontSize: '0.75rem', color: new Date(mail.responseDueDate) < new Date() ? 'var(--danger)' : 'var(--text-muted)' }}>
-                        <Clock size={12} style={{ display: 'inline', marginRight: '0.25rem' }} />
-                        {new Date(mail.responseDueDate).toLocaleDateString('fr-FR')}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem', alignItems: 'flex-start' }}>
+                        {new Date(mail.responseDueDate) < new Date() && (
+                          <span style={{ 
+                            padding: '0.15rem 0.35rem', 
+                            backgroundColor: '#fee2e2', 
+                            color: 'var(--danger)', 
+                            borderRadius: '4px', 
+                            fontSize: '0.7rem', 
+                            fontWeight: 600 
+                          }}>
+                            En retard
+                          </span>
+                        )}
+                        <div style={{ fontSize: '0.75rem', color: new Date(mail.responseDueDate) < new Date() ? 'var(--danger)' : 'var(--text-muted)' }}>
+                          <Clock size={12} style={{ display: 'inline', marginRight: '0.25rem' }} />
+                          {new Date(mail.responseDueDate).toLocaleDateString('fr-FR')}
+                        </div>
                       </div>
                     )}
                   </td>

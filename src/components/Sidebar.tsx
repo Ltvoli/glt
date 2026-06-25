@@ -20,7 +20,17 @@ const navItems = [
   { name: 'RGPD & Sécurité', href: '/rgpd', icon: ShieldAlert },
 ]
 
-export default function Sidebar({ userRole, activeModules = [], unreadCount = 0 }: { userRole?: string, activeModules?: string[], unreadCount?: number }) {
+export default function Sidebar({ 
+  userRole, 
+  activeModules = [], 
+  unreadCount = 0, 
+  lateMailCount = 0 
+}: { 
+  userRole?: string, 
+  activeModules?: string[], 
+  unreadCount?: number, 
+  lateMailCount?: number 
+}) {
   const pathname = usePathname()
 
   const moduleMap: Record<string, string> = {
@@ -105,7 +115,26 @@ export default function Sidebar({ userRole, activeModules = [], unreadCount = 0 
                   }}
                 >
                   <Icon size={18} />
-                  {item.name}
+                  <span style={{ flex: 1 }}>{item.name}</span>
+                  {item.href === '/mails' && lateMailCount > 0 && (
+                    <span style={{
+                      backgroundColor: 'var(--danger)',
+                      color: 'white',
+                      fontSize: '0.7rem',
+                      fontWeight: '700',
+                      borderRadius: '9999px',
+                      padding: '0.15rem 0.45rem',
+                      lineHeight: 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: '1.25rem',
+                      height: '1.25rem',
+                      marginLeft: 'auto'
+                    }}>
+                      {lateMailCount}
+                    </span>
+                  )}
                 </Link>
               </li>
             )

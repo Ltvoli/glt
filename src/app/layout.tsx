@@ -27,13 +27,14 @@ export default async function RootLayout({
   let activeModules: string[] = []
   let userName = ''
   let unreadCount = 0
+  let lateMailCount = 0
 
   if (session) {
     userRole = session.dbRole as string
     activeModules = session.activeModules || []
 
-    // Fetch user info and unread notifications count in parallel
-    const [user, notifCount] = await Promise.all([
+    // Fetch user info, unread notifications, and late mails in parallel
+    const [user, notifCount, lateMails] = await Promise.all([
       prisma.user.findUnique({
         where: { id: session.userId },
         select: { firstName: true, lastName: true, avatarUrl: true },
@@ -41,10 +42,17 @@ export default async function RootLayout({
       prisma.notification.count({
         where: { userId: session.userId, readAt: null },
       }),
+      prisma.mailCase.count({
+        where: {
+          responseDueDate: { lt: new Date() },
+          status: { notIn: ['REPONDU', 'CLASSE'] }
+        }
+      })
     ])
 
     if (user) userName = `${user.firstName} ${user.lastName}`
     unreadCount = notifCount
+    lateMailCount = lateMails
   }
 
   return (
@@ -56,6 +64,7 @@ export default async function RootLayout({
               userRole={userRole}
               activeModules={activeModules}
               unreadCount={unreadCount}
+              lateMailCount={lateMailCount}
             />
             <main style={{ flex: 1, padding: '2rem', marginLeft: '250px' }} className="main-content">
               <TopBar />
