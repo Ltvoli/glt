@@ -41,18 +41,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Erreur stockage cloud' }, { status: 500 })
     }
 
-    const template = await prisma.documentTemplate.create({
-      data: {
-        name,
-        description,
-        entityType,
-        originalName: file.name,
-        storageName,
-        storagePath: uploadData.path
-      }
-    })
-
-    return NextResponse.json({ success: true, template })
+    try {
+      const template = await prisma.documentTemplate.create({
+        data: {
+          name,
+          description,
+          entityType,
+          originalName: file.name,
+          storageName,
+          storagePath: uploadData.path
+        }
+      })
+      return NextResponse.json({ success: true, template })
+    } catch (prismaError) {
+      // Rollback Supabase upload on DB error
+      await supabase.storage.from('crm-attachments').remove([`templates/${storageName}`])
+      throw prismaError
+    }
   } catch (error: any) {
     console.error('Upload template error:', error)
     return NextResponse.json({ error: 'Erreur interne' }, { status: 500 })

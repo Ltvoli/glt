@@ -4,11 +4,18 @@ import prisma from '@/lib/prisma'
 import { supabase } from '@/lib/supabase'
 import PizZip from 'pizzip'
 import Docxtemplater from 'docxtemplater'
+import { requirePermission } from '@/lib/permissions'
 
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session?.userId) return new NextResponse('Unauthorized', { status: 401 })
+
+    try {
+      requirePermission(session.role, 'DOWNLOAD_DOCUMENTS')
+    } catch (e) {
+      return NextResponse.json({ error: 'Permission refusée' }, { status: 403 })
+    }
 
     const { templateId, entityId } = await req.json()
     if (!templateId || !entityId) return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
@@ -30,6 +37,11 @@ export async function POST(req: NextRequest) {
     const dateStr = new Date().toLocaleDateString('fr-FR')
 
     if (template.entityType === 'CONTACT') {
+      try {
+        requirePermission(session.role, 'VIEW_CONTACTS')
+      } catch (e) {
+        return NextResponse.json({ error: 'Accès refusé au contact' }, { status: 403 })
+      }
       const contact = await prisma.contact.findUnique({ where: { id: entityId } })
       if (!contact) return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
       mergeData = {
