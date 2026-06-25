@@ -34,6 +34,9 @@ type MailCollaborationTabsProps = {
     rejectionReason: string | null
     versions: Version[]
     comments: Comment[]
+    receiveDate?: Date | string | null
+    sentDate?: Date | string | null
+    createdAt?: Date | string
   }
   currentUserId: string
 }
@@ -78,11 +81,17 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
   }
 
   // Generate date string
-  const dateStr = new Date().toLocaleDateString('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  })
+  const getFormattedDate = () => {
+    const d = mail.type === 'ENTRANT'
+      ? (mail.receiveDate ? new Date(mail.receiveDate) : (mail.createdAt ? new Date(mail.createdAt) : new Date()))
+      : (mail.sentDate ? new Date(mail.sentDate) : (mail.createdAt ? new Date(mail.createdAt) : new Date()))
+    return d.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    })
+  }
+  const dateStr = getFormattedDate()
 
   // Render Diff inline
   const renderDiff = (oldText: string, newText: string) => {
@@ -148,7 +157,7 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
             marginBottom: '-2px'
           }}
         >
-          <FileText size={18} /> Aperçu Papier Officiel
+          <FileText size={18} /> {mail.type === 'SORTANT' ? 'Aperçu Papier Officiel' : 'Contenu du courrier'}
         </button>
 
         <button
@@ -209,30 +218,46 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
               lineHeight: '1.6'
             }}
           >
-            {/* Letterhead */}
-            <div style={{ textAlign: 'center', marginBottom: '3rem', borderBottom: '2px double #cbd5e1', paddingBottom: '1.5rem' }}>
-              <div style={{ fontSize: '0.85rem', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#0f172a', fontWeight: 'bold', fontFamily: 'system-ui, sans-serif' }}>
-                Assemblée nationale
+            {/* Letterhead (Only for outgoing mails) */}
+            {mail.type === 'SORTANT' ? (
+              <div style={{ textAlign: 'center', marginBottom: '3rem', borderBottom: '2px double #cbd5e1', paddingBottom: '1.5rem' }}>
+                <div style={{ fontSize: '0.85rem', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#0f172a', fontWeight: 'bold', fontFamily: 'system-ui, sans-serif' }}>
+                  Assemblée nationale
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1e3a8a', marginTop: '0.5rem' }}>
+                  Lionel TIVOLI
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'system-ui, sans-serif' }}>
+                  Député des Alpes-Maritimes
+                </div>
               </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1e3a8a', marginTop: '0.5rem' }}>
-                Lionel TIVOLI
+            ) : (
+              <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem', marginBottom: '2rem' }}>
+                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#475569', fontFamily: 'system-ui, sans-serif' }}>
+                  Courrier reçu (Entrant)
+                </div>
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'system-ui, sans-serif' }}>
-                Député des Alpes-Maritimes
-              </div>
-            </div>
+            )}
 
             {/* Date and City */}
             <div style={{ textAlign: 'right', marginBottom: '2rem', fontSize: '0.95rem' }}>
-              Nice, le {dateStr}
+              {mail.type === 'SORTANT' ? `Nice, le ${dateStr}` : `Reçu le ${dateStr}`}
             </div>
 
-            {/* Recipient block */}
-            <div style={{ marginLeft: 'auto', width: '55%', marginBottom: '3rem', fontSize: '0.95rem', fontFamily: 'system-ui, sans-serif', padding: '0.5rem', borderLeft: '3px solid #e2e8f0' }}>
-              <div style={{ fontWeight: 'bold', color: '#475569', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Destinataire</div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 600 }}>{mail.recipientName || mail.senderName || '(Destinataire non renseigné)'}</div>
-              {mail.city && <div style={{ color: '#475569' }}>{mail.city}</div>}
-            </div>
+            {/* Sender / Recipient block */}
+            {mail.type === 'ENTRANT' ? (
+              <div style={{ marginRight: 'auto', width: '55%', marginBottom: '3rem', fontSize: '0.95rem', fontFamily: 'system-ui, sans-serif', padding: '0.5rem', borderLeft: '3px solid #e2e8f0' }}>
+                <div style={{ fontWeight: 'bold', color: '#475569', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Expéditeur</div>
+                <div style={{ fontSize: '1.05rem', fontWeight: 600 }}>{mail.senderName || '(Expéditeur non renseigné)'}</div>
+                {mail.city && <div style={{ color: '#475569' }}>{mail.city}</div>}
+              </div>
+            ) : (
+              <div style={{ marginLeft: 'auto', width: '55%', marginBottom: '3rem', fontSize: '0.95rem', fontFamily: 'system-ui, sans-serif', padding: '0.5rem', borderLeft: '3px solid #e2e8f0' }}>
+                <div style={{ fontWeight: 'bold', color: '#475569', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Destinataire</div>
+                <div style={{ fontSize: '1.05rem', fontWeight: 600 }}>{mail.recipientName || mail.senderName || '(Destinataire non renseigné)'}</div>
+                {mail.city && <div style={{ color: '#475569' }}>{mail.city}</div>}
+              </div>
+            )}
 
             {/* Subject */}
             <div style={{ marginBottom: '2.5rem', fontWeight: 'bold', fontSize: '0.95rem', fontFamily: 'system-ui, sans-serif' }}>
@@ -252,27 +277,29 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
               {mail.content || 'Rédigez le contenu du courrier...'}
             </div>
 
-            {/* Signature Block */}
-            <div style={{ marginLeft: 'auto', width: '45%', marginTop: '4rem', textAlign: 'center', fontFamily: 'system-ui, sans-serif' }}>
-              <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.75rem' }}>
-                Lionel TIVOLI
+            {/* Signature Block (Only for outgoing mails) */}
+            {mail.type === 'SORTANT' && (
+              <div style={{ marginLeft: 'auto', width: '45%', marginTop: '4rem', textAlign: 'center', fontFamily: 'system-ui, sans-serif' }}>
+                <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.75rem' }}>
+                  Lionel TIVOLI
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+                  Député
+                </div>
+                <div 
+                  style={{ 
+                    marginTop: '1rem', 
+                    fontFamily: 'Georgia, serif', 
+                    fontSize: '1.5rem', 
+                    fontStyle: 'italic', 
+                    color: '#2563eb',
+                    opacity: 0.8 
+                  }}
+                >
+                  [Signature Officielle]
+                </div>
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
-                Député
-              </div>
-              <div 
-                style={{ 
-                  marginTop: '1rem', 
-                  fontFamily: 'Georgia, serif', 
-                  fontSize: '1.5rem', 
-                  fontStyle: 'italic', 
-                  color: '#2563eb',
-                  opacity: 0.8 
-                }}
-              >
-                [Signature Officielle]
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}
