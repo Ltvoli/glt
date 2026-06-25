@@ -5,8 +5,11 @@ import TemplatesClient from './templates-client'
 
 export default async function AdminTemplatesPage() {
   const session = await getSession()
-  if (!session || session.role !== 'ADMIN') {
-    redirect('/admin-login')
+  if (!session?.userId) redirect('/login')
+
+  // Guard access: only ADMINISTRATEUR or SUPERVISEUR
+  if (session.dbRole !== 'ADMINISTRATEUR' && session.dbRole !== 'SUPERVISEUR') {
+    redirect('/auth/unauthorized')
   }
 
   const templates = await prisma.documentTemplate.findMany({
