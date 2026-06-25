@@ -132,6 +132,73 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     console.log('[Qomon Import] Niveaux de soutien BDD :', dbSupportLevels.map(l => l.label))
   }
 
+  // ── Optimisation : Pré-chargement des contacts existants pour rapprochement en mémoire ──
+  const firstNames = Array.from(new Set(rows.map(r => col(r, 'PRENOM', 'Prénom', 'prenom', 'first_name')).filter(Boolean)))
+  const lastNames = Array.from(new Set(rows.map(r => col(r, 'NOM', 'Nom', 'nom', 'last_name')).filter(Boolean)))
+
+  // Pour maximiser les correspondances insensibles à la casse sans trop charger en mémoire,
+  // on génère des variations de casse pour la recherche `in`
+  const searchLastNames = new Set<string>()
+  for (const name of lastNames) {
+    searchLastNames.add(name)
+    searchLastNames.add(name.toLowerCase())
+    searchLastNames.add(name.toUpperCase())
+    searchLastNames.add(name.charAt(0).toUpperCase() + name.slice(1).toLowerCase())
+  }
+
+  const existingContactsList = await prisma.contact.findMany({
+    where: {
+      archivedAt: null,
+      lastName: { in: Array.from(searchLastNames) }
+    }
+  })
+
+  // Indexation par prenom_nom (en minuscules) pour recherche rapide O(1)
+  const contactsMap = new Map<string, typeof existingContactsList>()
+  for (const c of existingContactsList) {
+    const key = `${c.firstName.toLowerCase()}_${c.lastName.toLowerCase()}`
+    if (!contactsMap.has(key)) {
+      contactsMap.set(key, [])
+    }
+    contactsMap.get(key)!.push(c)
+  }
+
+  // ── Optimisation : Pré-chargement et création en masse des tags ──
+  const allTagNames = new Set<string>()
+  for (const row of rows) {
+    const tagsRaw = col(row, 'Tags', 'TAGS', 'tags', 'mots_cles', 'mots clés', 'Mots clés')
+    if (tagsRaw) {
+      tagsRaw.split(/[,;|]/).forEach(t => {
+        const trimmed = t.trim()
+        if (trimmed) allTagNames.add(trimmed)
+      })
+    }
+  }
+
+  const existingTagsList = await prisma.tag.findMany({
+    where: { name: { in: Array.from(allTagNames) } }
+  })
+  const tagsMap = new Map(existingTagsList.map(t => [t.name.toLowerCase(), t]))
+
+  // Création des tags manquants
+  for (const tagName of allTagNames) {
+    if (!tagsMap.has(tagName.toLowerCase())) {
+      try {
+        const newTag = await prisma.tag.create({
+          data: { name: tagName, color: '#6366f1' }
+        })
+        tagsMap.set(tagName.toLowerCase(), newTag)
+      } catch (err) {
+        // En cas de conflit de concurrence, on recharge le tag
+        const refetched = await prisma.tag.findUnique({ where: { name: tagName } })
+        if (refetched) tagsMap.set(tagName.toLowerCase(), refetched)
+      }
+    }
+  }
+
+  // Liste pour accumuler toutes les relations contact-tag à insérer en bloc à la fin
+  const contactTagsToInsert: { contactId: string; tagId: string }[] = []
+
   for (const row of rows) {
     // ── Lecture des champs Qomon ─────────────────────
     const civilite   = col(row, 'CIVILITE', 'Civilité', 'civilite')
@@ -208,34 +275,21 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     let insertedContact: any = null
     let existingContact: any = null
 
+    const lookupKey = `${firstName.toLowerCase()}_${lastName.toLowerCase()}`
+    const candidateMatches = contactsMap.get(lookupKey) || []
+
+    if (email) {
+      existingContact = candidateMatches.find(m => m.email && m.email.toLowerCase() === email.toLowerCase())
+    }
+    if (!existingContact && (mobile || phone)) {
+      existingContact = candidateMatches.find(m => {
+        const matchMobile = mobile && m.mobilePhone === mobile
+        const matchPhone = phone && m.phone === phone
+        return matchMobile || matchPhone
+      })
+    }
+
     try {
-      // 1. Recherche par email si fourni
-      if (email) {
-        existingContact = await prisma.contact.findFirst({
-          where: {
-            firstName: { equals: firstName, mode: 'insensitive' },
-            lastName: { equals: lastName, mode: 'insensitive' },
-            email: { equals: email, mode: 'insensitive' },
-            archivedAt: null
-          }
-        })
-      }
-
-      // 2. Recherche par portable/téléphone si fourni et pas trouvé par email
-      if (!existingContact && (mobile || phone)) {
-        existingContact = await prisma.contact.findFirst({
-          where: {
-            firstName: { equals: firstName, mode: 'insensitive' },
-            lastName: { equals: lastName, mode: 'insensitive' },
-            OR: [
-              ...(mobile ? [{ mobilePhone: mobile }] : []),
-              ...(phone ? [{ phone: phone }] : [])
-            ],
-            archivedAt: null
-          }
-        })
-      }
-
       if (existingContact) {
         // Fusionner les notes
         let mergedNotes = existingContact.notes
@@ -268,11 +322,22 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
             birthDate: existingContact.birthDate || birthDate,
           }
         })
+
+        // Mettre à jour la fiche en mémoire pour d'éventuels doublons successifs dans le fichier
+        const idx = candidateMatches.findIndex(m => m.id === existingContact.id)
+        if (idx !== -1) {
+          candidateMatches[idx] = insertedContact
+        }
+
         updated++
       } else {
         // Créer un nouveau contact
         insertedContact = await prisma.contact.create({ data: dataToInsert })
         created++
+
+        // Ajouter à la liste mémoire pour les suivantes lignes
+        candidateMatches.push(insertedContact)
+        contactsMap.set(lookupKey, candidateMatches)
       }
     } catch (err: any) {
       console.error('[Qomon Import] Erreur insertion/mise à jour :', lastName, firstName, err?.message)
@@ -280,7 +345,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       continue
     }
 
-    // ── Tags ─────────────────────────────────────────
+    // ── Accumuler les relations de tags ──
     if (insertedContact && tagsRaw) {
       const tagNames = tagsRaw
         .split(/[,;|]/)
@@ -288,19 +353,23 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
         .filter((t: string) => t.length > 0)
 
       for (const tagName of tagNames) {
-        try {
-          const tag = await prisma.tag.upsert({
-            where:  { name: tagName },
-            update: {},
-            create: { name: tagName, color: '#6366f1' }
-          })
-          await prisma.contactTag.upsert({
-            where:  { contactId_tagId: { contactId: insertedContact.id, tagId: tag.id } },
-            update: {},
-            create: { contactId: insertedContact.id, tagId: tag.id }
-          })
-        } catch { /* Tag déjà existant ou autre */ }
+        const tag = tagsMap.get(tagName.toLowerCase())
+        if (tag) {
+          contactTagsToInsert.push({ contactId: insertedContact.id, tagId: tag.id })
+        }
       }
+    }
+  }
+
+  // ── Insertion en bloc de toutes les relations contact-tag ──
+  if (contactTagsToInsert.length > 0) {
+    try {
+      await prisma.contactTag.createMany({
+        data: contactTagsToInsert,
+        skipDuplicates: true
+      })
+    } catch (err) {
+      console.error('[Qomon Import] Erreur insertion relations tags :', err)
     }
   }
 
