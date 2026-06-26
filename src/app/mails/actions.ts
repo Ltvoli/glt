@@ -11,7 +11,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { supabase } from '@/lib/supabase'
 import { analyzeIncomingMail, generateReplies } from '@/lib/gemini'
-import { addBusinessDays, isWorkflowTaskTitle } from '@/lib/mail-utils'
+import { addBusinessDays, isWorkflowTaskTitle, parseFullName } from '@/lib/mail-utils'
 
 // Utility to generate unique reference e.g., COU-2026-0042
 async function generateReference() {
@@ -818,3 +818,113 @@ export async function triggerMailCaseWorkflows(mailCaseId: string, currentUserId
     )
   }
 }
+
+export async function linkExistingContactAction(mailId: string, contactId: string) {
+  let session
+  try {
+    session = await requireWriteAccess()
+  } catch (e: any) {
+    return { error: e.message }
+  }
+
+  try {
+    // Supprimer les liens de contact existants pour ce courrier
+    await prisma.globalLink.deleteMany({
+      where: {
+        mailCaseId: mailId,
+        contactId: { not: null }
+      }
+    })
+
+    // Créer la nouvelle liaison
+    await prisma.globalLink.create({
+      data: {
+        mailCaseId: mailId,
+        contactId: contactId
+      }
+    })
+
+    await logAudit('LINK_CONTACT', 'MailCase', mailId, session.userId, { contactId })
+
+    revalidatePath(`/mails/${mailId}`)
+    return { success: true }
+  } catch (err: any) {
+    console.error('[linkExistingContactAction] error:', err)
+    return { error: `Erreur lors de la liaison : ${err.message || err}` }
+  }
+}
+
+export async function createAndLinkContactAction(mailId: string, metadata: any) {
+  let session
+  try {
+    session = await requireWriteAccess()
+  } catch (e: any) {
+    return { error: e.message }
+  }
+
+  try {
+    const rawName = metadata?.expediteur_nom || 'Inconnu'
+    const parsed = parseFullName(rawName)
+
+    const email = metadata?.expediteur_coordonnees?.email || null
+    const phone = metadata?.expediteur_coordonnees?.telephone || null
+    const address = metadata?.expediteur_coordonnees?.adresse || null
+    const city = metadata?.commune || null
+
+    // Déterminer le type de contact par rapport à expediteur_qualite
+    let contactType = 'ELECTEUR'
+    if (metadata?.expediteur_qualite) {
+      const qualite = metadata.expediteur_qualite
+      if (qualite === 'élu') {
+        contactType = 'ELU'
+      } else if (qualite === 'association') {
+        contactType = 'ASSO'
+      } else if (qualite === 'institutionnel' || qualite === 'entreprise') {
+        contactType = 'PARTENAIRE'
+      } else if (qualite === 'autre') {
+        contactType = 'AUTRE'
+      }
+    }
+
+    // Créer le contact
+    const contact = await prisma.contact.create({
+      data: {
+        firstName: parsed.firstName,
+        lastName: parsed.lastName,
+        email,
+        phone,
+        address,
+        city,
+        type: contactType,
+        createdById: session.userId
+      }
+    })
+
+    await logAudit('CREATE', 'Contact', contact.id, session.userId, contact)
+
+    // Supprimer les liens de contact existants pour ce courrier
+    await prisma.globalLink.deleteMany({
+      where: {
+        mailCaseId: mailId,
+        contactId: { not: null }
+      }
+    })
+
+    // Lier le contact
+    await prisma.globalLink.create({
+      data: {
+        mailCaseId: mailId,
+        contactId: contact.id
+      }
+    })
+
+    await logAudit('LINK_CONTACT', 'MailCase', mailId, session.userId, { contactId: contact.id })
+
+    revalidatePath(`/mails/${mailId}`)
+    return { success: true, contactId: contact.id }
+  } catch (err: any) {
+    console.error('[createAndLinkContactAction] error:', err)
+    return { error: `Erreur lors de la création et liaison : ${err.message || err}` }
+  }
+}
+

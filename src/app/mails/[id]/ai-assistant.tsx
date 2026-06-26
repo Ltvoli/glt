@@ -16,7 +16,7 @@ import {
   ShieldAlert,
   UserCheck
 } from 'lucide-react'
-import { analyzeMailCaseAction, generateMailResponsesAction, toggleAiAssistantAction, applyMailMetadataAction } from '../actions'
+import { analyzeMailCaseAction, generateMailResponsesAction, toggleAiAssistantAction, applyMailMetadataAction, linkExistingContactAction, createAndLinkContactAction } from '../actions'
 import { toast } from 'sonner'
 
 interface MailAiAnalysis {
@@ -64,6 +64,8 @@ interface AiAssistantProps {
   aiSuggestions: any // JsonValue
   hideAiAssistant: boolean
   hasAttachments: boolean
+  detectedContact?: { id: string, firstName: string, lastName: string } | null
+  linkedContactId?: string | null
 }
 
 export default function AiAssistant({ 
@@ -72,7 +74,9 @@ export default function AiAssistant({
   aiAnalysis, 
   aiSuggestions, 
   hideAiAssistant,
-  hasAttachments
+  hasAttachments,
+  detectedContact = null,
+  linkedContactId = null
 }: AiAssistantProps) {
   const [isPending, startTransition] = useTransition()
   const [loadingStep, setLoadingStep] = useState<string>('')
@@ -456,6 +460,104 @@ export default function AiAssistant({
                     <Sparkles size={14} />
                     Appliquer ces données à la fiche
                   </button>
+
+                  {/* Liaison 1-clic contact */}
+                  <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+                    {linkedContactId ? (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        color: '#16a34a',
+                        backgroundColor: '#f0fdf4',
+                        border: '1px solid #bbf7d0',
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '6px',
+                        fontSize: '0.8rem',
+                        fontWeight: 500
+                      }}>
+                        <CheckCircle size={16} />
+                        <span>Contact lié à ce courrier</span>
+                      </div>
+                    ) : detectedContact ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <p style={{ fontSize: '0.75rem', color: '#d97706', margin: 0, fontWeight: 500 }}>
+                          ⚠️ Ce contact existe déjà en base de données mais n'est pas lié.
+                        </p>
+                        <button
+                          onClick={() => {
+                            startTransition(async () => {
+                              setLoadingStep("Liaison du contact existant...")
+                              try {
+                                const res = await linkExistingContactAction(mailId, detectedContact.id)
+                                if (res.error) {
+                                  toast.error(res.error)
+                                } else {
+                                  toast.success("Contact lié avec succès !")
+                                }
+                              } catch (err: any) {
+                                toast.error("Erreur technique : " + err.message)
+                              } finally {
+                                setLoadingStep('')
+                              }
+                            })
+                          }}
+                          className="button outline"
+                          style={{ 
+                            width: '100%', 
+                            fontSize: '0.8rem', 
+                            padding: '0.4rem 0.8rem',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            borderColor: '#818cf8',
+                            color: '#4f46e5'
+                          }}
+                          disabled={isPending}
+                        >
+                          <UserCheck size={14} />
+                          Lier le contact existant ({detectedContact.lastName} {detectedContact.firstName})
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          startTransition(async () => {
+                            setLoadingStep("Création et liaison du contact...")
+                            try {
+                              const res = await createAndLinkContactAction(mailId, analysis.metadata)
+                              if (res.error) {
+                                toast.error(res.error)
+                              } else {
+                                toast.success("Contact créé et lié avec succès !")
+                              }
+                            } catch (err: any) {
+                              toast.error("Erreur technique : " + err.message)
+                            } finally {
+                              setLoadingStep('')
+                            }
+                          })
+                        }}
+                        className="button"
+                        style={{ 
+                          width: '100%', 
+                          fontSize: '0.8rem', 
+                          padding: '0.4rem 0.8rem',
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          backgroundColor: '#4f46e5',
+                          color: '#ffffff',
+                          border: 'none'
+                        }}
+                        disabled={isPending}
+                      >
+                        <span>➕ Créer et lier ce contact en 1 clic</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 

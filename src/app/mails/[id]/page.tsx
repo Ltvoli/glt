@@ -11,6 +11,7 @@ import MailValidationActions from './mail-validation-actions'
 import MailSubmitButton from './mail-submit-button'
 import MailCollaborationTabs from './mail-collaboration-tabs'
 import AiAssistant from './ai-assistant'
+import { parseFullName } from '@/lib/mail-utils'
 
 export default async function MailDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -59,6 +60,21 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
   const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
 
   const linkedContacts = mail.links.filter(l => l.contact).map(l => l.contact)
+
+  let detectedContact = null
+  const analysis = mail.aiAnalysis as any
+  if (analysis?.metadata?.expediteur_nom) {
+    const parsed = parseFullName(analysis.metadata.expediteur_nom)
+    detectedContact = await prisma.contact.findFirst({
+      where: {
+        firstName: { equals: parsed.firstName, mode: 'insensitive' },
+        lastName: { equals: parsed.lastName, mode: 'insensitive' },
+        archivedAt: null
+      },
+      select: { id: true, firstName: true, lastName: true }
+    })
+  }
+
   const linkedTasks = mail.links.filter(l => l.task).map(l => l.task)
 
   const templates = await prisma.documentTemplate.findMany({ where: { entityType: 'MAIL' }, select: { id: true, name: true } })
@@ -281,6 +297,8 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
               aiSuggestions={mail.aiSuggestions}
               hideAiAssistant={mail.hideAiAssistant}
               hasAttachments={mail.documents.length > 0}
+              detectedContact={detectedContact}
+              linkedContactId={linkedContacts[0]?.id || null}
             />
           )}
 
