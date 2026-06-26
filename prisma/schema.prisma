@@ -90,6 +90,7 @@ model User {
   permanenceSyntheses  PermanenceSynthesis[]
   bulkCommunications   BulkCommunication[]   @relation("BulkCommsCreator")
   interactionsCreated  ContactInteraction[]
+  taskComments         TaskComment[]         @relation("TaskCommentAuthor")
 }
 
 model UserSession {
@@ -288,6 +289,8 @@ model TaskComment {
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   content   String
   createdAt DateTime @default(now())
+  authorId  String?
+  author    User?    @relation("TaskCommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
 }
 
 model MailCase {

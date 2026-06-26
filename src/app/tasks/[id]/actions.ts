@@ -100,6 +100,8 @@ export async function addSubtask(taskId: string, title: string) {
     }
   })
 
+  await logAudit('ADD_SUBTASK', 'Task', taskId, session.userId, { title })
+
   revalidatePath(`/tasks/${taskId}`)
   revalidatePath(`/tasks`)
   return { success: true, subtask }
@@ -114,8 +116,63 @@ export async function toggleSubtask(subtaskId: string, isCompleted: boolean) {
     data: { isCompleted }
   })
 
+  await logAudit('TOGGLE_SUBTASK', 'Task', subtask.taskId, session.userId, { title: subtask.title, isCompleted })
+
   revalidatePath(`/tasks/${subtask.taskId}`)
   return { success: true }
+}
+
+export async function handleCommentMentions(
+  content: string,
+  authorId: string,
+  relatedType: 'Task' | 'MailCase',
+  relatedId: string,
+  titleText: string
+): Promise<string[]> {
+  const mentionRegex = /@([a-zA-ZÀ-ÖØ-öø-ÿ0-9\._\-]+)/g
+  const matches = [...content.matchAll(mentionRegex)]
+  if (matches.length === 0) return []
+
+  const mentionedValues = Array.from(new Set(matches.map(m => m[1])))
+  const author = await prisma.user.findUnique({
+    where: { id: authorId },
+    select: { firstName: true, lastName: true }
+  })
+  const authorName = author ? `${author.firstName} ${author.lastName}` : 'Un collaborateur'
+  const notifiedUserIds: string[] = []
+
+  for (const value of mentionedValues) {
+    const matchedUsers = await prisma.user.findMany({
+      where: {
+        OR: [
+          { firstName: { equals: value, mode: 'insensitive' } },
+          { lastName: { equals: value, mode: 'insensitive' } },
+          { email: { equals: value, mode: 'insensitive' } }
+        ],
+        isActive: true
+      }
+    })
+
+    for (const u of matchedUsers) {
+      if (u.id === authorId) continue
+      if (notifiedUserIds.includes(u.id)) continue
+
+      await prisma.notification.create({
+        data: {
+          userId: u.id,
+          type: 'COMMENT_ADDED',
+          title: 'Vous avez été mentionné',
+          message: `${authorName} vous a mentionné dans un commentaire sur ${relatedType === 'Task' ? 'la tâche' : 'le courrier'} "${titleText}".`,
+          relatedType,
+          relatedId,
+          severity: 'INFO'
+        }
+      })
+      notifiedUserIds.push(u.id)
+    }
+  }
+
+  return notifiedUserIds
 }
 
 export async function addTaskComment(taskId: string, content: string) {
@@ -128,11 +185,20 @@ export async function addTaskComment(taskId: string, content: string) {
   await prisma.taskComment.create({
     data: {
       content,
-      taskId
+      taskId,
+      authorId: session.userId
     }
   })
 
-  if (task.assigneeId && task.assigneeId !== session.userId) {
+  const notifiedUserIds = await handleCommentMentions(
+    content,
+    session.userId,
+    'Task',
+    taskId,
+    task.title
+  )
+
+  if (task.assigneeId && task.assigneeId !== session.userId && !notifiedUserIds.includes(task.assigneeId)) {
     await prisma.notification.create({
       data: {
         userId: task.assigneeId,
@@ -160,7 +226,44 @@ export async function deleteSubtask(subtaskId: string) {
     where: { id: subtaskId }
   })
 
+  await logAudit('DELETE_SUBTASK', 'Task', subtask.taskId, session.userId, { title: subtask.title })
+
   revalidatePath(`/tasks/${subtask.taskId}`)
+  revalidatePath(`/tasks`)
+  return { success: true }
+}
+
+export async function nudgeAssigneeAction(taskId: string): Promise<{ error?: string; success?: boolean }> {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_TASKS')
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId }
+  })
+  if (!task) return { error: 'Tâche introuvable' }
+  if (!task.assigneeId) return { error: 'Aucun responsable assigné à cette tâche' }
+
+  const caller = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { firstName: true, lastName: true }
+  })
+  const callerName = caller ? `${caller.firstName} ${caller.lastName}` : 'Un collaborateur'
+
+  await prisma.notification.create({
+    data: {
+      userId: task.assigneeId,
+      type: 'ASSIGNED',
+      title: 'Relance sur tâche',
+      message: `Relance de ${callerName} : Pouvez-vous faire un point sur la tâche "${task.title}" ?`,
+      relatedType: 'Task',
+      relatedId: task.id,
+      severity: 'WARNING'
+    }
+  })
+
+  await logAudit('NUDGE', 'Task', taskId, session.userId, { assigneeId: task.assigneeId })
+
+  revalidatePath(`/tasks/${taskId}`)
   revalidatePath(`/tasks`)
   return { success: true }
 }

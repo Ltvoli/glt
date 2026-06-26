@@ -33,8 +33,9 @@ export default function TaskComments({ taskId, initialComments }: { taskId: stri
               <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem', whiteSpace: 'pre-wrap' }}>
                 {comment.content}
               </p>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>
-                {new Date(comment.createdAt).toLocaleString('fr-FR')}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                <span>Par {comment.author ? `${comment.author.firstName} ${comment.author.lastName}` : 'Système'}</span>
+                <span>{new Date(comment.createdAt).toLocaleString('fr-FR')}</span>
               </div>
             </div>
           ))

@@ -5,6 +5,7 @@ import EditTaskForm from './edit-task-form'
 import SubtasksList from './subtasks-list'
 import TaskComments from './task-comments'
 import TaskAttachments from './task-attachments'
+import NudgeButton from './nudge-button'
 
 import PrintButton from '@/components/PrintButton'
 
@@ -35,6 +36,19 @@ function getAuditText(log: any) {
   } else if (log.action === 'UPDATE') {
     title = 'Détails mis à jour'
     detailsText = 'Les informations ou paramètres de la tâche ont été mis à jour.'
+  } else if (log.action === 'ADD_SUBTASK') {
+    title = 'Sous-tâche créée'
+    detailsText = `Ajout de la sous-tâche "${log.details?.title}".`
+  } else if (log.action === 'TOGGLE_SUBTASK') {
+    title = 'Sous-tâche mise à jour'
+    const statusText = log.details?.isCompleted ? 'terminée' : 'à faire'
+    detailsText = `La sous-tâche "${log.details?.title}" a été marquée comme ${statusText}.`
+  } else if (log.action === 'DELETE_SUBTASK') {
+    title = 'Sous-tâche supprimée'
+    detailsText = `La sous-tâche "${log.details?.title}" a été supprimée.`
+  } else if (log.action === 'NUDGE') {
+    title = 'Relance envoyée'
+    detailsText = `Le responsable a été relancé.`
   } else {
     title = log.action
     detailsText = log.details ? JSON.stringify(log.details) : ''
@@ -57,7 +71,10 @@ export default async function TaskDetailPage({
         assignee: true,
         subtasks: true,
         documents: true,
-        comments: { orderBy: { createdAt: 'desc' } },
+        comments: { 
+          orderBy: { createdAt: 'desc' },
+          include: { author: true }
+        },
         tags: { include: { tag: true } }
       }
     }),
@@ -83,6 +100,7 @@ export default async function TaskDetailPage({
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }} className="hide-on-print">
         <Link href="/tasks" className="button outline">Retour</Link>
         <PrintButton />
+        {task.assigneeId && <NudgeButton taskId={task.id} />}
         <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>
           {task.title}
         </h1>

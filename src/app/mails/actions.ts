@@ -12,6 +12,7 @@ import path from 'path'
 import { supabase } from '@/lib/supabase'
 import { analyzeIncomingMail, generateReplies } from '@/lib/gemini'
 import { addBusinessDays, isWorkflowTaskTitle, parseFullName } from '@/lib/mail-utils'
+import { handleCommentMentions } from '@/app/tasks/[id]/actions'
 
 // Utility to generate unique reference e.g., COU-2026-0042
 async function generateReference() {
@@ -502,6 +503,21 @@ export async function addMailComment(mailId: string, content: string) {
       }
     }
   })
+
+  const mailCase = await prisma.mailCase.findUnique({
+    where: { id: mailId },
+    select: { subject: true, reference: true }
+  })
+
+  if (mailCase) {
+    await handleCommentMentions(
+      content.trim(),
+      session.userId,
+      'MailCase',
+      mailId,
+      mailCase.subject || mailCase.reference
+    )
+  }
 
   revalidatePath('/mails/' + mailId)
   return { success: true, comment }
