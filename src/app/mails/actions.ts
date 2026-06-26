@@ -11,6 +11,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { supabase } from '@/lib/supabase'
 import { analyzeIncomingMail, generateReplies } from '@/lib/gemini'
+import { addBusinessDays, isWorkflowTaskTitle } from '@/lib/mail-utils'
 
 // Utility to generate unique reference e.g., COU-2026-0042
 async function generateReference() {
@@ -30,29 +31,6 @@ async function generateReference() {
   }
 
   return `COU-${year}-${nextNumber.toString().padStart(4, '0')}`
-}
-export function addBusinessDays(startDate: Date, days: number): Date {
-  const resultDate = new Date(startDate)
-  let addedDays = 0
-  while (addedDays < days) {
-    resultDate.setDate(resultDate.getDate() + 1)
-    const day = resultDate.getDay()
-    if (day !== 0 && day !== 6) { // Skip Sunday(0) and Saturday(6)
-      addedDays++
-    }
-  }
-  return resultDate
-}
-
-export function isWorkflowTaskTitle(title: string, mailRef?: string): boolean {
-  if (mailRef) {
-    return title === `[URGENT] Traiter le courrier : ${mailRef}` ||
-           title === `Préparer courrier d'intervention : ${mailRef}` ||
-           title === `Rédiger projet de réponse : ${mailRef}`
-  }
-  return title.startsWith("[URGENT] Traiter le courrier :") ||
-         title.startsWith("Préparer courrier d'intervention :") ||
-         title.startsWith("Rédiger projet de réponse :")
 }
 
 

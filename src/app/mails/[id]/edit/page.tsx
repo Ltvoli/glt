@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import EditMailForm from './edit-mail-form'
 
-import { isWorkflowTaskTitle } from '@/app/mails/actions'
+import { isWorkflowTaskTitle } from '@/lib/mail-utils'
 
 export default async function EditMailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
