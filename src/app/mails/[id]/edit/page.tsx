@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import EditMailForm from './edit-mail-form'
 
+import { isWorkflowTaskTitle } from '@/app/mails/actions'
+
 export default async function EditMailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session?.userId) redirect('/login')
@@ -36,10 +38,12 @@ export default async function EditMailPage({ params }: { params: Promise<{ id: s
     select: { contactId: true }
   })
 
-  const linkedTask = await prisma.globalLink.findFirst({
+  const allLinkedTasks = await prisma.globalLink.findMany({
     where: { mailCaseId: mail.id, taskId: { not: null } },
-    select: { taskId: true }
+    include: { task: { select: { title: true } } }
   })
+  const manualLinkedTask = allLinkedTasks.find(link => link.task && !isWorkflowTaskTitle(link.task.title, mail.reference))
+  const initialTaskId = manualLinkedTask?.taskId || undefined
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -57,7 +61,7 @@ export default async function EditMailPage({ params }: { params: Promise<{ id: s
           contacts={JSON.parse(JSON.stringify(contacts))} 
           tasks={JSON.parse(JSON.stringify(tasks))} 
           initialContactId={linkedContact?.contactId || undefined}
-          initialTaskId={linkedTask?.taskId || undefined}
+          initialTaskId={initialTaskId}
           dictionary={JSON.parse(JSON.stringify(dictionary))}
           fieldConfig={fieldConfig}
         />

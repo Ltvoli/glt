@@ -31,6 +31,30 @@ async function generateReference() {
 
   return `COU-${year}-${nextNumber.toString().padStart(4, '0')}`
 }
+export function addBusinessDays(startDate: Date, days: number): Date {
+  const resultDate = new Date(startDate)
+  let addedDays = 0
+  while (addedDays < days) {
+    resultDate.setDate(resultDate.getDate() + 1)
+    const day = resultDate.getDay()
+    if (day !== 0 && day !== 6) { // Skip Sunday(0) and Saturday(6)
+      addedDays++
+    }
+  }
+  return resultDate
+}
+
+export function isWorkflowTaskTitle(title: string, mailRef?: string): boolean {
+  if (mailRef) {
+    return title === `[URGENT] Traiter le courrier : ${mailRef}` ||
+           title === `Préparer courrier d'intervention : ${mailRef}` ||
+           title === `Rédiger projet de réponse : ${mailRef}`
+  }
+  return title.startsWith("[URGENT] Traiter le courrier :") ||
+         title.startsWith("Préparer courrier d'intervention :") ||
+         title.startsWith("Rédiger projet de réponse :")
+}
+
 
 export async function createMail(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
   let session
@@ -79,19 +103,7 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
     return { error: 'La date d\'envoi est obligatoire pour un courrier sortant.' }
   }
 
-  let responseDueDate = null
-  
-  if (type === 'ENTRANT' && receiveDate) {
-    responseDueDate = new Date(receiveDate)
-    let addedDays = 0
-    while (addedDays < 5) {
-      responseDueDate.setDate(responseDueDate.getDate() + 1)
-      const day = responseDueDate.getDay()
-      if (day !== 0 && day !== 6) { // Skip Sunday(0) and Saturday(6)
-        addedDays++
-      }
-    }
-  }
+  const responseDueDate = (type === 'ENTRANT' && receiveDate) ? addBusinessDays(receiveDate, 5) : null
 
   try {
     const reference = await generateReference()
@@ -192,6 +204,9 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
       }
     }
 
+    // Trigger workflows
+    await triggerMailCaseWorkflows(newMail.id, session.userId)
+
   } catch (error) {
     console.error(error)
     return { error: 'Erreur lors de la création du courrier.' }
@@ -247,19 +262,7 @@ export async function updateMail(mailId: string, prevState: any, formData: FormD
     return { error: 'La date d\'envoi est obligatoire pour un courrier sortant.' }
   }
 
-  let responseDueDate = null
-  
-  if (type === 'ENTRANT' && receiveDate) {
-    responseDueDate = new Date(receiveDate)
-    let addedDays = 0
-    while (addedDays < 5) {
-      responseDueDate.setDate(responseDueDate.getDate() + 1)
-      const day = responseDueDate.getDay()
-      if (day !== 0 && day !== 6) { // Skip Sunday(0) and Saturday(6)
-        addedDays++
-      }
-    }
-  }
+  const responseDueDate = (type === 'ENTRANT' && receiveDate) ? addBusinessDays(receiveDate, 5) : null
 
   try {
     const existing = await prisma.mailCase.findUnique({ where: { id: mailId } })
@@ -316,17 +319,35 @@ export async function updateMail(mailId: string, prevState: any, formData: FormD
       })
     }
 
-    // Sync task link
-    await prisma.globalLink.deleteMany({
-      where: { mailCaseId: mailId, taskId: { not: null } }
+    // Sync task link (ignoring workflow tasks to avoid deleting them)
+    const existingLinks = await prisma.globalLink.findMany({
+      where: { mailCaseId: mailId, taskId: { not: null } },
+      include: { task: true }
     })
-    if (taskId) {
-      await prisma.globalLink.create({
-        data: { mailCaseId: mailId, taskId }
+
+    const manualLinks = existingLinks.filter(l => l.task && !isWorkflowTaskTitle(l.task.title, existing.reference))
+
+    if (manualLinks.length > 0) {
+      await prisma.globalLink.deleteMany({
+        where: {
+          id: { in: manualLinks.map(l => l.id) }
+        }
       })
     }
 
+    if (taskId) {
+      const alreadyLinked = existingLinks.some(l => l.taskId === taskId)
+      if (!alreadyLinked) {
+        await prisma.globalLink.create({
+          data: { mailCaseId: mailId, taskId }
+        })
+      }
+    }
+
     await logAudit('update', 'MailCase', mailId, session.userId, validData)
+
+    // Trigger workflows
+    await triggerMailCaseWorkflows(mailId, session.userId)
 
   } catch (error) {
     console.error(error)
@@ -720,6 +741,9 @@ export async function applyMailMetadataAction(mailCaseId: string) {
       where: { id: mailCaseId },
       data: updateData
     })
+    // Trigger workflows
+    await triggerMailCaseWorkflows(mailCaseId, session.userId)
+
     revalidatePath(`/mails/${mailCaseId}`)
     return { success: true }
   } catch (err: any) {
@@ -728,3 +752,91 @@ export async function applyMailMetadataAction(mailCaseId: string) {
   }
 }
 
+export async function triggerMailCaseWorkflows(mailCaseId: string, currentUserId: string | null) {
+  const mail = await prisma.mailCase.findUnique({
+    where: { id: mailCaseId },
+    include: {
+      links: {
+        where: { taskId: { not: null } },
+        include: { task: true }
+      }
+    }
+  })
+
+  if (!mail) return
+
+  const existingTaskTitles = mail.links.map(l => l.task?.title).filter(Boolean) as string[]
+
+  const ensureWorkflowTask = async (title: string, priority: string, dueInBusinessDays: number, description: string) => {
+    if (existingTaskTitles.includes(title)) {
+      return
+    }
+
+    const dueDate = addBusinessDays(new Date(), dueInBusinessDays)
+
+    const task = await prisma.task.create({
+      data: {
+        title,
+        description,
+        priority,
+        status: 'A_FAIRE',
+        dueDate,
+        assigneeId: mail.assigneeId || null
+      }
+    })
+
+    await prisma.globalLink.create({
+      data: {
+        mailCaseId,
+        taskId: task.id
+      }
+    })
+
+    if (mail.assigneeId && mail.assigneeId !== currentUserId) {
+      await prisma.notification.create({
+        data: {
+          userId: mail.assigneeId,
+          type: 'ASSIGNED',
+          title: 'Nouvelle tâche assignée',
+          message: `La tâche "${title}" vous a été assignée.`,
+          relatedType: 'Task',
+          relatedId: task.id,
+          severity: 'INFO'
+        }
+      })
+    }
+  }
+
+  // 1. Urgence Haute
+  if (mail.urgency === 'HAUTE') {
+    const title = `[URGENT] Traiter le courrier : ${mail.reference}`
+    await ensureWorkflowTask(
+      title,
+      'HAUTE',
+      2,
+      `Tâche générée automatiquement suite au marquage du courrier ${mail.reference} comme urgent.`
+    )
+  }
+
+  // 2. Catégorie Demande d'intervention
+  if (mail.category === 'DEMANDE_INTERVENTION') {
+    const title = `Préparer courrier d'intervention : ${mail.reference}`
+    await ensureWorkflowTask(
+      title,
+      'NORMALE',
+      5,
+      `Tâche générée automatiquement suite au marquage du courrier ${mail.reference} sous la catégorie "Demande d'intervention".`
+    )
+  }
+
+  // 3. Catégorie Réclamation
+  if (mail.category === 'RECLAMATION') {
+    const title = `Rédiger projet de réponse : ${mail.reference}`
+    await ensureWorkflowTask(
+      title,
+      'NORMALE',
+      5,
+      `Tâche générée automatiquement suite au marquage du courrier ${mail.reference} sous la catégorie "Réclamation".`
+    )
+  }
+}
