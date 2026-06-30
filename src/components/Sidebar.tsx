@@ -81,7 +81,7 @@ export default function Sidebar({
             if (item.href === '/notifications') {
               return (
                 <li key={item.name} style={{ margin: '0.25rem 1rem' }}>
-                  <NotificationBadge initialCount={unreadCount} />
+                  <NotificationBadge initialCount={unreadCount} isActive={isActive} />
                 </li>
               )
             }

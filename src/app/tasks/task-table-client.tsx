@@ -93,9 +93,16 @@ export default function TaskTableClient({ tasks }: { tasks: any[] }) {
                       />
                     </td>
                     <td>
-                      <Link href={`/tasks/${task.id}`} style={{ color: 'var(--primary)', fontWeight: 500 }}>
-                        {task.title}
-                      </Link>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Link href={`/tasks/${task.id}`} style={{ color: 'var(--primary)', fontWeight: 500 }}>
+                          {task.title}
+                        </Link>
+                        {task.isRecurring && (
+                          <span title={task.isTemplate ? "Modèle de tâche récurrente" : "Tâche générée par une récurrence"} style={{ cursor: 'help', fontSize: '0.875rem' }}>
+                            🔁
+                          </span>
+                        )}
+                      </div>
                       {task.tags && task.tags.length > 0 && (
                         <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
                           {task.tags.map((t: any) => (

@@ -944,3 +944,23 @@ export async function createAndLinkContactAction(mailId: string, metadata: any) 
   }
 }
 
+export async function deleteMailAction(formData: FormData) {
+  const session = await requireWriteAccess()
+  
+  if (session.dbRole !== 'ADMINISTRATEUR' && session.dbRole !== 'SUPERVISEUR') {
+    throw new Error('Non autorisé. Seuls les administrateurs et superviseurs peuvent supprimer un courrier.')
+  }
+
+  const mailId = formData.get('mailId') as string
+  if (!mailId) throw new Error('Identifiant manquant')
+
+  await prisma.mailCase.delete({
+    where: { id: mailId }
+  })
+
+  await logAudit('DELETE', 'MailCase', mailId, session.userId, { action: 'DELETE_MAIL' })
+
+  revalidatePath('/mails')
+  redirect('/mails')
+}
+

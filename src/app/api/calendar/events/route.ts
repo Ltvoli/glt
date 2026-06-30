@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { getNextOccurrenceDate } from '@/lib/generate-recurring-tasks'
 
 export async function GET(request: Request) {
   const session = await getSession()
@@ -17,14 +18,15 @@ export async function GET(request: Request) {
   const startDate = new Date(startStr)
   const endDate = new Date(endStr)
 
-  const [tasks, mails, permanences] = await Promise.all([
+  const [tasks, mails, permanences, recurringTemplates] = await Promise.all([
     // Tâches
     prisma.task.findMany({
       where: {
         dueDate: { gte: startDate, lte: endDate },
-        status: { notIn: ['ANNULEE', 'TERMINEE'] }
+        status: { notIn: ['ANNULEE', 'TERMINEE'] },
+        isTemplate: false
       },
-      select: { id: true, title: true, dueDate: true, priority: true }
+      select: { id: true, title: true, dueDate: true, priority: true, isRecurring: true }
     }),
     // Courriers
     prisma.mailCase.findMany({
@@ -41,23 +43,60 @@ export async function GET(request: Request) {
         archivedAt: null
       },
       select: { id: true, title: true, scheduledStartDate: true, status: true }
+    }),
+    // Modèles de tâches récurrentes
+    prisma.task.findMany({
+      where: {
+        isTemplate: true,
+        isRecurring: true,
+        nextOccurrence: { not: null }
+      },
+      select: { id: true, title: true, nextOccurrence: true, recurrencePattern: true, recurrenceInterval: true, priority: true }
     })
   ])
 
   const events: any[] = []
 
-  // Mapper les tâches
+  // Mapper les tâches réelles
   tasks.forEach(t => {
     if (t.dueDate) {
       events.push({
         id: `task_${t.id}`,
-        title: `Tâche: ${t.title}`,
+        title: `${t.isRecurring ? '🔁 ' : ''}Tâche: ${t.title}`,
         start: t.dueDate.toISOString(),
         allDay: true,
         backgroundColor: t.priority === 'HAUTE' ? '#ef4444' : '#3b82f6',
         borderColor: t.priority === 'HAUTE' ? '#dc2626' : '#2563eb',
         extendedProps: { type: 'task', rawId: t.id }
       })
+    }
+  })
+
+  // Mapper les occurrences virtuelles des tâches récurrentes
+  recurringTemplates.forEach(tpl => {
+    if (tpl.nextOccurrence) {
+      let occurrenceDate = new Date(tpl.nextOccurrence)
+      const pattern = tpl.recurrencePattern || 'DAILY'
+      const interval = tpl.recurrenceInterval || 1
+      let count = 0
+
+      while (occurrenceDate <= endDate && count < 100) {
+        if (occurrenceDate >= startDate) {
+          events.push({
+            id: `virtual_task_${tpl.id}_${occurrenceDate.getTime()}`,
+            title: `🔄 Récurrente: ${tpl.title}`,
+            start: occurrenceDate.toISOString(),
+            allDay: true,
+            editable: false,
+            backgroundColor: tpl.priority === 'HAUTE' ? '#fee2e2' : '#dbeafe',
+            borderColor: tpl.priority === 'HAUTE' ? '#f87171' : '#60a5fa',
+            textColor: tpl.priority === 'HAUTE' ? '#b91c1c' : '#1d4ed8',
+            extendedProps: { type: 'task', rawId: tpl.id, isVirtual: true }
+          })
+        }
+        occurrenceDate = getNextOccurrenceDate(occurrenceDate, pattern, interval)
+        count++
+      }
     }
   })
 

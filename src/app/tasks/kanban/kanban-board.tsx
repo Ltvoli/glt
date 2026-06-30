@@ -38,10 +38,13 @@ function SortableTask({ task }: { task: any }) {
         {isOverdue && <AlertCircle size={14} color="var(--danger)" />}
       </div>
       
-      <div style={{ fontWeight: 'bold', fontSize: '0.875rem', marginBottom: '0.5rem', lineHeight: 1.4 }}>
+      <div style={{ fontWeight: 'bold', fontSize: '0.875rem', marginBottom: '0.5rem', lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
         <a href={`/tasks/${task.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
           {task.title}
         </a>
+        {task.isRecurring && (
+          <span title="Tâche récurrente">🔁</span>
+        )}
       </div>
       
       {task.tags && task.tags.length > 0 && (
@@ -160,7 +163,13 @@ export default function KanbanBoard({ initialColumns }: { initialColumns: Record
       <DragOverlay>
         {activeTask ? (
           <div style={{ backgroundColor: 'white', padding: '1rem', borderRadius: '6px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0', opacity: 0.8 }}>
-            <div style={{ fontWeight: 'bold', fontSize: '0.875rem' }}>{activeTask.title}</div>
+            <div style={{ fontWeight: 'bold', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              {activeTask.title}
+              {activeTask.isRecurring && <span>🔁</span>}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+              {activeTask.assignee?.name || 'Non assigné'}
+            </div>
           </div>
         ) : null}
       </DragOverlay>

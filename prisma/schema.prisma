@@ -332,7 +332,7 @@ model MailCase {
   responseSentDate DateTime?
 
   parentMailCaseId String?
-  parentMailCase   MailCase?  @relation("MailReplies", fields: [parentMailCaseId], references: [id])
+  parentMailCase   MailCase?  @relation("MailReplies", fields: [parentMailCaseId], references: [id], onDelete: SetNull)
   replies          MailCase[] @relation("MailReplies")
 
   assigneeId String?
