@@ -17,6 +17,7 @@ export default async function KanbanPage({
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
   const whereClause: any = {
+    isTemplate: false,
     OR: [
       { status: { notIn: ['TERMINEE', 'ANNULEE'] } },
       { 

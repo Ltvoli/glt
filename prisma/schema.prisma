@@ -270,6 +270,15 @@ model Task {
   documents Document[]    @relation("TaskDocuments")
   tags      TaskTag[]
 
+  isRecurring        Boolean   @default(false)
+  recurrencePattern  String?   // "DAILY", "WEEKLY", "MONTHLY"
+  recurrenceInterval Int?      @default(1)
+  nextOccurrence     DateTime?
+  isTemplate         Boolean   @default(false)
+  parentTaskId       String?
+  parentTask         Task?     @relation("TaskOccurrences", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  occurrences        Task[]    @relation("TaskOccurrences")
+
   @@index([status])
   @@index([assigneeId])
   @@index([title])

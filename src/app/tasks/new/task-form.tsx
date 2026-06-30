@@ -40,6 +40,26 @@ export default function TaskForm({ users, contactId, allTags = [], dictionary = 
         </>
       )}
 
+      <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Récurrence</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+        {renderTaskField('isRecurring', 'Tâche récurrente', {}, users, dictionary, allTags)}
+        
+        <div id="recurrence-section" style={{ 
+          gridColumn: '1 / -1', 
+          display: 'none', 
+          gridTemplateColumns: '1fr 1fr 1fr', 
+          gap: '1.5rem',
+          backgroundColor: '#f8fafc',
+          padding: '1.25rem',
+          borderRadius: '8px',
+          border: '1px solid #e2e8f0'
+        }}>
+          {renderTaskField('recurrencePattern', 'Périodicité', {}, users, dictionary, allTags)}
+          {renderTaskField('recurrenceInterval', 'Répéter tous les X (jours/semaines/mois)', {}, users, dictionary, allTags)}
+          {renderTaskField('startDate', 'Date de première occurrence', {}, users, dictionary, allTags)}
+        </div>
+      </div>
+
       {state.error && (
         <div style={{ color: 'var(--danger)', marginBottom: '1rem', fontSize: '0.875rem' }}>
           {state.error}

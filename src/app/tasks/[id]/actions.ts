@@ -20,12 +20,18 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
   const expectedDeliverable = formData.get('expectedDeliverable') as string
   const tagsStr = formData.get('tags') as string
 
+  // Recurrence fields
+  const isRecurring = formData.get('isRecurring') === 'on' || formData.get('isRecurring') === 'true'
+  const recurrencePattern = formData.get('recurrencePattern') as string
+  const recurrenceIntervalStr = formData.get('recurrenceInterval') as string
+  const startDateStr = formData.get('startDate') as string
+
   if (!id || !title) {
     return { error: 'Le titre est obligatoire.' }
   }
 
   let dueDate = null
-  if (dueDateStr) {
+  if (dueDateStr && !isRecurring) {
     dueDate = new Date(dueDateStr)
   }
 
@@ -33,16 +39,30 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
     const task = await prisma.task.findUnique({ where: { id } })
     if (!task) return { error: 'Tâche introuvable.' }
 
+    let nextOccurrence = null
+    if (isRecurring) {
+      if (startDateStr) {
+        nextOccurrence = new Date(startDateStr)
+      } else {
+        nextOccurrence = task.nextOccurrence || new Date()
+      }
+    }
+
     const updatedTask = await prisma.task.update({
       where: { id },
       data: {
         title,
         description: description || null,
         priority: priority || 'NORMALE',
-        status: status || 'A_FAIRE',
+        status: isRecurring ? 'A_FAIRE' : (status || 'A_FAIRE'),
         assigneeId: assigneeId || null,
         dueDate,
-        expectedDeliverable: expectedDeliverable || null
+        expectedDeliverable: expectedDeliverable || null,
+        isRecurring,
+        recurrencePattern: isRecurring ? recurrencePattern : null,
+        recurrenceInterval: isRecurring && recurrenceIntervalStr ? parseInt(recurrenceIntervalStr) : null,
+        nextOccurrence,
+        isTemplate: isRecurring
       }
     })
 
@@ -62,8 +82,8 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
       }
     }
 
-    // Notification si nouveau responsable
-    if (assigneeId && assigneeId !== task.assigneeId && assigneeId !== session.userId) {
+    // Notification si nouveau responsable (seulement pour tâche non-modèle)
+    if (!isRecurring && assigneeId && assigneeId !== task.assigneeId && assigneeId !== session.userId) {
       await prisma.notification.create({
         data: {
           userId: assigneeId,
@@ -77,7 +97,19 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
       })
     }
 
-    await logAudit('UPDATE', 'Task', id, session.userId, updatedTask)
+    await logAudit('UPDATE', 'Task', id, session.userId, {
+      title,
+      priority,
+      status: updatedTask.status,
+      assigneeId,
+      isRecurring,
+      isTemplate: updatedTask.isTemplate
+    })
+
+    if (isRecurring) {
+      const { generateRecurringTasks } = await import('@/lib/generate-recurring-tasks')
+      await generateRecurringTasks()
+    }
 
   } catch (error) {
     return { error: 'Erreur lors de la mise à jour.' }

@@ -26,6 +26,12 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
   const expectedDeliverable = formData.get('expectedDeliverable') as string
   const tagsStr = formData.get('tags') as string
 
+  // Recurrence fields
+  const isRecurring = formData.get('isRecurring') === 'on' || formData.get('isRecurring') === 'true'
+  const recurrencePattern = formData.get('recurrencePattern') as string
+  const recurrenceIntervalStr = formData.get('recurrenceInterval') as string
+  const startDateStr = formData.get('startDate') as string
+
   const validatedFields = taskSchema.safeParse({
     title, description, priority, status, assigneeId, expectedDeliverable
   })
@@ -37,8 +43,13 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
   const validData = validatedFields.data
 
   let dueDate = null
-  if (dueDateStr) {
+  if (dueDateStr && !isRecurring) {
     dueDate = new Date(dueDateStr)
+  }
+
+  let nextOccurrence = null
+  if (isRecurring && startDateStr) {
+    nextOccurrence = new Date(startDateStr)
   }
 
   try {
@@ -47,10 +58,15 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
         title: validData.title,
         description: validData.description || null,
         priority: validData.priority || 'NORMALE',
-        status: validData.status || 'A_FAIRE',
+        status: isRecurring ? 'A_FAIRE' : (validData.status || 'A_FAIRE'),
         assigneeId: validData.assigneeId || null,
         dueDate,
-        expectedDeliverable: validData.expectedDeliverable || null
+        expectedDeliverable: validData.expectedDeliverable || null,
+        isRecurring,
+        recurrencePattern: isRecurring ? recurrencePattern : null,
+        recurrenceInterval: isRecurring && recurrenceIntervalStr ? parseInt(recurrenceIntervalStr) : null,
+        nextOccurrence,
+        isTemplate: isRecurring
       }
     })
 
@@ -78,7 +94,7 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
       })
     }
 
-    if (assigneeId && assigneeId !== session.userId) {
+    if (!isRecurring && assigneeId && assigneeId !== session.userId) {
       await prisma.notification.create({
         data: {
           userId: assigneeId,
@@ -92,7 +108,19 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
       })
     }
 
-    await logAudit('CREATE', 'Task', task.id, session.userId, { title, priority, status, assigneeId })
+    await logAudit('CREATE', 'Task', task.id, session.userId, { 
+      title, 
+      priority, 
+      status: task.status, 
+      assigneeId,
+      isRecurring,
+      isTemplate: task.isTemplate
+    })
+
+    if (isRecurring) {
+      const { generateRecurringTasks } = await import('@/lib/generate-recurring-tasks')
+      await generateRecurringTasks()
+    }
 
   } catch (error) {
     return { error: 'Erreur lors de la création de la tâche.' }

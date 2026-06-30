@@ -18,6 +18,12 @@ export default async function TasksPage({
 
   const whereClause: any = {}
 
+  if (filter === 'recurring') {
+    whereClause.isTemplate = true
+  } else {
+    whereClause.isTemplate = false
+  }
+
   if (filter === 'mine') {
     whereClause.assigneeId = session?.userId
   } else if (filter === 'overdue') {
@@ -123,6 +129,7 @@ export default async function TasksPage({
         <Link href="/tasks?filter=overdue" className={`button ${filter === 'overdue' ? '' : 'outline'}`}>En retard</Link>
         <Link href="/tasks?filter=today" className={`button ${filter === 'today' ? '' : 'outline'}`}>Aujourd'hui</Link>
         <Link href="/tasks?filter=tomorrow" className={`button ${filter === 'tomorrow' ? '' : 'outline'}`}>Demain</Link>
+        <Link href="/tasks?filter=recurring" className={`button ${filter === 'recurring' ? '' : 'outline'}`}>Modèles récurrents</Link>
         
         <div style={{ marginLeft: 'auto' }}>
           <Link href="/tasks" className="button outline" style={{ color: 'var(--danger)' }}>
