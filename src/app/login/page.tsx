@@ -144,10 +144,19 @@ export default async function LoginPage() {
             marginTop: '2rem',
             fontSize: '0.78rem',
             color: '#94a3b8',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.75rem',
+            alignItems: 'center'
           }}>
-            Accès administrateur ?{' '}
-            <a href="/admin-login" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 600 }}>
-              Panneau admin →
+            <span>
+              Accès administrateur ?{' '}
+              <a href="/admin-login" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 600 }}>
+                Panneau admin →
+              </a>
+            </span>
+            <a href="/cgu-privacy" style={{ color: '#64748b', textDecoration: 'underline' }}>
+              CGU & Politique de Confidentialité
             </a>
           </p>
         </div>
