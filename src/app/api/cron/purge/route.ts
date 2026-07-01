@@ -8,9 +8,9 @@ export async function GET(request: Request) {
   try {
     // 1. Authenticate the CRON request if necessary
     const authHeader = request.headers.get('authorization')
-    // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    //   return new NextResponse('Unauthorized', { status: 401 })
-    // }
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET || 'secret'}` && process.env.NODE_ENV === 'production') {
+      return new NextResponse('Unauthorized', { status: 401 })
+    }
 
     const threeYearsAgo = new Date()
     threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3)

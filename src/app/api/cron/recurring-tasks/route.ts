@@ -4,11 +4,11 @@ import { generateRecurringTasks } from '@/lib/generate-recurring-tasks'
 // CRON endpoint to generate recurring tasks
 export async function GET(request: Request) {
   try {
-    // Authenticate the CRON request if necessary (uncomment when CRON_SECRET is configured)
-    // const authHeader = request.headers.get('authorization')
-    // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    //   return new NextResponse('Unauthorized', { status: 401 })
-    // }
+    // Authenticate the CRON request if necessary
+    const authHeader = request.headers.get('authorization')
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET || 'secret'}` && process.env.NODE_ENV === 'production') {
+      return new NextResponse('Unauthorized', { status: 401 })
+    }
 
     const spawnedCount = await generateRecurringTasks()
 
