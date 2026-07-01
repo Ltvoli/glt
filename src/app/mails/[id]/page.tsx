@@ -12,7 +12,7 @@ import MailSubmitButton from './mail-submit-button'
 import MailCollaborationTabs from './mail-collaboration-tabs'
 import AiAssistant from './ai-assistant'
 import { parseFullName } from '@/lib/mail-utils'
-import { deleteMailAction } from '../actions'
+import DeleteMailButton from './delete-mail-button'
 
 export default async function MailDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -158,21 +158,7 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
             <PrintButton />
             <Link href={`/mails/${id}/edit`} className="button outline">Modifier</Link>
             {(session.dbRole === 'ADMINISTRATEUR' || session.dbRole === 'SUPERVISEUR') && (
-              <form action={deleteMailAction}>
-                <input type="hidden" name="mailId" value={mail.id} />
-                <button 
-                  type="submit" 
-                  className="button outline" 
-                  style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }} 
-                  onClick={(e) => {
-                    if (!confirm("Voulez-vous vraiment supprimer ce courrier ? Cette action est irréversible.")) {
-                      e.preventDefault()
-                    }
-                  }}
-                >
-                  Supprimer
-                </button>
-              </form>
+              <DeleteMailButton mailId={mail.id} />
             )}
             {!isPendingValidation && (
               <MailStatusForm mailId={mail.id} currentStatus={mail.status} dictionary={dictionary} />
