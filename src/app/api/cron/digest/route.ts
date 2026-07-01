@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { sendBrevoEmail } from '@/lib/brevo'
 
 export async function GET(request: Request) {
   // Optionnel : vérifier un token secret (ex: cron-secret) pour sécuriser la route
@@ -73,9 +74,17 @@ export async function GET(request: Request) {
           </div>
         `
 
-        // === SIMULATION D'ENVOI ===
-        console.log(`[CRON DIGEST] Simulation d'envoi à ${user.email} (${user.firstName} ${user.lastName})`)
-        console.log(emailHtml)
+        // === ENVOI BREVO ===
+        try {
+          await sendBrevoEmail(
+            user.email,
+            `${user.firstName} ${user.lastName}`,
+            "Résumé d'activité quotidien — Bureau Parlementaire",
+            emailHtml
+          )
+        } catch (e) {
+          console.error(`[CRON DIGEST] Erreur lors de l'envoi à ${user.email}:`, e)
+        }
         emailsSimulated++
       }
     }
