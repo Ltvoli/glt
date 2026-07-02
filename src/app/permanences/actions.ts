@@ -216,6 +216,38 @@ export async function createPermanence(prevState: any, formData: FormData): Prom
       { section: 'logistique', label: 'Confirmation accès lieux', required: true, order: 2 },
     ]
 
+    // Gather all location names to generate specific communication tasks
+    const locationNames: string[] = []
+    if (locations.length > 0) {
+      for (const loc of locations) {
+        let finalCommuneName = loc.communeName || ''
+        if (loc.communeId && loc.communeId !== 'FREE') {
+          const c = await prisma.commune.findUnique({ where: { id: loc.communeId } })
+          if (c) finalCommuneName = c.name
+        }
+        if (finalCommuneName && !locationNames.includes(finalCommuneName)) {
+          locationNames.push(finalCommuneName)
+        }
+      }
+    } else {
+      let finalCommuneName = communeNameFree || ''
+      if (communeId) {
+        const c = await prisma.commune.findUnique({ where: { id: communeId } })
+        if (c) finalCommuneName = c.name
+      }
+      if (finalCommuneName && !locationNames.includes(finalCommuneName)) {
+        locationNames.push(finalCommuneName)
+      }
+    }
+
+    let commOrder = 2
+    for (const locName of locationNames) {
+      defaultTasks.push(
+        { section: 'communication', label: `Réaliser un visuel : Mairie de ${locName}`, required: true, order: commOrder++ },
+        { section: 'communication', label: `Transmettre le visuel à la mairie de ${locName} (15j avant)`, required: true, order: commOrder++ }
+      )
+    }
+
     for (const t of defaultTasks) {
       await prisma.permanenceTask.create({
         data: {
@@ -372,6 +404,35 @@ export async function addLocation(permanenceId: string, data: { communeId?: stri
       }
     })
 
+    // Find highest order in communication section tasks
+    const lastTask = await prisma.permanenceTask.findFirst({
+      where: { permanenceId, section: 'communication' },
+      orderBy: { order: 'desc' }
+    })
+    const startOrder = lastTask ? lastTask.order + 1 : 0
+
+    await prisma.permanenceTask.create({
+      data: {
+        permanenceId,
+        section: 'communication',
+        label: `Réaliser un visuel : Mairie de ${data.communeName}`,
+        required: true,
+        order: startOrder,
+        status: 'TODO'
+      }
+    })
+
+    await prisma.permanenceTask.create({
+      data: {
+        permanenceId,
+        section: 'communication',
+        label: `Transmettre le visuel à la mairie de ${data.communeName} (15j avant)`,
+        required: true,
+        order: startOrder + 1,
+        status: 'TODO'
+      }
+    })
+
     await autoTransitionToInProgress(permanenceId, auth.userId)
     revalidatePath(`/permanences/${permanenceId}/locations`)
     return { success: true }
@@ -385,9 +446,29 @@ export async function deleteLocation(permanenceId: string, locationId: string): 
     const auth = await checkPermission('permanences.update')
     if (!auth.success || !auth.userId) return { success: false, error: auth.error }
 
-    await prisma.permanenceLocation.delete({
+    const loc = await prisma.permanenceLocation.findUnique({
       where: { id: locationId }
     })
+
+    if (loc) {
+      // Supprimer les tâches de communication correspondantes
+      await prisma.permanenceTask.deleteMany({
+        where: {
+          permanenceId,
+          section: 'communication',
+          label: {
+            in: [
+              `Réaliser un visuel : Mairie de ${loc.communeName}`,
+              `Transmettre le visuel à la mairie de ${loc.communeName} (15j avant)`
+            ]
+          }
+        }
+      })
+
+      await prisma.permanenceLocation.delete({
+        where: { id: locationId }
+      })
+    }
 
     revalidatePath(`/permanences/${permanenceId}/locations`)
     return { success: true }
