@@ -85,7 +85,13 @@ export default async function ContactDetailPage({
       include: { assignee: true }
     }),
     prisma.mailCase.findMany({
-      where: { links: { some: { contactId: id } } },
+      where: { 
+        links: { some: { contactId: id } },
+        OR: [
+          { type: 'ENTRANT' },
+          { type: 'SORTANT', validationStatus: 'VALIDE' }
+        ]
+      },
       orderBy: { createdAt: 'desc' },
       include: { assignee: true }
     }),

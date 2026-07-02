@@ -80,6 +80,19 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
 
   const templates = await prisma.documentTemplate.findMany({ where: { entityType: 'MAIL' }, select: { id: true, name: true } })
 
+  const usersData = await prisma.user.findMany({
+    where: { isActive: true },
+    select: { id: true, firstName: true, lastName: true, role: true },
+    orderBy: [
+      { firstName: 'asc' },
+      { lastName: 'asc' }
+    ]
+  })
+  const users = usersData.map(u => ({
+    id: u.id,
+    name: `${u.firstName} ${u.lastName} (${u.role.toLowerCase()})`
+  }))
+
   const isAdmin = session.dbRole === 'ADMINISTRATEUR'
   const isPendingValidation = mail.validationStatus === 'A_VALIDER'
 
@@ -98,12 +111,12 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
         </Link>
         
         {mail.validationStatus === 'BROUILLON' && (
-          <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af' }}>
               <AlertCircle size={20} />
               <span style={{ fontWeight: 500 }}>Ce courrier est en cours de rédaction (Brouillon). Il doit être soumis pour validation.</span>
             </div>
-            <MailSubmitButton mailId={mail.id} />
+            <MailSubmitButton mailId={mail.id} users={users} />
           </div>
         )}
 
@@ -118,17 +131,24 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
         )}
 
         {mail.validationStatus === 'REJETE' && (
-          <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', color: '#b91c1c' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <AlertCircle size={20} />
-              <span style={{ fontWeight: 600 }}>Ce courrier a été rejeté (à corriger).</span>
-            </div>
-            {mail.rejectionReason && (
-              <div style={{ padding: '0.75rem', backgroundColor: '#fff', borderLeft: '4px solid #ef4444', borderRadius: '4px', fontSize: '0.9rem', color: '#374151', marginTop: '0.25rem' }}>
-                <strong>Motif du rejet :</strong> {mail.rejectionReason}
+          <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '0.5rem', color: '#b91c1c' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <AlertCircle size={20} />
+                  <span style={{ fontWeight: 600 }}>Ce courrier a été rejeté (à corriger).</span>
+                </div>
+                {mail.rejectionReason && (
+                  <div style={{ padding: '0.75rem', backgroundColor: '#fff', borderLeft: '4px solid #ef4444', borderRadius: '4px', fontSize: '0.9rem', color: '#374151', marginTop: '0.5rem' }}>
+                    <strong>Motif du rejet :</strong> {mail.rejectionReason}
+                  </div>
+                )}
+                <div style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Veuillez le modifier ci-dessous et le soumettre à nouveau pour validation.</div>
               </div>
-            )}
-            <span style={{ fontSize: '0.875rem' }}>Veuillez le modifier ci-dessous et le soumettre à nouveau pour validation.</span>
+              <div>
+                <MailSubmitButton mailId={mail.id} users={users} />
+              </div>
+            </div>
           </div>
         )}
 

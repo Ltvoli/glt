@@ -443,7 +443,7 @@ export async function rejectMail(mailId: string, reason?: string) {
   return { success: true }
 }
 
-export async function submitMailForValidation(mailId: string) {
+export async function submitMailForValidation(mailId: string, validatorUserId: string) {
   const session = await requireWriteAccess()
   requirePermission(session.role, 'MANAGE_MAILS')
 
@@ -455,27 +455,37 @@ export async function submitMailForValidation(mailId: string) {
     data: { validationStatus: 'A_VALIDER' }
   })
 
-  // Notify all Admins and Supervisors
-  const supervisorsAndAdmins = await prisma.user.findMany({
-    where: { 
-      role: { in: ['ADMINISTRATEUR', 'SUPERVISEUR'] },
-      isActive: true
+  // Create automatic task assigned to the selected validator
+  const newTask = await prisma.task.create({
+    data: {
+      title: `Valider le courrier : ${mail.subject} (${mail.reference})`,
+      description: `Valider le courrier de réponse rédigé par l'équipe.`,
+      status: 'A_FAIRE',
+      priority: 'NORMALE',
+      assigneeId: validatorUserId
     }
   })
 
-  for (const user of supervisorsAndAdmins) {
-    await prisma.notification.create({
-      data: {
-        userId: user.id,
-        type: 'STATUS_CHANGE',
-        title: 'Courrier à valider',
-        message: `Le courrier "${mail.subject}" (${mail.reference}) a été soumis pour validation.`,
-        relatedType: 'MailCase',
-        relatedId: mail.id,
-        severity: 'INFO'
-      }
-    })
-  }
+  // Link task to the mail case
+  await prisma.globalLink.create({
+    data: {
+      taskId: newTask.id,
+      mailCaseId: mail.id
+    }
+  })
+
+  // Notify the selected validator
+  await prisma.notification.create({
+    data: {
+      userId: validatorUserId,
+      type: 'STATUS_CHANGE',
+      title: 'Courrier à valider',
+      message: `Le courrier "${mail.subject}" (${mail.reference}) vous a été soumis pour validation.`,
+      relatedType: 'MailCase',
+      relatedId: mail.id,
+      severity: 'INFO'
+    }
+  })
 
   revalidatePath('/mails')
   revalidatePath('/mails/' + mailId)

@@ -115,6 +115,15 @@ export default function DocumentUploadModal({ folders = [] }: { folders?: any[] 
               </div>
 
               <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Statut de validation</label>
+                <select name="status" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px' }}>
+                  <option value="VALIDATED">Directement validé (Défaut)</option>
+                  <option value="PENDING">Soumettre pour validation (En attente)</option>
+                  <option value="DRAFT">Brouillon</option>
+                </select>
+              </div>
+
+              <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Dossier</label>
                 <select name="folderId" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px' }}>
                   <option value="">(Aucun dossier)</option>

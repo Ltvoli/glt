@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
     const title = formData.get('title') as string || (file ? file.name : '')
     const documentType = formData.get('documentType') as string || 'AUTRE'
     const confidentiality = formData.get('confidentiality') as string || 'INTERNE'
+    const status = formData.get('status') as string || 'VALIDATED'
     
     const entityType = formData.get('entityType') as string
     const entityId = formData.get('entityId') as string
@@ -133,6 +134,7 @@ export async function POST(req: NextRequest) {
       size: file.size,
       storagePath,
       confidentiality,
+      status,
       uploadedById: session.userId,
       extractedText: extractedText.trim() || null,
       folderId: folderId || null,
