@@ -17,7 +17,6 @@ const navItems = [
   { name: 'Permanences', href: '/permanences', icon: MapPin },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Rapports', href: '/reports/weekly', icon: FileText },
-  { name: 'RGPD & Sécurité', href: '/rgpd', icon: ShieldAlert },
 ]
 
 export default function Sidebar({ 
