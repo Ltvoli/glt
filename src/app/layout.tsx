@@ -11,8 +11,8 @@ const lexend = Lexend({ subsets: ['latin'], variable: '--font-lexend' })
 const sourceSans = Source_Sans_3({ subsets: ['latin'], variable: '--font-source-sans' })
 
 export const metadata: Metadata = {
-  title: 'Bureau Parlementaire',
-  description: 'Gestion du bureau parlementaire',
+  title: 'BP-Lionel Tivoli',
+  description: 'Gestion du BP-Lionel Tivoli',
 }
 
 import prisma from '@/lib/prisma'

@@ -68,7 +68,7 @@ export default function Sidebar({
       padding: '1.5rem 0'
     }}>
       <div style={{ padding: '0 1.5rem', marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>Bureau<br/>Parlementaire</h2>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>BP-Lionel Tivoli</h2>
       </div>
 
       <nav style={{ flex: 1 }}>

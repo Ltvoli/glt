@@ -79,7 +79,7 @@ export async function GET(request: Request) {
           await sendBrevoEmail(
             user.email,
             `${user.firstName} ${user.lastName}`,
-            "Résumé d'activité quotidien — Bureau Parlementaire",
+            "Résumé d'activité quotidien — BP-Lionel Tivoli",
             emailHtml
           )
         } catch (e) {

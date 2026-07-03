@@ -135,7 +135,7 @@ export async function sendBulkCommunicationAction(
           await sendBrevoEmail(
             recipient,
             `${contact.firstName} ${contact.lastName}`,
-            subject || "Communication — Bureau Parlementaire",
+            subject || "Communication — BP-Lionel Tivoli",
             htmlContent
           )
         } catch (e) {

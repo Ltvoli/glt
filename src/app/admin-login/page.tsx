@@ -90,7 +90,7 @@ export default async function AdminLoginPage() {
             color: '#475569',
             margin: 0,
           }}>
-            Bureau parlementaire — Accès restreint
+            BP-Lionel Tivoli — Accès restreint
           </p>
         </div>
 

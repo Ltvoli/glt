@@ -8,7 +8,7 @@ export async function sendBrevoEmail(toEmail: string, toName: string, subject: s
   }
 
   const senderEmail = process.env.BREVO_SENDER_EMAIL || 'no-reply@cabinet-parlementaire.fr'
-  const senderName = process.env.BREVO_SENDER_NAME || 'Bureau Parlementaire'
+  const senderName = process.env.BREVO_SENDER_NAME || 'BP-Lionel Tivoli'
 
   try {
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {

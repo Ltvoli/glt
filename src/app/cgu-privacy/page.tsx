@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ShieldCheck, ArrowLeft } from 'lucide-react'
 
 export const metadata = {
-  title: 'CGU & Politique de Confidentialité — Bureau Parlementaire',
+  title: 'CGU & Politique de Confidentialité — BP-Lionel Tivoli',
 }
 
 export default function CguPrivacyPage() {

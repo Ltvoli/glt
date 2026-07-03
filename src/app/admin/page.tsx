@@ -10,7 +10,7 @@ export default async function AdminDashboardPage() {
     update: {},
     create: {
       id: 'singleton',
-      name: 'Bureau Parlementaire',
+      name: 'BP-Lionel Tivoli',
       force2FA: false,
       sessionTimeoutMinutes: 1440,
       mobileAccessEnabled: true

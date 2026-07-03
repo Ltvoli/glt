@@ -219,7 +219,7 @@ export default async function WeeklyReportPage({ searchParams }: { searchParams:
       
       {/* Footer Impression */}
       <div style={{ marginTop: '4rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0', textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-        Rapport généré le {new Date().toLocaleString('fr-FR')} par le système du Bureau Parlementaire.
+        Rapport généré le {new Date().toLocaleString('fr-FR')} par le système BP-Lionel Tivoli.
       </div>
     </div>
   )

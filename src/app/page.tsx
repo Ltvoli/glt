@@ -213,7 +213,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Bonjour {user?.name} 👋</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Tableau de bord opérationnel du bureau parlementaire.</p>
+          <p style={{ color: 'var(--text-muted)' }}>Tableau de bord opérationnel de BP-Lionel Tivoli.</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <Link href="/?filter=me" className={`button ${!isTeam ? '' : 'outline'}`}>Mes affaires</Link>

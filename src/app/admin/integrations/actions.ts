@@ -258,7 +258,7 @@ export async function testWebhookAction(id: string): Promise<ActionResult<{ stat
       event: 'ping',
       timestamp: Math.floor(Date.now() / 1000),
       data: {
-        message: 'Test ping from CDC Bureau Parlementaire',
+        message: 'Test ping from BP-Lionel Tivoli',
         webhookId: webhook.id
       }
     }

@@ -4,7 +4,7 @@ import LoginForm from './login-form'
 import { Building2 } from 'lucide-react'
 
 export const metadata = {
-  title: 'Connexion — Bureau Parlementaire',
+  title: 'Connexion — BP-Lionel Tivoli',
   description: 'Accédez à votre espace de gestion parlementaire.',
 }
 
@@ -57,7 +57,7 @@ export default async function LoginPage() {
             </div>
             <div>
               <div style={{ color: 'white', fontWeight: 700, fontSize: '1rem', letterSpacing: '-0.02em' }}>
-                Bureau Parlementaire
+                BP-Lionel Tivoli
               </div>
               <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' }}>
                 Député Lionel Tivoli
@@ -109,7 +109,7 @@ export default async function LoginPage() {
 
         {/* Bottom text */}
         <div style={{ position: 'relative', zIndex: 1, color: 'rgba(255,255,255,0.25)', fontSize: '0.75rem' }}>
-          © {new Date().getFullYear()} Bureau Parlementaire — Tous droits réservés
+          © {new Date().getFullYear()} BP-Lionel Tivoli — Tous droits réservés
         </div>
       </div>
 
