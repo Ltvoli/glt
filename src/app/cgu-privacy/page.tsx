@@ -56,6 +56,10 @@ export default function CguPrivacyPage() {
           Tout citoyen concerné dispose d'un droit d'accès, de rectification, de limitation et d'effacement (droit à l'oubli) de ses données. Pour toute demande d'exercice de droit, vous pouvez contacter l'administrateur système ou l'adresse de contact du bureau parlementaire.
         </p>
       </section>
+
+      <footer style={{ marginTop: '4rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0', textAlign: 'center', fontSize: '0.875rem', color: '#64748b' }}>
+        Réalisation : DigitaleInfluence By Franck Galbert
+      </footer>
     </div>
   )
 }
