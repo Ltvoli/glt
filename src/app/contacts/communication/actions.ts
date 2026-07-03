@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { requireWriteAccess } from '@/lib/session'
 import { logAudit } from '@/lib/audit'
 import { revalidatePath } from 'next/cache'
+import { sendBrevoEmail } from '@/lib/brevo'
 
 async function resolveContacts(target: { ids?: string[]; listId?: string; all?: boolean; filterParams?: string }): Promise<any[]> {
   if (target.listId) {
@@ -128,7 +129,21 @@ export async function sendBulkCommunicationAction(
 
       const recipient = channel === 'EMAIL' ? contact.email : contact.mobilePhone
 
-      console.log(`[SIMULATION ENVOI ${channel}] pour ${contact.firstName} ${contact.lastName} (${recipient}) : ${personalizedContent}`)
+      if (channel === 'EMAIL' && recipient) {
+        try {
+          const htmlContent = personalizedContent.replace(/\n/g, '<br />')
+          await sendBrevoEmail(
+            recipient,
+            `${contact.firstName} ${contact.lastName}`,
+            subject || "Communication — Bureau Parlementaire",
+            htmlContent
+          )
+        } catch (e) {
+          console.error(`[BULK EMAIL] Erreur lors de l'envoi à ${recipient}:`, e)
+        }
+      } else {
+        console.log(`[SIMULATION ENVOI ${channel}] pour ${contact.firstName} ${contact.lastName} (${recipient}) : ${personalizedContent}`)
+      }
 
       // Enregistrement d'un log d'interaction/audit sur la fiche de contact
       await logAudit(
