@@ -178,6 +178,36 @@ export default function Sidebar({
           </Link>
         )}
 
+        <Link
+          href="/cgu-privacy"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            padding: '0.75rem',
+            color: 'var(--text-muted)',
+            textDecoration: 'none',
+            fontSize: '0.875rem',
+            borderRadius: '6px',
+            transition: 'background-color 0.2s',
+            marginBottom: '0.25rem',
+            fontWeight: pathname === '/cgu-privacy' ? 500 : 400,
+          }}
+          onMouseOver={(e) => {
+            if (pathname !== '/cgu-privacy') {
+              e.currentTarget.style.backgroundColor = 'var(--sidebar-hover)'
+            }
+          }}
+          onMouseOut={(e) => {
+            if (pathname !== '/cgu-privacy') {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }
+          }}
+        >
+          <FileText size={20} />
+          Mentions Légales & CGU
+        </Link>
+
         <button 
           onClick={async () => { await logout() }}
           style={{
