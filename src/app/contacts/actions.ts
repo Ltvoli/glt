@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { getSession, requireWriteAccess } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { logAudit } from '@/lib/audit'
+import { syncContactToBrevo } from '@/lib/brevo'
 import { contactSchema } from '@/lib/validations'
 import { requirePermission } from '@/lib/permissions'
 
@@ -172,6 +173,12 @@ export async function createContact(prevState: any, formData: FormData): Promise
     }
 
     await logAudit('CREATE', 'Contact', newContact.id, session.userId, newContact)
+
+    try {
+      await syncContactToBrevo(newContact.id)
+    } catch (e) {
+      console.error('[BREVO] Erreur lors de la synchronisation à la création:', e)
+    }
 
     return { success: true, id: newContact.id }
   } catch (error: any) {

@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { logAudit } from '@/lib/audit'
 import { contactSchema } from '@/lib/validations'
+import { syncContactToBrevo } from '@/lib/brevo'
 
 export async function updateContact(prevState: any, formData: FormData): Promise<{ error?: string, success?: boolean }> {
   const session = await getSession()
@@ -148,6 +149,12 @@ export async function updateContact(prevState: any, formData: FormData): Promise
     }
 
     await logAudit('UPDATE', 'Contact', id, session.userId, updatedContact)
+
+    try {
+      await syncContactToBrevo(id)
+    } catch (e) {
+      console.error('[BREVO] Erreur lors de la synchronisation à la modification:', e)
+    }
 
     return { success: true }
   } catch (error: any) {

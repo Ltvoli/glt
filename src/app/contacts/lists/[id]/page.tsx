@@ -5,6 +5,7 @@ import { getSession } from '@/lib/session'
 import { Users, MailOpen, Trash2, ArrowLeft, Search } from 'lucide-react'
 import { removeContactFromList } from '../actions'
 import ConfirmButton from '@/components/ui/confirm-button'
+import SyncListButton from './sync-list-button'
 
 export default async function ContactListDetailPage({
   params
@@ -62,7 +63,8 @@ export default async function ContactListDetailPage({
               <p style={{ color: '#64748b', margin: '0.25rem 0 0', fontSize: '0.95rem' }}>{list.description}</p>
             )}
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <SyncListButton listId={list.id} />
             <Link 
               href={`/contacts/communication?listId=${list.id}`} 
               className="button"

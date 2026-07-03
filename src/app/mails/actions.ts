@@ -15,7 +15,7 @@ import { addBusinessDays, isWorkflowTaskTitle, parseFullName } from '@/lib/mail-
 import { handleCommentMentions } from '@/app/tasks/[id]/actions'
 
 // Utility to generate unique reference e.g., COU-2026-0042
-async function generateReference() {
+export async function generateReference() {
   const year = new Date().getFullYear()
   
   const lastMail = await prisma.mailCase.findFirst({
