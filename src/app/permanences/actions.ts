@@ -203,6 +203,7 @@ export async function createPermanence(prevState: any, formData: FormData): Prom
     const defaultTasks = [
       { section: 'communication', label: 'Envoyer email aux élus', required: true, order: 0 },
       { section: 'communication', label: 'Post réseaux sociaux', required: true, order: 1 },
+      { section: 'communication', label: 'Contacter un militant pour distribuer des tracts', required: true, order: 2 },
       { section: 'phoning', label: 'Valider liste contacts', required: true, order: 0 },
       { section: 'phoning', label: 'Lancer les appels', required: true, order: 1 },
       { section: 'courrier', label: 'Identifier contacts sans email', required: true, order: 0 },
@@ -240,7 +241,7 @@ export async function createPermanence(prevState: any, formData: FormData): Prom
       }
     }
 
-    let commOrder = 2
+    let commOrder = 3
     for (const locName of locationNames) {
       defaultTasks.push(
         { section: 'communication', label: `Réaliser un visuel : Mairie de ${locName}`, required: true, order: commOrder++ },
