@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Calendar, User, MapPin, CheckCircle2, AlertTriangle, ChevronRight, FileSpreadsheet, Phone, ListTodo, FileDown } from 'lucide-react'
 import WorkflowButtons from './workflow-buttons'
 import DeputyRemarksWidget from './deputy-remarks-widget'
+import ShareWidget from './share-widget'
 
 export default async function PermanenceDashboardPage({
   params,
@@ -24,6 +25,7 @@ export default async function PermanenceDashboardPage({
       ownerUser: true,
       validationUser: true,
       locations: {
+        orderBy: { order: 'asc' },
         include: { commune: true }
       },
       tasks: {
@@ -101,7 +103,7 @@ export default async function PermanenceDashboardPage({
   return (
     <div>
       {/* DASHBOARD GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{ marginBottom: '2rem' }}>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6" style={{ marginBottom: '2rem' }}>
         {/* SCORE JAUGE */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Score de Préparation</h3>
@@ -145,9 +147,12 @@ export default async function PermanenceDashboardPage({
           />
         </div>
 
+        {/* SHARE PUBLIC PAGE */}
+        <ShareWidget permanenceId={permanence.id} permanenceStatus={permanence.status} />
+
         {/* BLOCKAGES (REQUIRED TASKS ALERTS) */}
         <div className="card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginBottom: '1rem' }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem', fontWeight: 600, color: 'var(--foreground)', marginBottom: '1.5rem' }}>
             <AlertTriangle size={18} className={uncompletedRequired.length > 0 ? "text-red-500" : "text-green-500"} />
             Points de Blocage ({uncompletedRequired.length})
           </h3>

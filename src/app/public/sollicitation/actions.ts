@@ -24,6 +24,7 @@ export async function submitPublicSollicitation(formData: FormData): Promise<Act
     const type = formData.get('type') as string // SOLLICITATION or NEWSLETTER
     const subject = (formData.get('subject') as string || '').trim()
     const message = (formData.get('message') as string || '').trim()
+    const permanenceId = formData.get('permanenceId') as string
 
     if (!firstName || !lastName) {
       return { success: false, error: 'Le prénom et le nom sont obligatoires.' }
@@ -150,8 +151,38 @@ export async function submitPublicSollicitation(formData: FormData): Promise<Act
       })
     }
 
+    // Link to mobile permanence if permanenceId is provided
+    if (permanenceId) {
+      const perm = await prisma.mobilePermanence.findUnique({
+        where: { id: permanenceId, archivedAt: null }
+      })
+      if (perm) {
+        const existingLink = await prisma.permanenceContact.findFirst({
+          where: { permanenceId, contactId: contact.id }
+        })
+        if (!existingLink) {
+          await prisma.permanenceContact.create({
+            data: {
+              permanenceId,
+              contactId: contact.id,
+              firstName,
+              lastName,
+              email: email || null,
+              phone: mobilePhone || null,
+              city: city || null,
+              role: 'CITOYEN',
+              callStatus: 'APPOINTMENT_CONFIRMED',
+              requestSummary: message || subject || 'Inscription depuis le portail public'
+            }
+          })
+        }
+        revalidatePath(`/permanences/${permanenceId}`)
+      }
+    }
+
     revalidatePath('/contacts')
     revalidatePath('/tasks')
+    revalidatePath('/permanences')
     return { success: true }
   } catch (error: any) {
     console.error('Error public form action:', error)
