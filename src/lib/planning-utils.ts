@@ -49,20 +49,35 @@ export function calculateCounters(
   let paidLeave = 0;
   let off = 0;
 
-  const current = new Date(startDate);
+  // Obtenir la date du jour à minuit UTC pour comparaison
+  const now = new Date()
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+
+  const current = new Date(startDate)
   while (current <= endDate) {
-    const time = current.getTime();
-    const dbStatus = statuses.find(s => s.date.getTime() === time);
-    const dayType = dbStatus ? dbStatus.dayType : getDefaultDayType(current);
+    const time = current.getTime()
+    const dbStatus = statuses.find(s => s.date.getTime() === time)
+    
+    let dayType: string
+    if (dbStatus) {
+      dayType = dbStatus.dayType
+    } else {
+      // Si c'est dans le futur (strictement après aujourd'hui), on ne le considère pas comme travaillé par défaut
+      if (time > todayUtc) {
+        dayType = 'off'
+      } else {
+        dayType = getDefaultDayType(current)
+      }
+    }
 
-    if (dayType === 'worked') worked++;
-    else if (dayType === 'paid_leave') paidLeave++;
-    else off++;
+    if (dayType === 'worked') worked++
+    else if (dayType === 'paid_leave') paidLeave++
+    else off++
 
-    current.setUTCDate(current.getUTCDate() + 1);
+    current.setUTCDate(current.getUTCDate() + 1)
   }
 
-  return { worked, paidLeave, off };
+  return { worked, paidLeave, off }
 }
 
 /**
