@@ -23,7 +23,9 @@ export async function middleware(req: NextRequest) {
     path === '/login' ||
     path === '/admin-login' ||
     path === '/auth/unauthorized' ||
-    path.startsWith('/invite/')
+    path === '/cgu-privacy' ||
+    path.startsWith('/invite/') ||
+    path.startsWith('/public/')
   if (isPublic) {
     return NextResponse.next()
   }

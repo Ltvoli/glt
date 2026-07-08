@@ -212,9 +212,12 @@ function ExportDropdown({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const buildExportUrl = (format: 'csv' | 'xls') => {
+  const buildExportUrl = (format: 'csv' | 'xls', publipostage = false) => {
     const params = new URLSearchParams(filterParams)
     params.set('format', format)
+    if (publipostage) {
+      params.set('publipostage', 'true')
+    }
     if (!allFiltered && selectedIds.size > 0) {
       params.set('ids', Array.from(selectedIds).join(','))
     }
@@ -247,7 +250,7 @@ function ExportDropdown({
           position: 'absolute', top: '100%', left: 0, marginTop: '4px',
           background: 'white', border: '1px solid #e2e8f0',
           borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-          zIndex: 100, minWidth: '200px', overflow: 'hidden',
+          zIndex: 100, minWidth: '220px', overflow: 'hidden',
         }}>
           <a
             href={buildExportUrl('csv')}
@@ -268,7 +271,42 @@ function ExportDropdown({
             </span>
           </a>
           <a
+            href={buildExportUrl('csv', true)}
+            onClick={() => setOpen(false)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '10px 14px', color: '#374151',
+              textDecoration: 'none', fontSize: '0.85rem',
+              borderBottom: '1px solid #f1f5f9',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            <FileText size={15} style={{ color: '#16a34a' }} />
+            <span>
+              Exporter CSV (Ménages)
+            </span>
+          </a>
+          <a
             href={buildExportUrl('xls')}
+            onClick={() => setOpen(false)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '10px 14px', color: '#374151',
+              textDecoration: 'none', fontSize: '0.85rem',
+              borderBottom: '1px solid #f1f5f9',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            <Table2 size={15} style={{ color: '#3b82f6' }} />
+            <span>
+              Exporter XLS
+              <span style={{ color: '#94a3b8', marginLeft: '4px', fontSize: '0.78rem' }}>({count})</span>
+            </span>
+          </a>
+          <a
+            href={buildExportUrl('xls', true)}
             onClick={() => setOpen(false)}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
@@ -278,10 +316,9 @@ function ExportDropdown({
             onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >
-            <Table2 size={15} style={{ color: '#3b82f6' }} />
+            <Table2 size={15} style={{ color: '#1d4ed8' }} />
             <span>
-              Exporter XLS
-              <span style={{ color: '#94a3b8', marginLeft: '4px', fontSize: '0.78rem' }}>({count})</span>
+              Exporter XLS (Ménages)
             </span>
           </a>
         </div>
