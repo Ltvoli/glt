@@ -6,6 +6,7 @@ import SubtasksList from './subtasks-list'
 import TaskComments from './task-comments'
 import TaskAttachments from './task-attachments'
 import NudgeButton from './nudge-button'
+import { getSession } from '@/lib/session'
 
 import PrintButton from '@/components/PrintButton'
 
@@ -95,6 +96,9 @@ export default async function TaskDetailPage({
   const { getModuleFields } = await import('@/lib/fields')
   const fieldConfig = await getModuleFields('tasks')
 
+  const session = await getSession()
+  const canDelete = session && (session.dbRole === 'ADMINISTRATEUR' || session.dbRole === 'SUPERVISEUR')
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }} className="hide-on-print">
@@ -121,7 +125,7 @@ export default async function TaskDetailPage({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div className="card">
             <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Détails de la tâche</h2>
-            <EditTaskForm task={JSON.parse(JSON.stringify(task))} users={JSON.parse(JSON.stringify(users))} allTags={allTags} dictionary={dictionary} fieldConfig={fieldConfig} />
+            <EditTaskForm task={JSON.parse(JSON.stringify(task))} users={JSON.parse(JSON.stringify(users))} allTags={allTags} dictionary={dictionary} fieldConfig={fieldConfig} canDelete={!!canDelete} />
           </div>
 
           <div className="card">

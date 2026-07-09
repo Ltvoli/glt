@@ -300,3 +300,24 @@ export async function nudgeAssigneeAction(taskId: string): Promise<{ error?: str
   return { success: true }
 }
 
+export async function deleteTaskAction(formData: FormData) {
+  const session = await requireWriteAccess()
+  if (session.dbRole !== 'ADMINISTRATEUR' && session.dbRole !== 'SUPERVISEUR') {
+    throw new Error('Non autorisé. Seuls les administrateurs et superviseurs peuvent supprimer une tâche.')
+  }
+
+  const taskId = formData.get('taskId') as string
+  if (!taskId) throw new Error('Identifiant de la tâche manquant')
+
+  const { redirect } = await import('next/navigation')
+
+  await prisma.task.delete({
+    where: { id: taskId }
+  })
+
+  await logAudit('DELETE', 'Task', taskId, session.userId, { action: 'DELETE_TASK' })
+
+  revalidatePath('/tasks')
+  redirect('/tasks')
+}
+

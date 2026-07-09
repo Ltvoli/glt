@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState } from 'react'
-import { updateTask } from './actions'
+import { updateTask, deleteTaskAction } from './actions'
 import { renderTaskField } from '../dynamic-task-fields'
 
 const initialState = {
@@ -9,7 +9,7 @@ const initialState = {
   success: false
 }
 
-export default function EditTaskForm({ task, users, allTags = [], dictionary = [], fieldConfig = {} }: { task: any, users: any[], allTags?: any[], dictionary?: any[], fieldConfig?: Record<string, any> }) {
+export default function EditTaskForm({ task, users, allTags = [], dictionary = [], fieldConfig = {}, canDelete = false }: { task: any, users: any[], allTags?: any[], dictionary?: any[], fieldConfig?: Record<string, any>, canDelete?: boolean }) {
   const [state, formAction, isPending] = useActionState(updateTask, initialState)
 
   const infoFields = Object.entries(fieldConfig || {})
@@ -73,7 +73,23 @@ export default function EditTaskForm({ task, users, allTags = [], dictionary = [
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {canDelete ? (
+          <button 
+            type="button" 
+            className="button outline" 
+            style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+            onClick={async () => {
+              if (confirm('Êtes-vous sûr de vouloir supprimer cette tâche définitivement ?')) {
+                const formData = new FormData()
+                formData.append('taskId', task.id)
+                await deleteTaskAction(formData)
+              }
+            }}
+          >
+            Supprimer la tâche
+          </button>
+        ) : <div />}
         <button type="submit" className="button" disabled={isPending}>
           {isPending ? 'Enregistrement...' : 'Mettre à jour la tâche'}
         </button>

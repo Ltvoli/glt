@@ -48,6 +48,7 @@ export default function MailTableClient({ mails }: { mails: any[] }) {
     try {
       await batchUpdateMailStatus(selectedIds, status)
       setSelectedIds([]) // Clear selection after success
+      router.refresh()
     } catch (e) {
       console.error(e)
       alert("Erreur lors de l'action de masse.")
