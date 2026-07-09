@@ -276,11 +276,19 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     ].filter(Boolean).join('\n') || null
 
     let consentEmail: boolean | null = null
+    let consentPhone: boolean | null = null
+    let consentSms: boolean | null = null
+    let consentPostal: boolean | null = null
+    let consentCustom: boolean | null = null
     let consentDate = null
     let consentSource = null
 
     if (forceConsent) {
       consentEmail = true
+      consentPhone = true
+      consentSms = true
+      consentPostal = true
+      consentCustom = true
       consentDate = new Date()
       consentSource = 'IMPORT_MASSE'
     } else if (newsletter) {
@@ -305,6 +313,10 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       notes:        fullNotes,
       profession:   profession || null,
       consentEmail: consentEmail,
+      consentPhone: consentPhone,
+      consentSms: consentSms,
+      consentPostal: consentPostal,
+      consentCustom: consentCustom,
       consentDate:  consentDate,
       consentSource: consentSource,
       type:         'ELECTEUR' as const,
@@ -359,6 +371,13 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
         birthDate: birthDate || existingContact.birthDate || null,
         department: department || existingContact.department || null,
         territory: territory || existingContact.territory || null,
+        consentEmail: consentEmail !== null ? consentEmail : existingContact.consentEmail,
+        consentPhone: consentPhone !== null ? consentPhone : existingContact.consentPhone,
+        consentSms: consentSms !== null ? consentSms : existingContact.consentSms,
+        consentPostal: consentPostal !== null ? consentPostal : existingContact.consentPostal,
+        consentCustom: consentCustom !== null ? consentCustom : existingContact.consentCustom,
+        consentDate: consentDate || existingContact.consentDate,
+        consentSource: consentSource || existingContact.consentSource,
       }
 
       updatesList.push(updatedFields)
@@ -431,6 +450,13 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
             birthDate: up.birthDate,
             department: up.department,
             territory: up.territory,
+            consentEmail: up.consentEmail,
+            consentPhone: up.consentPhone,
+            consentSms: up.consentSms,
+            consentPostal: up.consentPostal,
+            consentCustom: up.consentCustom,
+            consentDate: up.consentDate,
+            consentSource: up.consentSource,
           }
         })
       }))
