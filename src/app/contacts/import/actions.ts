@@ -28,8 +28,8 @@ function col(row: Record<string, string>, ...keys: string[]): string {
  */
 function parseGender(civilite: string): string | null {
   const c = civilite.trim().toLowerCase()
-  if (c === 'm.' || c === 'm') return 'H'
-  if (c === 'mme' || c === 'mme.') return 'F'
+  if (c === 'm.' || c === 'm' || c === 'homme' || c === 'h') return 'H'
+  if (c === 'mme' || c === 'mme.' || c === 'f' || c === 'femme') return 'F'
   return null
 }
 
@@ -92,11 +92,15 @@ function parseSupportLevel(raw: string, dbLevels: { label: string; order: number
   const n = sorted.length
   if (n === 0) return r // pas de niveaux configurés → stocker brut
 
-  // 1. Correspondance exacte (insensible à la casse)
-  const exact = sorted.find(l => l.label.toLowerCase() === r.toLowerCase())
-  if (exact) return exact.label
+  const normalize = (str: string) => str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const rNorm = normalize(r)
 
-  const rLow = r.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  // 1. Correspondance exacte ou partielle insensible aux accents et extensions
+  const match = sorted.find(l => {
+    const lNorm = normalize(l.label)
+    return rNorm.includes(lNorm) || lNorm.includes(rNorm)
+  })
+  if (match) return match.label
 
   // 2. Chiffres Qomon (1 = le plus faible, 5 = le plus fort)
   const num = parseInt(r)
@@ -106,11 +110,11 @@ function parseSupportLevel(raw: string, dbLevels: { label: string; order: number
   }
 
   // 3. Mapping sémantique
-  if (['tres defavorable', 'hostile', 'opposant'].some(v => rLow.includes(v))) return sorted[0].label
-  if (['defavorable', 'reticent'].some(v => rLow.includes(v)) && !rLow.includes('tres')) return sorted[Math.max(0, Math.floor(n * 0.25))].label
-  if (['neutre', 'indecis', 'sans opinion'].some(v => rLow.includes(v)))                  return sorted[Math.round((n - 1) / 2)].label
-  if (['tres favorable', 'militant', 'engage'].some(v => rLow.includes(v)))               return sorted[n - 1].label
-  if (['favorable', 'sympathisant'].some(v => rLow.includes(v)))                           return sorted[Math.min(n - 1, Math.round(n * 0.65))].label
+  if (['tres defavorable', 'hostile', 'opposant'].some(v => rNorm.includes(v))) return sorted[0].label
+  if (['defavorable', 'reticent'].some(v => rNorm.includes(v)) && !rNorm.includes('tres')) return sorted[Math.max(0, Math.floor(n * 0.25))].label
+  if (['neutre', 'indecis', 'sans opinion'].some(v => rNorm.includes(v)))                  return sorted[Math.round((n - 1) / 2)].label
+  if (['tres favorable', 'militant', 'engage'].some(v => rNorm.includes(v)))               return sorted[n - 1].label
+  if (['favorable', 'sympathisant'].some(v => rNorm.includes(v)))                           return sorted[Math.min(n - 1, Math.round(n * 0.65))].label
 
   return r // valeur inconnue → stocker brut
 }
@@ -206,7 +210,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     const lastName   = col(row, 'NOM',      'Nom',      'nom',       'last_name')
     const email      = col(row, 'EMAIL',    'Email',    'email')
     const phone      = col(row, 'TELEPHONE','Téléphone','Telephone', 'telephone', 'TÉLÉPHONE')
-    const mobile     = col(row, 'PORTABLE', 'Portable', 'portable',  'Mobile',    'MOBILE')
+    const mobile     = col(row, 'PORTABLE', 'Portable', 'portable',  'Mobile',    'MOBILE', 'Téléphone portable', 'telephone portable', 'telephone_portable')
     const birthRaw   = col(row, 'DATE DE NAISSANCE', 'Date de naissance', 'DATE_NAISSANCE', 'birthdate', 'date_naissance')
     const adresse1   = col(row, 'ADRESSE 1', 'ADRESSE1', 'Adresse 1', 'Adresse1', 'adresse1', 'Adresse', 'adresse')
     const adresse2   = col(row, 'ADRESSE 2', 'ADRESSE2', 'Adresse 2', 'Adresse2', 'adresse2')
@@ -218,6 +222,8 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     const notes      = col(row, 'Notes',     'NOTES',    'notes')
     const supportRaw = col(row, 'Niveau de Soutien', 'NIVEAU DE SOUTIEN', 'niveau_soutien', 'support_level')
     const supportLevel = parseSupportLevel(supportRaw, dbSupportLevels)
+    const department = col(row, 'Département', 'Departement', 'departement', 'department', 'DEPARTEMENT')
+    const territory  = col(row, 'Territoire', 'territoire', 'territory', 'TERRITOIRE')
 
     // ── Validation minimale ──────────────────────────
     if (!firstName || !lastName) {
@@ -228,7 +234,15 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     // ── Transformations ──────────────────────────────
     const gender    = parseGender(civilite) || null
     const birthDate = parseDate(birthRaw)
-    const { streetNumber, streetName } = parseAddress(adresse1)
+    
+    // Si des colonnes Numéro et Rue/Voie sont fournies directement, on les utilise
+    let streetNumber = col(row, 'Numéro', 'Numero', 'numero', 'street_number') || null
+    let streetName = col(row, 'Rue / Voie', 'Rue/Voie', 'Rue', 'rue', 'street_name', 'street') || null
+    if (!streetNumber && !streetName) {
+      const parsed = parseAddress(adresse1)
+      streetNumber = parsed.streetNumber
+      streetName = parsed.streetName
+    }
 
     // ADRESSE 2 → address complement (stocké dans notes si pas de champ dédié)
     const fullNotes = [
@@ -270,6 +284,8 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       consentSource: consentSource,
       type:         'ELECTEUR' as const,
       createdById:  userId,
+      department:   department || null,
+      territory:    territory  || null,
     }
 
     let insertedContact: any = null
@@ -303,23 +319,24 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
           }
         }
 
-        // Mettre à jour le contact existant
+        // Mettre à jour le contact existant en priorisant les valeurs importées
         insertedContact = await prisma.contact.update({
           where: { id: existingContact.id },
           data: {
             notes: mergedNotes,
             supportLevel: supportLevel || existingContact.supportLevel,
-            // Renseigne uniquement les champs vides
-            email: existingContact.email || email || null,
-            phone: existingContact.phone || phone || null,
-            mobilePhone: existingContact.mobilePhone || mobile || null,
-            streetNumber: existingContact.streetNumber || streetNumber,
-            streetName: existingContact.streetName || streetName,
-            postalCode: existingContact.postalCode || postalCode || null,
-            city: existingContact.city || city || null,
-            profession: existingContact.profession || profession || null,
-            gender: existingContact.gender || gender,
-            birthDate: existingContact.birthDate || birthDate,
+            email: email || existingContact.email || null,
+            phone: phone || existingContact.phone || null,
+            mobilePhone: mobile || existingContact.mobilePhone || null,
+            streetNumber: streetNumber || existingContact.streetNumber || null,
+            streetName: streetName || existingContact.streetName || null,
+            postalCode: postalCode || existingContact.postalCode || null,
+            city: city || existingContact.city || null,
+            profession: profession || existingContact.profession || null,
+            gender: gender || existingContact.gender || null,
+            birthDate: birthDate || existingContact.birthDate || null,
+            department: department || existingContact.department || null,
+            territory: territory || existingContact.territory || null,
           }
         })
 
