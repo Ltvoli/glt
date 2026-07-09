@@ -429,37 +429,41 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     }
   }
 
-  // ── 2. Exécution des mises à jour en parallèle ──
+  // ── 2. Exécution des mises à jour par lots pour éviter la saturation du pool de connexions ──
   if (updatesList.length > 0) {
     try {
-      await Promise.all(updatesList.map(up => {
-        return prisma.contact.update({
-          where: { id: up.id },
-          data: {
-            notes: up.notes,
-            supportLevel: up.supportLevel,
-            email: up.email,
-            phone: up.phone,
-            mobilePhone: up.mobilePhone,
-            streetNumber: up.streetNumber,
-            streetName: up.streetName,
-            postalCode: up.postalCode,
-            city: up.city,
-            profession: up.profession,
-            gender: up.gender,
-            birthDate: up.birthDate,
-            department: up.department,
-            territory: up.territory,
-            consentEmail: up.consentEmail,
-            consentPhone: up.consentPhone,
-            consentSms: up.consentSms,
-            consentPostal: up.consentPostal,
-            consentCustom: up.consentCustom,
-            consentDate: up.consentDate,
-            consentSource: up.consentSource,
-          }
-        })
-      }))
+      const chunkSize = 50
+      for (let i = 0; i < updatesList.length; i += chunkSize) {
+        const chunk = updatesList.slice(i, i + chunkSize)
+        await Promise.all(chunk.map(up => {
+          return prisma.contact.update({
+            where: { id: up.id },
+            data: {
+              notes: up.notes,
+              supportLevel: up.supportLevel,
+              email: up.email,
+              phone: up.phone,
+              mobilePhone: up.mobilePhone,
+              streetNumber: up.streetNumber,
+              streetName: up.streetName,
+              postalCode: up.postalCode,
+              city: up.city,
+              profession: up.profession,
+              gender: up.gender,
+              birthDate: up.birthDate,
+              department: up.department,
+              territory: up.territory,
+              consentEmail: up.consentEmail,
+              consentPhone: up.consentPhone,
+              consentSms: up.consentSms,
+              consentPostal: up.consentPostal,
+              consentCustom: up.consentCustom,
+              consentDate: up.consentDate,
+              consentSource: up.consentSource,
+            }
+          })
+        }))
+      }
       updated = updatesList.length
     } catch (updateErr: any) {
       console.error('[Qomon Import] Erreur batch update contacts :', updateErr)
