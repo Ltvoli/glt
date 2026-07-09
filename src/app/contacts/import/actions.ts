@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
+import crypto from 'crypto'
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -224,6 +225,9 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
   // Liste pour accumuler toutes les relations contact-tag à insérer en bloc à la fin
   const contactTagsToInsert: { contactId: string; tagId: string }[] = []
 
+  const creationsList: any[] = []
+  const updatesList: any[] = []
+
   for (const row of rows) {
     // ── Lecture des champs Qomon ─────────────────────
     const civilite   = getValue(row, 'gender', 'CIVILITE', 'Civilité', 'civilite')
@@ -309,7 +313,6 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       territory:    territory  || null,
     }
 
-    let insertedContact: any = null
     let existingContact: any = null
 
     const lookupKey = `${firstName.toLowerCase()}_${lastName.toLowerCase()}`
@@ -326,80 +329,119 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       })
     }
 
-    try {
-      if (existingContact) {
-        // Fusionner les notes
-        let mergedNotes = existingContact.notes
-        if (fullNotes) {
-          if (mergedNotes) {
-            if (!mergedNotes.includes(fullNotes)) {
-              mergedNotes = `${mergedNotes}\n\n[Import] ${fullNotes}`
-            }
-          } else {
-            mergedNotes = fullNotes
+    if (existingContact) {
+      // Fusionner les notes
+      let mergedNotes = existingContact.notes
+      if (fullNotes) {
+        if (mergedNotes) {
+          if (!mergedNotes.includes(fullNotes)) {
+            mergedNotes = `${mergedNotes}\n\n[Import] ${fullNotes}`
           }
+        } else {
+          mergedNotes = fullNotes
         }
-
-        // Mettre à jour le contact existant en priorisant les valeurs importées
-        insertedContact = await prisma.contact.update({
-          where: { id: existingContact.id },
-          data: {
-            notes: mergedNotes,
-            supportLevel: supportLevel || existingContact.supportLevel,
-            email: email || existingContact.email || null,
-            phone: phone || existingContact.phone || null,
-            mobilePhone: mobile || existingContact.mobilePhone || null,
-            streetNumber: streetNumber || existingContact.streetNumber || null,
-            streetName: streetName || existingContact.streetName || null,
-            postalCode: postalCode || existingContact.postalCode || null,
-            city: city || existingContact.city || null,
-            profession: profession || existingContact.profession || null,
-            gender: gender || existingContact.gender || null,
-            birthDate: birthDate || existingContact.birthDate || null,
-            department: department || existingContact.department || null,
-            territory: territory || existingContact.territory || null,
-          }
-        })
-
-        // Mettre à jour la fiche en mémoire pour d'éventuels doublons successifs dans le fichier
-        const idx = candidateMatches.findIndex(m => m.id === existingContact.id)
-        if (idx !== -1) {
-          candidateMatches[idx] = insertedContact
-        }
-
-        updated++
-      } else {
-        // Créer un nouveau contact
-        insertedContact = await prisma.contact.create({ data: dataToInsert })
-        created++
-
-        // Ajouter à la liste mémoire pour les suivantes lignes
-        candidateMatches.push(insertedContact)
-        contactsMap.set(lookupKey, candidateMatches)
       }
-    } catch (err: any) {
-      console.error('[Qomon Import] Erreur insertion/mise à jour :', lastName, firstName, err?.message)
-      errorsCount++
-      continue
-    }
 
-    // ── Accumuler les relations de tags ──
-    if (insertedContact && tagsRaw) {
-      const tagNames = tagsRaw
-        .split(/[,;|]/)
-        .map((t: string) => t.trim())
-        .filter((t: string) => t.length > 0)
+      // Collecter la mise à jour
+      const updatedFields = {
+        id: existingContact.id,
+        notes: mergedNotes,
+        supportLevel: supportLevel || existingContact.supportLevel,
+        email: email || existingContact.email || null,
+        phone: phone || existingContact.phone || null,
+        mobilePhone: mobile || existingContact.mobilePhone || null,
+        streetNumber: streetNumber || existingContact.streetNumber || null,
+        streetName: streetName || existingContact.streetName || null,
+        postalCode: postalCode || existingContact.postalCode || null,
+        city: city || existingContact.city || null,
+        profession: profession || existingContact.profession || null,
+        gender: gender || existingContact.gender || null,
+        birthDate: birthDate || existingContact.birthDate || null,
+        department: department || existingContact.department || null,
+        territory: territory || existingContact.territory || null,
+      }
 
-      for (const tagName of tagNames) {
-        const tag = tagsMap.get(tagName.toLowerCase())
-        if (tag) {
-          contactTagsToInsert.push({ contactId: insertedContact.id, tagId: tag.id })
+      updatesList.push(updatedFields)
+      Object.assign(existingContact, updatedFields)
+
+      // Accumuler les tags
+      if (tagsRaw) {
+        const tagNames = tagsRaw.split(/[,;|]/).map((t: string) => t.trim()).filter(Boolean)
+        for (const tagName of tagNames) {
+          const tag = tagsMap.get(tagName.toLowerCase())
+          if (tag) {
+            contactTagsToInsert.push({ contactId: existingContact.id, tagId: tag.id })
+          }
+        }
+      }
+    } else {
+      // Créer un nouveau contact avec ID pré-généré
+      const newId = crypto.randomUUID()
+      const newContact = { id: newId, ...dataToInsert }
+
+      creationsList.push(newContact)
+      candidateMatches.push(newContact as any)
+      contactsMap.set(lookupKey, candidateMatches)
+
+      // Accumuler les tags
+      if (tagsRaw) {
+        const tagNames = tagsRaw.split(/[,;|]/).map((t: string) => t.trim()).filter(Boolean)
+        for (const tagName of tagNames) {
+          const tag = tagsMap.get(tagName.toLowerCase())
+          if (tag) {
+            contactTagsToInsert.push({ contactId: newId, tagId: tag.id })
+          }
         }
       }
     }
   }
 
-  // ── Insertion en bloc de toutes les relations contact-tag ──
+  // ── 1. Exécution en bloc des créations ──
+  if (creationsList.length > 0) {
+    try {
+      await prisma.contact.createMany({
+        data: creationsList,
+        skipDuplicates: true
+      })
+      created = creationsList.length
+    } catch (createErr: any) {
+      console.error('[Qomon Import] Erreur createMany contacts :', createErr)
+      errorsCount += creationsList.length
+    }
+  }
+
+  // ── 2. Exécution des mises à jour en parallèle ──
+  if (updatesList.length > 0) {
+    try {
+      await Promise.all(updatesList.map(up => {
+        return prisma.contact.update({
+          where: { id: up.id },
+          data: {
+            notes: up.notes,
+            supportLevel: up.supportLevel,
+            email: up.email,
+            phone: up.phone,
+            mobilePhone: up.mobilePhone,
+            streetNumber: up.streetNumber,
+            streetName: up.streetName,
+            postalCode: up.postalCode,
+            city: up.city,
+            profession: up.profession,
+            gender: up.gender,
+            birthDate: up.birthDate,
+            department: up.department,
+            territory: up.territory,
+          }
+        })
+      }))
+      updated = updatesList.length
+    } catch (updateErr: any) {
+      console.error('[Qomon Import] Erreur batch update contacts :', updateErr)
+      errorsCount += updatesList.length
+    }
+  }
+
+  // ── 3. Insertion en bloc de toutes les relations contact-tag ──
   if (contactTagsToInsert.length > 0) {
     try {
       await prisma.contactTag.createMany({
