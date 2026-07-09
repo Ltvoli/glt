@@ -366,3 +366,71 @@ Génère la Question Écrite en remplissant le texte de la question et en recomm
   const parts = [{ text: userMessage }]
   return await callGemini(systemInstruction, parts, QE_GENERATION_SCHEMA)
 }
+
+const COLUMN_MAPPING_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    gender: { type: "STRING", description: "Nom exact de la colonne contenant le genre ou la civilité" },
+    firstName: { type: "STRING", description: "Nom exact de la colonne contenant le prénom" },
+    lastName: { type: "STRING", description: "Nom exact de la colonne contenant le nom de famille" },
+    email: { type: "STRING", description: "Nom exact de la colonne contenant l'adresse email" },
+    phone: { type: "STRING", description: "Nom exact de la colonne contenant le téléphone fixe" },
+    mobilePhone: { type: "STRING", description: "Nom exact de la colonne contenant le téléphone portable" },
+    streetNumber: { type: "STRING", description: "Nom exact de la colonne contenant le numéro de rue" },
+    streetName: { type: "STRING", description: "Nom exact de la colonne contenant le nom de rue" },
+    adresse1: { type: "STRING", description: "Nom exact de la colonne contenant l'adresse complète 1" },
+    adresse2: { type: "STRING", description: "Nom exact de la colonne contenant le complément d'adresse" },
+    postalCode: { type: "STRING", description: "Nom exact de la colonne contenant le code postal" },
+    city: { type: "STRING", description: "Nom exact de la colonne contenant la ville ou commune" },
+    profession: { type: "STRING", description: "Nom exact de la colonne contenant la profession" },
+    supportLevel: { type: "STRING", description: "Nom exact de la colonne contenant le niveau de soutien" },
+    department: { type: "STRING", description: "Nom exact de la colonne contenant le département" },
+    territory: { type: "STRING", description: "Nom exact de la colonne contenant la circonscription ou le territoire" },
+    tags: { type: "STRING", description: "Nom exact de la colonne contenant les étiquettes ou mots-clés" },
+    newsletter: { type: "STRING", description: "Nom exact de la colonne contenant l'opt-in de la newsletter" },
+    notes: { type: "STRING", description: "Nom exact de la colonne contenant les notes ou remarques" }
+  },
+  required: []
+}
+
+export async function getColumnMapping(headers: string[]): Promise<Record<string, string>> {
+  const systemInstruction = `
+Tu es un expert en traitement de données et intégration de fichiers.
+Ton but est d'analyser une liste de noms de colonnes provenant d'un fichier Excel ou CSV importé et de les faire correspondre au schéma cible de notre base de données CRM.
+
+CHAMPS CIBLE :
+- gender : Le genre ou la civilité (M, Mme, M., Civilité, etc.)
+- firstName : Le prénom
+- lastName : Le nom de famille
+- email : L'adresse de messagerie électronique
+- phone : Le téléphone fixe/maison
+- mobilePhone : Le téléphone portable/mobile/GSM
+- streetNumber : Le numéro de la rue/voie uniquement (ex: "Numéro", "N°")
+- streetName : Le nom de la rue uniquement (ex: "Rue / Voie", "Rue", "Nom de rue")
+- adresse1 : L'adresse complète (ex: "Adresse 1", "Adresse")
+- adresse2 : Le complément d'adresse (ex: "Adresse 2")
+- postalCode : Le code postal (ex: "Code postal", "CP", "Zip")
+- city : La ville ou commune (ex: "Ville", "Commune", "City")
+- profession : Le métier ou profession
+- supportLevel : Le niveau de soutien (ex: "Niveau de soutien", "Engagement", "Support")
+- department : Le département (ex: "Département")
+- territory : Le territoire ou circonscription (ex: "Territoire", "Circonscription", "Territory")
+- tags : Les étiquettes, tags ou mots-clés (ex: "Tags", "Mots clés", "Mots-clés")
+- newsletter : L'opt-in de communication ou newsletter (ex: "Newsletter", "Abonné")
+- notes : Les notes ou remarques de l'électeur (ex: "Notes", "Commentaires")
+
+Pour chaque champ cible, trouve s'il existe une colonne correspondante parmi les colonnes du fichier.
+Renvoie un objet JSON associant le champ cible au nom exact de la colonne dans le fichier. Si aucun nom de colonne ne correspond, n'associe rien (renvoie null ou omet la propriété).
+`
+
+  const userMessage = `Voici les colonnes trouvées dans le fichier importé :\n${headers.map(h => `- "${h}"`).join('\n')}`
+  const parts = [{ text: userMessage }]
+
+  try {
+    const result = await callGemini(systemInstruction, parts, COLUMN_MAPPING_SCHEMA)
+    return result || {}
+  } catch (err) {
+    console.error("[Gemini Column Mapping Error] Error :", err)
+    return {}
+  }
+}

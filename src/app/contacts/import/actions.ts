@@ -130,6 +130,27 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
   // ── Charger les niveaux de soutien configurés en BDD ──
   const dbSupportLevels = await prisma.supportLevel.findMany({ select: { label: true, order: true } })
 
+  // ── Cartographie des colonnes assistée par IA ──
+  let mapping: Record<string, string> = {}
+  if (rows.length > 0) {
+    const headers = Object.keys(rows[0])
+    try {
+      const { getColumnMapping } = await import('@/lib/gemini')
+      mapping = await getColumnMapping(headers)
+      console.log('[Qomon Import] Cartographie IA générée :', mapping)
+    } catch (aiErr) {
+      console.error('[Qomon Import] Échec cartographie IA (utilisation fallback manuel) :', aiErr)
+    }
+  }
+
+  const getValue = (row: Record<string, string>, targetField: string, ...fallbacks: string[]): string => {
+    const mappedHeader = mapping[targetField]
+    if (mappedHeader && row[mappedHeader] !== undefined && row[mappedHeader] !== null && row[mappedHeader] !== '') {
+      return row[mappedHeader].trim()
+    }
+    return col(row, ...fallbacks)
+  }
+
   // ── Debug : log colonnes du premier enregistrement ──
   if (rows.length > 0) {
     console.log('[Qomon Import] Colonnes détectées :', Object.keys(rows[0]))
@@ -137,8 +158,8 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
   }
 
   // ── Optimisation : Pré-chargement des contacts existants pour rapprochement en mémoire ──
-  const firstNames = Array.from(new Set(rows.map(r => col(r, 'PRENOM', 'Prénom', 'prenom', 'first_name')).filter(Boolean)))
-  const lastNames = Array.from(new Set(rows.map(r => col(r, 'NOM', 'Nom', 'nom', 'last_name')).filter(Boolean)))
+  const firstNames = Array.from(new Set(rows.map(r => getValue(r, 'firstName', 'PRENOM', 'Prénom', 'prenom', 'first_name')).filter(Boolean)))
+  const lastNames = Array.from(new Set(rows.map(r => getValue(r, 'lastName', 'NOM', 'Nom', 'nom', 'last_name')).filter(Boolean)))
 
   // Pour maximiser les correspondances insensibles à la casse sans trop charger en mémoire,
   // on génère des variations de casse pour la recherche `in`
@@ -170,7 +191,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
   // ── Optimisation : Pré-chargement et création en masse des tags ──
   const allTagNames = new Set<string>()
   for (const row of rows) {
-    const tagsRaw = col(row, 'Tags', 'TAGS', 'tags', 'mots_cles', 'mots clés', 'Mots clés')
+    const tagsRaw = getValue(row, 'tags', 'Tags', 'TAGS', 'tags', 'mots_cles', 'mots clés', 'Mots clés')
     if (tagsRaw) {
       tagsRaw.split(/[,;|]/).forEach(t => {
         const trimmed = t.trim()
@@ -205,25 +226,25 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
 
   for (const row of rows) {
     // ── Lecture des champs Qomon ─────────────────────
-    const civilite   = col(row, 'CIVILITE', 'Civilité', 'civilite')
-    const firstName  = col(row, 'PRENOM',   'Prénom',   'prenom',    'first_name')
-    const lastName   = col(row, 'NOM',      'Nom',      'nom',       'last_name')
-    const email      = col(row, 'EMAIL',    'Email',    'email')
-    const phone      = col(row, 'TELEPHONE','Téléphone','Telephone', 'telephone', 'TÉLÉPHONE')
-    const mobile     = col(row, 'PORTABLE', 'Portable', 'portable',  'Mobile',    'MOBILE', 'Téléphone portable', 'telephone portable', 'telephone_portable')
-    const birthRaw   = col(row, 'DATE DE NAISSANCE', 'Date de naissance', 'DATE_NAISSANCE', 'birthdate', 'date_naissance')
-    const adresse1   = col(row, 'ADRESSE 1', 'ADRESSE1', 'Adresse 1', 'Adresse1', 'adresse1', 'Adresse', 'adresse')
-    const adresse2   = col(row, 'ADRESSE 2', 'ADRESSE2', 'Adresse 2', 'Adresse2', 'adresse2')
-    const postalCode = col(row, 'CODE POSTAL', 'Code postal', 'code_postal', 'CP', 'cp', 'zip')
-    const city       = col(row, 'COMMUNE',  'Ville',    'commune',   'Ville',     'city')
-    const profession = col(row, 'PROFESSION','profession', 'Profession')
-    const tagsRaw    = col(row, 'Tags', 'TAGS', 'tags', 'mots_cles', 'mots clés', 'Mots clés')
-    const newsletter = col(row, 'Newsletter','newsletter','NEWSLETTER')
-    const notes      = col(row, 'Notes',     'NOTES',    'notes')
-    const supportRaw = col(row, 'Niveau de Soutien', 'NIVEAU DE SOUTIEN', 'niveau_soutien', 'support_level')
+    const civilite   = getValue(row, 'gender', 'CIVILITE', 'Civilité', 'civilite')
+    const firstName  = getValue(row, 'firstName', 'PRENOM',   'Prénom',   'prenom',    'first_name')
+    const lastName   = getValue(row, 'lastName', 'NOM',      'Nom',      'nom',       'last_name')
+    const email      = getValue(row, 'email', 'EMAIL',    'Email',    'email')
+    const phone      = getValue(row, 'phone', 'TELEPHONE','Téléphone','Telephone', 'telephone', 'TÉLÉPHONE')
+    const mobile     = getValue(row, 'mobilePhone', 'PORTABLE', 'Portable', 'portable',  'Mobile',    'MOBILE', 'Téléphone portable', 'telephone portable', 'telephone_portable')
+    const birthRaw   = getValue(row, 'birthDate', 'DATE DE NAISSANCE', 'Date de naissance', 'DATE_NAISSANCE', 'birthdate', 'date_naissance')
+    const adresse1   = getValue(row, 'adresse1', 'ADRESSE 1', 'ADRESSE1', 'Adresse 1', 'Adresse1', 'adresse1', 'Adresse', 'adresse')
+    const adresse2   = getValue(row, 'adresse2', 'ADRESSE 2', 'ADRESSE2', 'Adresse 2', 'Adresse2', 'adresse2')
+    const postalCode = getValue(row, 'postalCode', 'CODE POSTAL', 'Code postal', 'code_postal', 'CP', 'cp', 'zip')
+    const city       = getValue(row, 'city', 'COMMUNE',  'Ville',    'commune',   'Ville',     'city')
+    const profession = getValue(row, 'profession', 'PROFESSION','profession', 'Profession')
+    const tagsRaw    = getValue(row, 'tags', 'Tags', 'TAGS', 'tags', 'mots_cles', 'mots clés', 'Mots clés')
+    const newsletter = getValue(row, 'newsletter', 'Newsletter','newsletter','NEWSLETTER')
+    const notes      = getValue(row, 'notes', 'Notes',     'NOTES',    'notes')
+    const supportRaw = getValue(row, 'supportLevel', 'Niveau de Soutien', 'NIVEAU DE SOUTIEN', 'niveau_soutien', 'support_level')
     const supportLevel = parseSupportLevel(supportRaw, dbSupportLevels)
-    const department = col(row, 'Département', 'Departement', 'departement', 'department', 'DEPARTEMENT')
-    const territory  = col(row, 'Territoire', 'territoire', 'territory', 'TERRITOIRE')
+    const department = getValue(row, 'department', 'Département', 'Departement', 'departement', 'department', 'DEPARTEMENT')
+    const territory  = getValue(row, 'territory', 'Territoire', 'territoire', 'territory', 'TERRITOIRE')
 
     // ── Validation minimale ──────────────────────────
     if (!firstName || !lastName) {
@@ -236,8 +257,8 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     const birthDate = parseDate(birthRaw)
     
     // Si des colonnes Numéro et Rue/Voie sont fournies directement, on les utilise
-    let streetNumber = col(row, 'Numéro', 'Numero', 'numero', 'street_number') || null
-    let streetName = col(row, 'Rue / Voie', 'Rue/Voie', 'Rue', 'rue', 'street_name', 'street') || null
+    let streetNumber = getValue(row, 'streetNumber', 'Numéro', 'Numero', 'numero', 'street_number') || null
+    let streetName = getValue(row, 'streetName', 'Rue / Voie', 'Rue/Voie', 'Rue', 'rue', 'street_name', 'street') || null
     if (!streetNumber && !streetName) {
       const parsed = parseAddress(adresse1)
       streetNumber = parsed.streetNumber
