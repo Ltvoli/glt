@@ -81,6 +81,7 @@ export function buildWhereClause(params: Record<string, string | undefined>) {
   }
 
   if (params.gender && params.gender !== 'all')         where.gender = params.gender
+  
   if (params.addressStatus && params.addressStatus !== 'all') {
     if (params.addressStatus === 'unknown') {
       where.city = null
@@ -93,6 +94,180 @@ export function buildWhereClause(params: Record<string, string | undefined>) {
     }
   }
 
+  // ── Visual filter panel extensions ──────────────────────
+  if (params.lastContactMobile) {
+    where.lastContactMobile = { gte: new Date(params.lastContactMobile) }
+  }
+
+  if (params.territory) {
+    where.territory = { equals: params.territory, mode: 'insensitive' }
+  }
+
+  if (params.creatorId) {
+    where.createdById = params.creatorId
+  }
+
+  if (params.localisationStatus && params.localisationStatus !== 'all') {
+    if (params.localisationStatus === 'transmitted') {
+      andClauses.push({
+        AND: [
+          { streetName: { not: null } },
+          { city: { not: null } }
+        ]
+      })
+    }
+  }
+
+  if (params.permanenceStep && params.permanenceStep !== 'all') {
+    if (params.permanenceStep === 'not_contacted') {
+      where.permanenceContacts = { none: {} }
+    } else {
+      let statusList: string[] = []
+      if (params.permanenceStep === 'to_do') statusList = ['IN_PROGRESS', 'TO_CORRECT']
+      else if (params.permanenceStep === 'upcoming') statusList = ['DRAFT']
+      else if (params.permanenceStep === 'in_progress') statusList = ['READY']
+      else if (params.permanenceStep === 'response') statusList = ['VALIDATED']
+
+      if (statusList.length > 0) {
+        where.permanenceContacts = {
+          some: {
+            permanence: {
+              status: { in: statusList }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ── Advanced Rules Builder ──────────────────────────────
+  if (params.advanced_rules) {
+    try {
+      const advanced = JSON.parse(params.advanced_rules)
+      const mode = advanced.mode || 'ayant'
+      const rules = advanced.rules || []
+
+      const ruleClauses: any[] = []
+
+      for (const rule of rules) {
+        const { dataType, property, operator, value } = rule
+        let clause: any = {}
+
+        if (dataType === 'contacts') {
+          clause = buildContactRule(property, operator, value)
+        } else if (dataType === 'tasks') {
+          clause = {
+            links: {
+              some: {
+                task: buildTaskRule(property, operator, value)
+              }
+            }
+          }
+        } else if (dataType === 'mailcases') {
+          clause = {
+            links: {
+              some: {
+                mailCase: buildMailRule(property, operator, value)
+              }
+            }
+          }
+        } else if (dataType === 'writtenquestions') {
+          clause = {
+            links: {
+              some: {
+                question: buildQuestionRule(property, operator, value)
+              }
+            }
+          }
+        }
+
+        if (clause && Object.keys(clause).length > 0) {
+          ruleClauses.push(clause)
+        }
+      }
+
+      if (ruleClauses.length > 0) {
+        const isOr = rules.some((r: any) => r.condition === 'OR')
+        
+        let combinedClause: any = {}
+        if (isOr) {
+          combinedClause = { OR: ruleClauses }
+        } else {
+          combinedClause = { AND: ruleClauses }
+        }
+
+        if (mode === 'sans') {
+          andClauses.push({ NOT: combinedClause })
+        } else {
+          andClauses.push(combinedClause)
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing advanced_rules:', e)
+    }
+  }
+
   if (andClauses.length > 0) where.AND = andClauses
   return where
 }
+
+function buildContactRule(property: string, operator: string, value: string) {
+  const clause: any = {}
+  if (operator === 'isEmpty') {
+    clause[property] = null
+  } else if (operator === 'isNotEmpty') {
+    clause[property] = { not: null }
+  } else if (operator === 'contains') {
+    clause[property] = { contains: value, mode: 'insensitive' }
+  } else if (operator === 'equals') {
+    clause[property] = { equals: value }
+  } else if (operator === 'gte') {
+    clause[property] = { gte: value }
+  } else if (operator === 'lte') {
+    clause[property] = { lte: value }
+  }
+  return clause
+}
+
+function buildTaskRule(property: string, operator: string, value: string) {
+  const clause: any = {}
+  if (operator === 'isEmpty') {
+    clause[property] = null
+  } else if (operator === 'isNotEmpty') {
+    clause[property] = { not: null }
+  } else if (operator === 'contains') {
+    clause[property] = { contains: value, mode: 'insensitive' }
+  } else if (operator === 'equals') {
+    clause[property] = { equals: value }
+  }
+  return clause
+}
+
+function buildMailRule(property: string, operator: string, value: string) {
+  const clause: any = {}
+  if (operator === 'isEmpty') {
+    clause[property] = null
+  } else if (operator === 'isNotEmpty') {
+    clause[property] = { not: null }
+  } else if (operator === 'contains') {
+    clause[property] = { contains: value, mode: 'insensitive' }
+  } else if (operator === 'equals') {
+    clause[property] = { equals: value }
+  }
+  return clause
+}
+
+function buildQuestionRule(property: string, operator: string, value: string) {
+  const clause: any = {}
+  if (operator === 'isEmpty') {
+    clause[property] = null
+  } else if (operator === 'isNotEmpty') {
+    clause[property] = { not: null }
+  } else if (operator === 'contains') {
+    clause[property] = { contains: value, mode: 'insensitive' }
+  } else if (operator === 'equals') {
+    clause[property] = { equals: value }
+  }
+  return clause
+}
+

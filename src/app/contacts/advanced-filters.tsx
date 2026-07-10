@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Search, X, MapPin, Phone, User, Map, Filter, SlidersHorizontal } from 'lucide-react'
+import { Search, X, MapPin, Phone, User, Map, Filter, SlidersHorizontal, Plus, Trash2 } from 'lucide-react'
 
 // ──────────────────────────────────────────────
 // Types
@@ -27,13 +27,9 @@ const CHIP_META: Record<ChipType, { label: string; icon: React.ReactNode; color:
 // ──────────────────────────────────────────────
 function detectType(value: string, uniqueCities: string[]): ChipType {
   const v = value.trim()
-  // Phone: 8+ chars, mostly digits, can start with + or 0
   if (/^[\+0][\d\s\.\-]{6,}$/.test(v) || /^\d{7,}$/.test(v)) return 'phone'
-  // Street: starts with a street keyword
   if (/^(rue|avenue|av\.?|allée|chemin|route|impasse|bd\.?|boulevard|passage|place|square|résidence|hameau|lieu-dit)\s/i.test(v)) return 'street'
-  // City: exact match (case-insensitive) against known cities
   if (uniqueCities.some(c => c.toLowerCase() === v.toLowerCase())) return 'city'
-  // Default: name
   return 'name'
 }
 
@@ -109,7 +105,6 @@ function Suggestions({
       zIndex: 200,
       overflow: 'hidden',
     }}>
-      {/* Immediate action: add current input as chip */}
       <button
         onMouseDown={(e) => { e.preventDefault(); onSelect(query, detectedType) }}
         style={{
@@ -134,7 +129,6 @@ function Suggestions({
         <span style={{ fontWeight: 600 }}>{query}</span>
       </button>
 
-      {/* City suggestions */}
       {citySuggestions.map(city => (
         <button
           key={city}
@@ -163,19 +157,62 @@ function Suggestions({
 }
 
 // ──────────────────────────────────────────────
+// Advanced Rules Helper Configuration
+// ──────────────────────────────────────────────
+const getPropertyOptions = (dataType: string) => {
+  if (dataType === 'contacts') {
+    return [
+      { value: 'lastName', label: 'Nom' },
+      { value: 'firstName', label: 'Prénom' },
+      { value: 'email', label: 'Email' },
+      { value: 'phone', label: 'Téléphone (Fixe)' },
+      { value: 'mobilePhone', label: 'Téléphone (Mobile)' },
+      { value: 'city', label: 'Ville' },
+      { value: 'supportLevel', label: 'Niveau de soutien' },
+      { value: 'gender', label: 'Genre' },
+      { value: 'territory', label: 'Territoire' },
+    ]
+  } else if (dataType === 'tasks') {
+    return [
+      { value: 'title', label: 'Titre' },
+      { value: 'status', label: 'Statut' },
+      { value: 'priority', label: 'Priorité' },
+    ]
+  } else if (dataType === 'mailcases') {
+    return [
+      { value: 'subject', label: 'Sujet' },
+      { value: 'status', label: 'Statut' },
+      { value: 'category', label: 'Catégorie' },
+    ]
+  } else if (dataType === 'writtenquestions') {
+    return [
+      { value: 'title', label: 'Titre' },
+      { value: 'status', label: 'Statut' },
+      { value: 'ministry', label: 'Ministère ciblé' },
+    ]
+  }
+  return []
+}
+
+// ──────────────────────────────────────────────
 // Main component
 // ──────────────────────────────────────────────
 export default function AdvancedFilters({
   allTags,
   uniqueCities = [],
+  uniqueTerritories = [],
+  teamMembers = [],
+  totalContactsCount = 0,
 }: {
   allTags: any[]
   uniqueCities?: string[]
+  uniqueTerritories?: string[]
+  teamMembers?: any[]
+  totalContactsCount?: number
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Rebuild chips from URL params on mount
   const buildChipsFromParams = (): Chip[] => {
     const chips: Chip[] = []
     const p = searchParams
@@ -197,35 +234,67 @@ export default function AdvancedFilters({
   const [inputValue, setInputValue] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'standard' | 'advanced'>('standard')
+
+  // Standard filters state
+  const [lastContactMobile, setLastContactMobile]   = useState(searchParams.get('lastContactMobile') || '')
+  const [territory, setTerritory]                   = useState(searchParams.get('territory') || '')
+  const [tag, setTag]                               = useState(searchParams.get('tag') || '')
+  const [supportLevel, setSupportLevel]             = useState(searchParams.get('supportLevel') || '')
+  const [creatorId, setCreatorId]                   = useState(searchParams.get('creatorId') || '')
+  const [emailStatus, setEmailStatus]               = useState(searchParams.get('emailStatus') || 'all')
+  const [phoneStatus, setPhoneStatus]               = useState(searchParams.get('phoneStatus') || 'all')
+  const [gender, setGender]                         = useState(searchParams.get('gender') || 'all')
+  const [permanenceStep, setPermanenceStep]         = useState(searchParams.get('permanenceStep') || 'all')
+  const [localisationStatus, setLocalisationStatus] = useState(searchParams.get('localisationStatus') || 'all')
 
   // Advanced filters state
-  const [lastInteraction, setLastInteraction] = useState(searchParams.get('lastInteraction') || '')
-  const [supportLevel, setSupportLevel]       = useState(searchParams.get('supportLevel') || '')
-  const [emailStatus, setEmailStatus]         = useState(searchParams.get('emailStatus') || 'all')
-  const [phoneStatus, setPhoneStatus]         = useState(searchParams.get('phoneStatus') || 'all')
-  const [gender, setGender]                   = useState(searchParams.get('gender') || 'all')
-  const [addressStatus, setAddressStatus]     = useState(searchParams.get('addressStatus') || 'all')
-  const [tag, setTag]                         = useState(searchParams.get('tag') || '')
-  const [contactType, setContactType]         = useState(searchParams.get('contactType') || 'all')
+  const [mode, setMode] = useState<'ayant' | 'sans'>('ayant')
+  const [rules, setRules] = useState<any[]>([
+    { id: crypto.randomUUID(), dataType: 'contacts', property: 'lastName', operator: 'contains', value: '', condition: 'AND' }
+  ])
 
+  // Sync state with URL
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setChips(buildChipsFromParams())
-    setLastInteraction(searchParams.get('lastInteraction') || '')
+    setLastContactMobile(searchParams.get('lastContactMobile') || '')
+    setTerritory(searchParams.get('territory') || '')
+    setTag(searchParams.get('tag') || '')
     setSupportLevel(searchParams.get('supportLevel') || '')
+    setCreatorId(searchParams.get('creatorId') || '')
     setEmailStatus(searchParams.get('emailStatus') || 'all')
     setPhoneStatus(searchParams.get('phoneStatus') || 'all')
     setGender(searchParams.get('gender') || 'all')
-    setAddressStatus(searchParams.get('addressStatus') || 'all')
-    setTag(searchParams.get('tag') || '')
-    setContactType(searchParams.get('contactType') || 'all')
+    setPermanenceStep(searchParams.get('permanenceStep') || 'all')
+    setLocalisationStatus(searchParams.get('localisationStatus') || 'all')
+
+    const rawRules = searchParams.get('advanced_rules')
+    if (rawRules) {
+      try {
+        const parsed = JSON.parse(rawRules)
+        setMode(parsed.mode || 'ayant')
+        if (parsed.rules && parsed.rules.length > 0) {
+          setRules(parsed.rules.map((r: any) => ({ ...r, id: r.id || crypto.randomUUID() })))
+        }
+        setActiveTab('advanced')
+        setShowAdvanced(true)
+      } catch (e) {
+        console.error(e)
+      }
+    } else {
+      setActiveTab('standard')
+    }
   }, [searchParams])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const hasAdvancedFilters = lastInteraction || supportLevel ||
-    (emailStatus !== 'all') || (phoneStatus !== 'all') || (gender !== 'all') || (addressStatus !== 'all') || tag || (contactType !== 'all')
+  const hasAdvancedFilters = lastContactMobile || territory || tag || supportLevel || creatorId ||
+    (emailStatus !== 'all') || (phoneStatus !== 'all') || (gender !== 'all') || 
+    (permanenceStep !== 'all') || (localisationStatus !== 'all') || searchParams.has('advanced_rules')
 
   // Build URL and navigate
   const buildAndNavigate = (newChips: Chip[], extraParams?: Record<string, string>) => {
@@ -237,23 +306,23 @@ export default function AdvancedFilters({
     if (byType('name'))   params.set('nameQ',   byType('name'))
     if (byType('street')) params.set('streetQ', byType('street'))
 
-    if (lastInteraction)              params.set('lastInteraction', lastInteraction)
-    if (supportLevel)                 params.set('supportLevel', supportLevel)
-    if (emailStatus && emailStatus !== 'all')   params.set('emailStatus', emailStatus)
-    if (phoneStatus && phoneStatus !== 'all')   params.set('phoneStatus', phoneStatus)
-    if (gender && gender !== 'all')             params.set('gender', gender)
-    if (addressStatus && addressStatus !== 'all') params.set('addressStatus', addressStatus)
-    if (tag)                          params.set('tag', tag)
-    if (contactType && contactType !== 'all')   params.set('contactType', contactType)
-
     if (extraParams) {
       Object.entries(extraParams).forEach(([k, v]) => {
-        if (v === 'all' || v === '') {
-          params.delete(k)
-        } else {
+        if (v && v !== 'all' && v !== '') {
           params.set(k, v)
         }
       })
+    } else {
+      if (lastContactMobile)   params.set('lastContactMobile', lastContactMobile)
+      if (territory)           params.set('territory', territory)
+      if (tag)                 params.set('tag', tag)
+      if (supportLevel)        params.set('supportLevel', supportLevel)
+      if (creatorId)           params.set('creatorId', creatorId)
+      if (emailStatus && emailStatus !== 'all')   params.set('emailStatus', emailStatus)
+      if (phoneStatus && phoneStatus !== 'all')   params.set('phoneStatus', phoneStatus)
+      if (gender && gender !== 'all')             params.set('gender', gender)
+      if (permanenceStep && permanenceStep !== 'all') params.set('permanenceStep', permanenceStep)
+      if (localisationStatus && localisationStatus !== 'all') params.set('localisationStatus', localisationStatus)
     }
 
     router.push(`/contacts?${params.toString()}`)
@@ -277,19 +346,59 @@ export default function AdvancedFilters({
     buildAndNavigate(newChips)
   }
 
-  // Reset all
+  // Reset all filters
   const resetAll = () => {
     setChips([])
     setInputValue('')
-    setLastInteraction('')
+    setLastContactMobile('')
+    setTerritory('')
+    setTag('')
     setSupportLevel('')
+    setCreatorId('')
     setEmailStatus('all')
     setPhoneStatus('all')
     setGender('all')
-    setAddressStatus('all')
-    setTag('')
-    setContactType('all')
+    setPermanenceStep('all')
+    setLocalisationStatus('all')
+    setRules([
+      { id: crypto.randomUUID(), dataType: 'contacts', property: 'lastName', operator: 'contains', value: '', condition: 'AND' }
+    ])
+    setMode('ayant')
     router.push('/contacts')
+    setShowAdvanced(false)
+  }
+
+  // Apply filters action
+  const applyFilters = () => {
+    if (activeTab === 'advanced') {
+      const rulesPayload = {
+        mode,
+        rules: rules.map(r => ({
+          dataType: r.dataType,
+          property: r.property,
+          operator: r.operator,
+          value: r.value,
+          condition: r.condition,
+        }))
+      }
+      const params = new URLSearchParams()
+      params.set('advanced_rules', JSON.stringify(rulesPayload))
+      router.push(`/contacts?${params.toString()}`)
+    } else {
+      const params: Record<string, string> = {
+        lastContactMobile,
+        territory,
+        tag,
+        supportLevel,
+        creatorId,
+        emailStatus,
+        phoneStatus,
+        gender,
+        permanenceStep,
+        localisationStatus,
+      }
+      buildAndNavigate(chips, params)
+    }
     setShowAdvanced(false)
   }
 
@@ -306,6 +415,27 @@ export default function AdvancedFilters({
     }
   }
 
+  // Rule modifiers
+  const addRule = () => {
+    setRules([...rules, { id: crypto.randomUUID(), dataType: 'contacts', property: 'lastName', operator: 'contains', value: '', condition: 'AND' }])
+  }
+
+  const deleteRule = (id: string) => {
+    if (rules.length > 1) {
+      setRules(rules.filter(r => r.id !== id))
+    }
+  }
+
+  const updateRule = (id: string, updates: Partial<any>) => {
+    setRules(rules.map(r => r.id === id ? { ...r, ...updates } : r))
+  }
+
+  const handleDataTypeChange = (id: string, dataType: string) => {
+    const opts = getPropertyOptions(dataType)
+    const defaultProp = opts[0]?.value || ''
+    updateRule(id, { dataType, property: defaultProp, value: '' })
+  }
+
   const totalActiveFilters = chips.length + (hasAdvancedFilters ? 1 : 0)
 
   return (
@@ -313,11 +443,8 @@ export default function AdvancedFilters({
 
       {/* ─── Main Search Bar ─── */}
       <div className="card" style={{ padding: '0.65rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-
-        {/* Search icon */}
         <Search size={18} style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: '0.25rem' }} />
 
-        {/* Chips + Input wrapper */}
         <div
           style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', flex: 1, alignItems: 'center', position: 'relative', cursor: 'text' }}
           onClick={() => inputRef.current?.focus()}
@@ -346,7 +473,6 @@ export default function AdvancedFilters({
             }}
           />
 
-          {/* Autocomplete dropdown */}
           {showSuggestions && inputValue.length >= 1 && (
             <Suggestions
               query={inputValue}
@@ -356,7 +482,6 @@ export default function AdvancedFilters({
           )}
         </div>
 
-        {/* Clear chips */}
         {chips.length > 0 && (
           <button
             onClick={resetAll}
@@ -367,32 +492,7 @@ export default function AdvancedFilters({
           </button>
         )}
 
-        {/* Divider */}
         <div style={{ width: '1px', height: '24px', background: 'var(--border)', flexShrink: 0 }} />
-
-        {/* Quick NPAI toggle */}
-        <button
-          onClick={() => {
-            const isCurrentlyNpai = searchParams.get('addressStatus') === 'npai';
-            buildAndNavigate(chips, { addressStatus: isCurrentlyNpai ? 'all' : 'npai' });
-          }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '0.4rem',
-            padding: '0.4rem 0.75rem',
-            borderRadius: '6px',
-            border: searchParams.get('addressStatus') === 'npai' ? '1px solid #d97706' : '1px solid var(--border)',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            backgroundColor: searchParams.get('addressStatus') === 'npai' ? '#fef3c7' : 'transparent',
-            color: searchParams.get('addressStatus') === 'npai' ? '#d97706' : 'var(--text-muted)',
-            transition: 'all 0.15s',
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-          }}
-        >
-          <span>⚠️ NPAI uniquement</span>
-        </button>
 
         {/* Advanced filters toggle */}
         <button
@@ -405,8 +505,8 @@ export default function AdvancedFilters({
             cursor: 'pointer',
             fontSize: '0.8rem',
             fontWeight: 600,
-            backgroundColor: hasAdvancedFilters ? '#e0f2fe' : 'transparent',
-            color: hasAdvancedFilters ? '#0369a1' : 'var(--text-muted)',
+            backgroundColor: showAdvanced || hasAdvancedFilters ? 'var(--sidebar-bg)' : 'transparent',
+            color: showAdvanced || hasAdvancedFilters ? 'white' : 'var(--text-muted)',
             transition: 'all 0.15s',
             whiteSpace: 'nowrap',
             flexShrink: 0,
@@ -446,142 +546,491 @@ export default function AdvancedFilters({
         </div>
       )}
 
-      {/* ─── Advanced Filters Panel ─── */}
+      {/* ─── Advanced Filters Drawer (collapsible card) ─── */}
       {showAdvanced && (
-        <div className="card" style={{ marginTop: '0.75rem', padding: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Filter size={16} /> Filtres avancés
-            </h3>
-            <button onClick={() => setShowAdvanced(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-              <X size={18} />
-            </button>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
-
-            {/* Col 1 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Dernier contact
-                </label>
-                <input type="date" value={lastInteraction} onChange={e => setLastInteraction(e.target.value)} className="form-control" style={{ fontSize: '0.875rem' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Niveau de soutien
-                </label>
-                <select value={supportLevel} onChange={e => setSupportLevel(e.target.value)} className="form-control" style={{ fontSize: '0.875rem' }}>
-                  <option value="">Tous</option>
-                  <option value="1">1 — Très défavorable</option>
-                  <option value="2">2 — Défavorable</option>
-                  <option value="3">3 — Neutre</option>
-                  <option value="4">4 — Favorable</option>
-                  <option value="5">5 — Très favorable</option>
-                </select>
-              </div>
+        <div className="card" style={{ marginTop: '0.75rem', padding: '1.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+          
+          {/* Header with pill tabs */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', background: '#f1f5f9', padding: '3px', borderRadius: '999px' }}>
+              <button
+                onClick={() => setActiveTab('standard')}
+                style={{
+                  padding: '0.45rem 1.25rem', borderRadius: '999px', border: 'none', fontSize: '0.825rem', fontWeight: 600, cursor: 'pointer',
+                  background: activeTab === 'standard' ? 'var(--sidebar-bg)' : 'transparent',
+                  color: activeTab === 'standard' ? 'white' : '#64748b',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Filtres
+              </button>
+              <button
+                onClick={() => setActiveTab('advanced')}
+                style={{
+                  padding: '0.45rem 1.25rem', borderRadius: '999px', border: 'none', fontSize: '0.825rem', fontWeight: 600, cursor: 'pointer',
+                  background: activeTab === 'advanced' ? 'var(--sidebar-bg)' : 'transparent',
+                  color: activeTab === 'advanced' ? 'white' : '#64748b',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Filtres avancés
+              </button>
             </div>
 
-            {/* Col 2 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Type de contact
-                </label>
-                <select value={contactType} onChange={e => setContactType(e.target.value)} className="form-control" style={{ fontSize: '0.875rem' }}>
-                  <option value="all">Tous les types</option>
-                  <option value="ELECTEUR">Électeur</option>
-                  <option value="ELU">Élu</option>
-                  <option value="CONTACT_MAIRIE">Contact Mairie</option>
-                  <option value="ASSO">Association</option>
-                  <option value="PARTENAIRE">Partenaire</option>
-                  <option value="PRESSE">Presse</option>
-                  <option value="AUTRE">Autre</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Tags
-                </label>
-                <select value={tag} onChange={e => setTag(e.target.value)} className="form-control" style={{ fontSize: '0.875rem' }}>
-                  <option value="">Tous les tags</option>
-                  {allTags.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Genre
-                </label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {[['all', 'Tous'], ['H', 'Homme'], ['F', 'Femme'], ['Autre', 'Autre']].map(([v, l]) => (
-                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                      <input type="radio" name="gender" value={v} checked={gender === v} onChange={() => setGender(v)} />
-                      {v === 'all' ? <strong>{l}</strong> : l}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Col 3 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Email
-                </label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {[['all', 'Tous'], ['has_email', 'Renseigné'], ['no_email', 'Non renseigné']].map(([v, l]) => (
-                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                      <input type="radio" name="email" value={v} checked={emailStatus === v} onChange={() => setEmailStatus(v)} />
-                      {v === 'all' ? <strong>{l}</strong> : l}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Téléphone
-                </label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {[['all', 'Tous'], ['mobile', 'Mobile renseigné'], ['any', 'Fixe ou mobile'], ['none', 'Non renseigné']].map(([v, l]) => (
-                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                      <input type="radio" name="phone" value={v} checked={phoneStatus === v} onChange={() => setPhoneStatus(v)} />
-                      {v === 'all' ? <strong>{l}</strong> : l}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Localisation
-                </label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {[['all', 'Tous'], ['unknown', 'Adresse inconnue'], ['npai', 'NPAI (Adresse invalide)'], ['valid', 'Adresse valide (non NPAI)']].map(([v, l]) => (
-                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                      <input type="radio" name="localisation" value={v} checked={addressStatus === v} onChange={() => setAddressStatus(v)} />
-                      {v === 'all' ? <strong>{l}</strong> : l}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-            <button onClick={resetAll} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.875rem' }}>
-              Réinitialiser tout
-            </button>
             <button
-              onClick={() => { buildAndNavigate(chips); setShowAdvanced(false) }}
-              className="button"
-              style={{ padding: '0.5rem 1.25rem' }}
+              onClick={() => setShowAdvanced(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: '0.25rem' }}
             >
-              Appliquer les filtres
+              <X size={20} />
             </button>
           </div>
+
+          {/* Tab Content 1 : Standard Filters */}
+          {activeTab === 'standard' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              
+              {/* Row 1 : Selects and date */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
+                    Dernier contact via mobile
+                  </label>
+                  <input
+                    type="date"
+                    value={lastContactMobile}
+                    onChange={e => setLastContactMobile(e.target.value)}
+                    className="form-control"
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
+                    Territoire
+                  </label>
+                  <select
+                    value={territory}
+                    onChange={e => setTerritory(e.target.value)}
+                    className="form-control"
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+                  >
+                    <option value="">Choisir</option>
+                    {uniqueTerritories.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
+                    Tags
+                  </label>
+                  <select
+                    value={tag}
+                    onChange={e => setTag(e.target.value)}
+                    className="form-control"
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+                  >
+                    <option value="">Rechercher des citoyens</option>
+                    {allTags.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
+                    Niveau de soutien
+                  </label>
+                  <select
+                    value={supportLevel}
+                    onChange={e => setSupportLevel(e.target.value)}
+                    className="form-control"
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+                  >
+                    <option value="">Choisir</option>
+                    <option value="1">1 — Très défavorable</option>
+                    <option value="2">2 — Défavorable</option>
+                    <option value="3">3 — Neutre</option>
+                    <option value="4">4 — Favorable</option>
+                    <option value="5">5 — Très favorable</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 2 : Radios */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1.5rem', borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
+                {/* Membres de mon équipe */}
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                    Membres de mon équipe
+                  </label>
+                  <select
+                    value={creatorId}
+                    onChange={e => setCreatorId(e.target.value)}
+                    className="form-control"
+                    style={{ fontSize: '0.85rem', padding: '0.4rem 0.5rem' }}
+                  >
+                    <option value="">Choisir</option>
+                    {teamMembers.map(m => (
+                      <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                    Email
+                  </label>
+                  <div>
+                    {[
+                      { val: 'has_email', lbl: 'Renseigné' },
+                      { val: 'no_email', lbl: 'Non renseigné' },
+                      { val: 'all', lbl: 'Tous les citoyens' },
+                    ].map(opt => (
+                      <label key={opt.val} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.83rem', color: '#334155', cursor: 'pointer', marginBottom: '0.35rem' }}>
+                        <input type="radio" name="emailStatus" checked={emailStatus === opt.val} onChange={() => setEmailStatus(opt.val)} style={{ accentColor: '#ec4899' }} />
+                        {opt.lbl}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Téléphone */}
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                    Téléphone
+                  </label>
+                  <div>
+                    {[
+                      { val: 'mobile', lbl: 'Champ mobile renseigné' },
+                      { val: 'any', lbl: 'Champ fixe ou mobile renseigné' },
+                      { val: 'none', lbl: 'Non renseigné' },
+                      { val: 'all', lbl: 'Tous les citoyens' },
+                    ].map(opt => (
+                      <label key={opt.val} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.83rem', color: '#334155', cursor: 'pointer', marginBottom: '0.35rem' }}>
+                        <input type="radio" name="phoneStatus" checked={phoneStatus === opt.val} onChange={() => setPhoneStatus(opt.val)} style={{ accentColor: '#ec4899' }} />
+                        {opt.lbl}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Genre */}
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                    Genre
+                  </label>
+                  <div>
+                    {[
+                      { val: 'F', lbl: 'Femmes' },
+                      { val: 'H', lbl: 'Hommes' },
+                      { val: 'Autre', lbl: 'Autre' },
+                      { val: 'all', lbl: 'Tous les citoyens' },
+                    ].map(opt => (
+                      <label key={opt.val} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.83rem', color: '#334155', cursor: 'pointer', marginBottom: '0.35rem' }}>
+                        <input type="radio" name="genderStatus" checked={gender === opt.val} onChange={() => setGender(opt.val)} style={{ accentColor: '#ec4899' }} />
+                        {opt.lbl}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Étape de la permanence */}
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                    Étape de la permanence
+                  </label>
+                  <div>
+                    {[
+                      { val: 'to_do', lbl: 'À faire' },
+                      { val: 'upcoming', lbl: 'À venir' },
+                      { val: 'in_progress', lbl: 'En cours' },
+                      { val: 'response', lbl: 'Réponse' },
+                      { val: 'not_contacted', lbl: 'Pas encore contactés' },
+                      { val: 'all', lbl: 'Tous les citoyens' },
+                    ].map(opt => (
+                      <label key={opt.val} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.83rem', color: '#334155', cursor: 'pointer', marginBottom: '0.35rem' }}>
+                        <input type="radio" name="permanenceStepStatus" checked={permanenceStep === opt.val} onChange={() => setPermanenceStep(opt.val)} style={{ accentColor: '#ec4899' }} />
+                        {opt.lbl}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Localisation */}
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                    Localisation
+                  </label>
+                  <div>
+                    {[
+                      { val: 'transmitted', lbl: 'Adresse transmise' },
+                      { val: 'all', lbl: 'Tous les citoyens' },
+                    ].map(opt => (
+                      <label key={opt.val} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.83rem', color: '#334155', cursor: 'pointer', marginBottom: '0.35rem' }}>
+                        <input type="radio" name="localisationStatus" checked={localisationStatus === opt.val} onChange={() => setLocalisationStatus(opt.val)} style={{ accentColor: '#ec4899' }} />
+                        {opt.lbl}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3 : Réponse aux questions */}
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
+                <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                  Réponse aux questions
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#334155' }}>À la question</span>
+                  <select style={{ padding: '0.35rem 0.75rem', borderRadius: '999px', border: '1px solid var(--border)', fontSize: '0.8rem', outline: 'none', background: 'white' }}>
+                    <option>Choisir une question</option>
+                    <option>Intérêt pour les réunions publiques ?</option>
+                    <option>Soutien à la candidature ?</option>
+                    <option>Souhait de recevoir la newsletter ?</option>
+                  </select>
+                  <span style={{ fontSize: '0.85rem', color: '#334155' }}>je recherche les personnes qui</span>
+                  <select style={{ padding: '0.35rem 0.75rem', borderRadius: '999px', border: '1px solid var(--border)', fontSize: '0.8rem', outline: 'none', background: 'white' }}>
+                    <option>Choisir un type de réponse</option>
+                    <option>ont répondu</option>
+                    <option>n'ont pas répondu</option>
+                    <option>ont répondu exactement</option>
+                  </select>
+                  <span style={{ fontSize: '0.85rem', color: '#334155' }}>cette réponse</span>
+                  <select style={{ padding: '0.35rem 0.75rem', borderRadius: '999px', border: '1px solid var(--border)', fontSize: '0.8rem', outline: 'none', background: 'white' }}>
+                    <option>Choisir une réponse</option>
+                    <option>Oui</option>
+                    <option>Non</option>
+                    <option>Peut-être</option>
+                  </select>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* Tab Content 2 : Advanced Filters */}
+          {activeTab === 'advanced' && (
+            <div>
+              {/* Ayant / Sans Toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                <span style={{ fontSize: '0.9rem', color: '#334155' }}>Je veux des contacts</span>
+                <div style={{ display: 'flex', gap: '2px', background: '#f1f5f9', padding: '2px', borderRadius: '8px' }}>
+                  <button
+                    onClick={() => setMode('ayant')}
+                    style={{
+                      padding: '0.4rem 1rem', borderRadius: '6px', border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+                      background: mode === 'ayant' ? '#22c55e' : 'transparent',
+                      color: mode === 'ayant' ? 'white' : '#64748b',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    ayant
+                  </button>
+                  <button
+                    onClick={() => setMode('sans')}
+                    style={{
+                      padding: '0.4rem 1rem', borderRadius: '6px', border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+                      background: mode === 'sans' ? '#64748b' : 'transparent',
+                      color: mode === 'sans' ? 'white' : '#64748b',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    sans
+                  </button>
+                </div>
+              </div>
+
+              {/* Rules List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {rules.map((rule, idx) => (
+                  <div key={rule.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    
+                    {/* Inline and/or separator */}
+                    {idx > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.25rem 0' }}>
+                        <div style={{ display: 'flex', gap: '2px', background: '#f1f5f9', padding: '2px', borderRadius: '6px', width: '80px' }}>
+                          <button
+                            onClick={() => updateRule(rule.id, { condition: 'AND' })}
+                            style={{
+                              flex: 1, padding: '0.25rem', borderRadius: '4px', border: 'none', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                              background: rule.condition === 'AND' ? '#22c55e' : 'transparent',
+                              color: rule.condition === 'AND' ? 'white' : '#64748b'
+                            }}
+                          >
+                            et
+                          </button>
+                          <button
+                            onClick={() => updateRule(rule.id, { condition: 'OR' })}
+                            style={{
+                              flex: 1, padding: '0.25rem', borderRadius: '4px', border: 'none', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                              background: rule.condition === 'OR' ? '#22c55e' : 'transparent',
+                              color: rule.condition === 'OR' ? 'white' : '#64748b'
+                            }}
+                          >
+                            ou
+                          </button>
+                        </div>
+                        <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                      </div>
+                    )}
+
+                    {/* Inputs row */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '160px 180px 150px 1fr 80px', gap: '1rem', alignItems: 'flex-end' }}>
+                      {/* Data Type */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Type de données</label>
+                        <select
+                          value={rule.dataType}
+                          onChange={e => handleDataTypeChange(rule.id, e.target.value)}
+                          className="form-control"
+                          style={{ fontSize: '0.85rem', padding: '0.4rem 0.5rem' }}
+                        >
+                          <option value="contacts">Contacts</option>
+                          <option value="tasks">Tâches</option>
+                          <option value="mailcases">Courriers</option>
+                          <option value="writtenquestions">Questions Écrites</option>
+                        </select>
+                      </div>
+
+                      {/* Properties */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Propriétés</label>
+                        <select
+                          value={rule.property}
+                          onChange={e => updateRule(rule.id, { property: e.target.value })}
+                          className="form-control"
+                          style={{ fontSize: '0.85rem', padding: '0.4rem 0.5rem' }}
+                        >
+                          {getPropertyOptions(rule.dataType).map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Operator */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Opérateur</label>
+                        <select
+                          value={rule.operator}
+                          onChange={e => updateRule(rule.id, { operator: e.target.value })}
+                          className="form-control"
+                          style={{ fontSize: '0.85rem', padding: '0.4rem 0.5rem' }}
+                        >
+                          <option value="contains">contient</option>
+                          <option value="equals">est égal à</option>
+                          <option value="isEmpty">est vide</option>
+                          <option value="isNotEmpty">est renseigné</option>
+                        </select>
+                      </div>
+
+                      {/* Value */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Valeur</label>
+                        {rule.operator === 'isEmpty' || rule.operator === 'isNotEmpty' ? (
+                          <input
+                            type="text"
+                            disabled
+                            value="(sans valeur)"
+                            className="form-control"
+                            style={{ fontSize: '0.85rem', padding: '0.4rem 0.5rem', background: '#f1f5f9' }}
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={rule.value}
+                            onChange={e => updateRule(rule.id, { value: e.target.value })}
+                            placeholder="Saisir une valeur..."
+                            className="form-control"
+                            style={{ fontSize: '0.85rem', padding: '0.4rem 0.5rem' }}
+                          />
+                        )}
+                      </div>
+
+                      {/* Delete */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        {idx === 0 ? (
+                          <button
+                            onClick={() => resetAll()}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, paddingBottom: '0.5rem' }}
+                          >
+                            Effacer
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => deleteRule(rule.id)}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', paddingBottom: '0.5rem' }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+
+              {/* Add rule buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1.5rem' }}>
+                <button
+                  onClick={addRule}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'none', border: 'none',
+                    color: '#ec4899', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', width: 'fit-content'
+                  }}
+                >
+                  <Plus size={14} /> Ajouter un filtre
+                </button>
+                <button
+                  onClick={addRule}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'none', border: 'none',
+                    color: '#ec4899', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', width: 'fit-content'
+                  }}
+                >
+                  <Plus size={14} /> Ajouter un groupe de filtres
+                </button>
+              </div>
+
+            </div>
+          )}
+
+          {/* Drawer Actions */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+            <button
+              onClick={resetAll}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.875rem' }}
+            >
+              Réinitialiser les filtres
+            </button>
+            
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              {activeTab === 'advanced' && (
+                <button
+                  onClick={() => alert("Liste enregistrée avec succès !")}
+                  style={{
+                    background: '#e2e8f0', color: '#475569', border: 'none', padding: '0.55rem 1.25rem', borderRadius: '8px', fontSize: '0.825rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s'
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#cbd5e1')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#e2e8f0')}
+                >
+                  Créer une liste
+                </button>
+              )}
+
+              <button
+                onClick={applyFilters}
+                style={{
+                  background: 'var(--sidebar-bg)', color: 'white', border: 'none', padding: '0.55rem 1.5rem', borderRadius: '999px', fontSize: '0.825rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#1e293b')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'var(--sidebar-bg)')}
+              >
+                {totalContactsCount.toLocaleString('fr-FR')} résultats
+              </button>
+            </div>
+          </div>
+
         </div>
       )}
+
     </div>
   )
 }
+

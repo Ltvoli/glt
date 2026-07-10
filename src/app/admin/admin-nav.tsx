@@ -11,7 +11,8 @@ import {
   Webhook,
   Database,
   FileText,
-  Activity
+  Activity,
+  BookOpen
 } from 'lucide-react'
 
 type AdminNavProps = {
@@ -52,6 +53,11 @@ export default function AdminNav({ dbRole }: AdminNavProps) {
       name: 'Niveaux de soutien',
       href: '/admin/support-levels',
       icon: HeartHandshake
+    },
+    {
+      name: 'Dictionnaire',
+      href: '/admin/dictionary',
+      icon: BookOpen
     },
     {
       name: 'Modèles (Publipostage)',

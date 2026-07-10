@@ -23,7 +23,7 @@ export default async function ContactsPage({
 
   const where = buildWhereClause(params)
 
-  const [contacts, totalContacts, pendingDuplicates, allTags, allCities] = await Promise.all([
+  const [contacts, totalContacts, pendingDuplicates, allTags, allCities, allTerritories, teamMembers] = await Promise.all([
     prisma.contact.findMany({
       where,
       orderBy: { lastName: 'asc' },
@@ -44,16 +44,31 @@ export default async function ContactsPage({
       distinct: ['city'],
       orderBy: { city: 'asc' },
     }),
+    prisma.contact.findMany({
+      where: { archivedAt: null, territory: { not: null } },
+      select: { territory: true },
+      distinct: ['territory'],
+      orderBy: { territory: 'asc' },
+    }),
+    prisma.user.findMany({
+      select: { id: true, firstName: true, lastName: true },
+      orderBy: { lastName: 'asc' }
+    })
   ])
 
   const totalPages    = Math.ceil(totalContacts / itemsPerPage)
   const uniqueCities  = allCities.map(c => c.city).filter(Boolean) as string[]
+  const uniqueTerritories = allTerritories.map(t => t.territory).filter(Boolean) as string[]
 
   // Serialize filter params for client-side export URLs
   const filterParamsObj = new URLSearchParams()
-  const filterKeys = ['city', 'nameQ', 'phone', 'streetQ', 'q', 'tag',
+  const filterKeys = [
+    'city', 'nameQ', 'phone', 'streetQ', 'q', 'tag',
     'lastInteraction', 'supportLevel', 'emailStatus', 'phoneStatus',
-    'gender', 'addressStatus', 'contactType']
+    'gender', 'addressStatus', 'contactType',
+    'lastContactMobile', 'territory', 'creatorId', 'localisationStatus', 'permanenceStep',
+    'advanced_rules'
+  ]
   for (const key of filterKeys) {
     if (params[key]) filterParamsObj.set(key, params[key]!)
   }
@@ -98,7 +113,13 @@ export default async function ContactsPage({
       )}
 
       {/* ─── Smart Search ─── */}
-      <AdvancedFilters allTags={allTags} uniqueCities={uniqueCities} />
+      <AdvancedFilters 
+        allTags={allTags} 
+        uniqueCities={uniqueCities} 
+        uniqueTerritories={uniqueTerritories}
+        teamMembers={teamMembers}
+        totalContactsCount={totalContacts}
+      />
 
       {/* ─── Count ─── */}
       <div style={{ marginBottom: '8px', color: '#64748b', fontSize: '0.83rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
