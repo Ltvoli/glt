@@ -164,13 +164,32 @@ const getPropertyOptions = (dataType: string) => {
     return [
       { value: 'lastName', label: 'Nom' },
       { value: 'firstName', label: 'Prénom' },
+      { value: 'usageName', label: "Nom d'usage" },
+      { value: 'type', label: 'Type de contact' },
       { value: 'email', label: 'Email' },
       { value: 'phone', label: 'Téléphone (Fixe)' },
       { value: 'mobilePhone', label: 'Téléphone (Mobile)' },
       { value: 'city', label: 'Ville' },
+      { value: 'postalCode', label: 'Code Postal' },
+      { value: 'streetName', label: 'Nom de rue' },
+      { value: 'building', label: 'Bâtiment' },
+      { value: 'buildingType', label: 'Type de bâtiment' },
+      { value: 'floor', label: 'Étage' },
       { value: 'supportLevel', label: 'Niveau de soutien' },
       { value: 'gender', label: 'Genre' },
+      { value: 'ageRange', label: "Tranche d'âge" },
+      { value: 'profession', label: 'Profession' },
+      { value: 'nationality', label: 'Nationalité' },
       { value: 'territory', label: 'Territoire' },
+      { value: 'department', label: 'Département' },
+      { value: 'whatsappStatus', label: 'Statut WhatsApp' },
+      { value: 'linkedinUrl', label: 'Lien LinkedIn' },
+      { value: 'noContact', label: 'Ne pas contacter (RGPD)' },
+      { value: 'isNpai', label: 'Adresse NPAI' },
+      { value: 'consentEmail', label: 'Consentement Email' },
+      { value: 'consentPhone', label: 'Consentement Téléphone' },
+      { value: 'consentSms', label: 'Consentement SMS' },
+      { value: 'consentPostal', label: 'Consentement Postal' },
     ]
   } else if (dataType === 'tasks') {
     return [
@@ -249,6 +268,8 @@ export default function AdvancedFilters({
   const [gender, setGender]                         = useState(searchParams.get('gender') || 'all')
   const [permanenceStep, setPermanenceStep]         = useState(searchParams.get('permanenceStep') || 'all')
   const [localisationStatus, setLocalisationStatus] = useState(searchParams.get('localisationStatus') || 'all')
+  const [contactType, setContactType]               = useState(searchParams.get('contactType') || 'all')
+  const [ageRange, setAgeRange]                     = useState(searchParams.get('ageRange') || '')
 
   // Advanced filters state
   const [mode, setMode] = useState<'ayant' | 'sans'>('ayant')
@@ -270,6 +291,8 @@ export default function AdvancedFilters({
     setGender(searchParams.get('gender') || 'all')
     setPermanenceStep(searchParams.get('permanenceStep') || 'all')
     setLocalisationStatus(searchParams.get('localisationStatus') || 'all')
+    setContactType(searchParams.get('contactType') || 'all')
+    setAgeRange(searchParams.get('ageRange') || '')
 
     const rawRules = searchParams.get('advanced_rules')
     if (rawRules) {
@@ -294,7 +317,7 @@ export default function AdvancedFilters({
 
   const hasAdvancedFilters = lastContactMobile || territory || tag || supportLevel || creatorId ||
     (emailStatus !== 'all') || (phoneStatus !== 'all') || (gender !== 'all') || 
-    (permanenceStep !== 'all') || (localisationStatus !== 'all') || searchParams.has('advanced_rules')
+    (permanenceStep !== 'all') || (localisationStatus !== 'all') || (contactType !== 'all') || ageRange || searchParams.has('advanced_rules')
 
   // Build URL and navigate
   const buildAndNavigate = (newChips: Chip[], extraParams?: Record<string, string>) => {
@@ -323,6 +346,8 @@ export default function AdvancedFilters({
       if (gender && gender !== 'all')             params.set('gender', gender)
       if (permanenceStep && permanenceStep !== 'all') params.set('permanenceStep', permanenceStep)
       if (localisationStatus && localisationStatus !== 'all') params.set('localisationStatus', localisationStatus)
+      if (contactType && contactType !== 'all')   params.set('contactType', contactType)
+      if (ageRange)                               params.set('ageRange', ageRange)
     }
 
     router.push(`/contacts?${params.toString()}`)
@@ -360,6 +385,8 @@ export default function AdvancedFilters({
     setGender('all')
     setPermanenceStep('all')
     setLocalisationStatus('all')
+    setContactType('all')
+    setAgeRange('')
     setRules([
       { id: crypto.randomUUID(), dataType: 'contacts', property: 'lastName', operator: 'contains', value: '', condition: 'AND' }
     ])
@@ -396,6 +423,8 @@ export default function AdvancedFilters({
         gender,
         permanenceStep,
         localisationStatus,
+        contactType,
+        ageRange,
       }
       buildAndNavigate(chips, params)
     }
@@ -647,6 +676,45 @@ export default function AdvancedFilters({
                     <option value="3">3 — Neutre</option>
                     <option value="4">4 — Favorable</option>
                     <option value="5">5 — Très favorable</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
+                    Type de contact
+                  </label>
+                  <select
+                    value={contactType}
+                    onChange={e => setContactType(e.target.value)}
+                    className="form-control"
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+                  >
+                    <option value="all">Tous les types</option>
+                    <option value="ELECTEUR">Électeur</option>
+                    <option value="ELU">Élu</option>
+                    <option value="CONTACT_MAIRIE">Contact Mairie</option>
+                    <option value="ASSO">Association</option>
+                    <option value="PARTENAIRE">Partenaire</option>
+                    <option value="PRESSE">Presse</option>
+                    <option value="AUTRE">Autre</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
+                    Tranche d'âge
+                  </label>
+                  <select
+                    value={ageRange}
+                    onChange={e => setAgeRange(e.target.value)}
+                    className="form-control"
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+                  >
+                    <option value="">Choisir</option>
+                    <option value="Moins de 18 ans">Moins de 18 ans</option>
+                    <option value="18-25 ans">18-25 ans</option>
+                    <option value="26-35 ans">26-35 ans</option>
+                    <option value="36-50 ans">36-50 ans</option>
+                    <option value="51-65 ans">51-65 ans</option>
+                    <option value="Plus de 65 ans">Plus de 65 ans</option>
                   </select>
                 </div>
               </div>

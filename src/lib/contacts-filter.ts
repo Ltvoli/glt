@@ -107,6 +107,10 @@ export function buildWhereClause(params: Record<string, string | undefined>) {
     where.createdById = params.creatorId
   }
 
+  if (params.ageRange) {
+    where.ageRange = params.ageRange
+  }
+
   if (params.localisationStatus && params.localisationStatus !== 'all') {
     if (params.localisationStatus === 'transmitted') {
       andClauses.push({
@@ -213,6 +217,13 @@ export function buildWhereClause(params: Record<string, string | undefined>) {
 
 function buildContactRule(property: string, operator: string, value: string) {
   const clause: any = {}
+  
+  const booleanFields = ['noContact', 'isNpai', 'consentEmail', 'consentPhone', 'consentSms', 'consentPostal', 'consentCustom']
+  let parsedValue: any = value
+  if (booleanFields.includes(property)) {
+    parsedValue = value === 'true' || value === '1' || value === 'oui' || value === 'Oui' || value === 'true-boolean'
+  }
+
   if (operator === 'isEmpty') {
     clause[property] = null
   } else if (operator === 'isNotEmpty') {
@@ -220,11 +231,11 @@ function buildContactRule(property: string, operator: string, value: string) {
   } else if (operator === 'contains') {
     clause[property] = { contains: value, mode: 'insensitive' }
   } else if (operator === 'equals') {
-    clause[property] = { equals: value }
+    clause[property] = { equals: parsedValue }
   } else if (operator === 'gte') {
-    clause[property] = { gte: value }
+    clause[property] = { gte: parsedValue }
   } else if (operator === 'lte') {
-    clause[property] = { lte: value }
+    clause[property] = { lte: parsedValue }
   }
   return clause
 }

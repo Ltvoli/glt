@@ -67,7 +67,7 @@ export default async function ContactsPage({
     'lastInteraction', 'supportLevel', 'emailStatus', 'phoneStatus',
     'gender', 'addressStatus', 'contactType',
     'lastContactMobile', 'territory', 'creatorId', 'localisationStatus', 'permanenceStep',
-    'advanced_rules'
+    'ageRange', 'advanced_rules'
   ]
   for (const key of filterKeys) {
     if (params[key]) filterParamsObj.set(key, params[key]!)
