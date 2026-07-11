@@ -432,7 +432,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
   // ── 2. Exécution des mises à jour par lots pour éviter la saturation du pool de connexions ──
   if (updatesList.length > 0) {
     try {
-      const chunkSize = 50
+      const chunkSize = 4
       for (let i = 0; i < updatesList.length; i += chunkSize) {
         const chunk = updatesList.slice(i, i + chunkSize)
         await Promise.all(chunk.map(up => {
