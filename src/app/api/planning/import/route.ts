@@ -6,8 +6,10 @@ import * as xlsx from 'xlsx'
 
 function getDayTypeFromStatus(status: string): string {
   const s = status.toUpperCase()
-  if (['PARIS', 'CIRCO', 'TELETRAVAIL', 'DEPLACEMENT', 'TRAVAILLÉ', 'TRAVAILLE'].includes(s)) return 'worked'
+  if (['PARIS', 'CIRCO', 'TELETRAVAIL', 'DEPLACEMENT', 'TRAVAILLÉ', 'TRAVAILLE', 'PRESENCE'].includes(s)) return 'worked'
+  if (['DEMI_PRESENCE', '1/2 PRESENCE', 'DEMI_TRAVAILLÉ', 'DEMI_TRAVAILLE', 'DEMI_TRAVAILLÉ (MATIN)', 'DEMI_TRAVAILLÉ (APRÈS-MIDI)'].includes(s)) return 'half_worked'
   if (['CONGE', 'CONGÉ', 'CONGE PAYE', 'CONGÉ PAYÉ'].includes(s)) return 'paid_leave'
+  if (['DEMI_CONGE', 'DEMI_CONGÉ', '1/2 CONGE', '1/2 CONGÉ'].includes(s)) return 'half_paid_leave'
   return 'off' // MALADIE, ABSENT, NON TRAVAILLÉ, NON TRAVAILLE ou autre
 }
 

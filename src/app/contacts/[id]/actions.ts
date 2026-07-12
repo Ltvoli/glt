@@ -187,7 +187,7 @@ export async function createContactInteraction(
 ) {
   const session = await requireWriteAccess()
 
-  const validTypes = ['APPEL_ENTRANT', 'APPEL_SORTANT', 'RENCONTRE_PHYSIQUE', 'SMS']
+  const validTypes = ['APPEL_ENTRANT', 'APPEL_SORTANT', 'RENCONTRE_PHYSIQUE', 'SMS', 'EMAIL']
   if (!validTypes.includes(type)) {
     throw new Error('Type d\'interaction invalide')
   }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Phone, PhoneCall, MessageSquare, Users, Plus, Calendar, Clock, Trash } from 'lucide-react'
+import { Phone, PhoneCall, MessageSquare, Users, Plus, Calendar, Clock, Trash, Mail } from 'lucide-react'
 import { createContactInteraction } from './actions'
 import { toast } from 'sonner'
 
@@ -25,7 +25,8 @@ const TYPE_DEFS: Record<string, { label: string; icon: React.ReactNode; color: s
   APPEL_ENTRANT:     { label: 'Appel entrant', icon: <PhoneCall size={14} />, color: '#0ea5e9', bg: '#e0f2fe' },
   APPEL_SORTANT:     { label: 'Appel sortant', icon: <Phone size={14} />, color: '#10b981', bg: '#d1fae5' },
   RENCONTRE_PHYSIQUE: { label: 'Rencontre physique', icon: <Users size={14} />, color: '#8b5cf6', bg: '#ede9fe' },
-  SMS:               { label: 'SMS', icon: <MessageSquare size={14} />, color: '#f59e0b', bg: '#fef3c7' }
+  SMS:               { label: 'SMS', icon: <MessageSquare size={14} />, color: '#f59e0b', bg: '#fef3c7' },
+  EMAIL:             { label: 'E-mail', icon: <Mail size={14} />, color: '#ec4899', bg: '#fdf2f8' }
 }
 
 export default function ContactInteractionsTimeline({ contactId, initialInteractions = [] }: TimelineProps) {
@@ -107,6 +108,7 @@ export default function ContactInteractionsTimeline({ contactId, initialInteract
                 <option value="APPEL_ENTRANT">📥 Appel entrant</option>
                 <option value="RENCONTRE_PHYSIQUE">🤝 Rencontre physique</option>
                 <option value="SMS">💬 SMS</option>
+                <option value="EMAIL">✉️ E-mail</option>
               </select>
             </div>
             <div className="form-group">

@@ -91,7 +91,9 @@ export default function PlanningGrid({
 
   const getCellColor = (dayType: string, isWeekend: boolean, isHoliday: boolean) => {
     if (dayType === 'worked') return '#dcfce3' // Vert
+    if (dayType === 'half_worked') return 'linear-gradient(135deg, #dcfce3 50%, #ffffff 50%)' // 1/2 Vert 1/2 Blanc
     if (dayType === 'paid_leave') return '#fee2e2' // Rouge
+    if (dayType === 'half_paid_leave') return 'linear-gradient(135deg, #fee2e2 50%, #ffffff 50%)' // 1/2 Rouge 1/2 Blanc
     if (dayType === 'off') {
       if (isHoliday) return '#fef08a' // Jaune pour jour férié
       if (isWeekend) return '#e2e8f0' // Gris pour WE
@@ -128,7 +130,9 @@ export default function PlanningGrid({
           <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', textTransform: 'capitalize' }}>{monthName}</h2>
           <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#dcfce3', border: '1px solid #ccc' }}></div> Travaillé</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, background: 'linear-gradient(135deg, #dcfce3 50%, #ffffff 50%)', border: '1px solid #ccc' }}></div> 1/2 Travaillé</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#fee2e2', border: '1px solid #ccc' }}></div> Congé</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, background: 'linear-gradient(135deg, #fee2e2 50%, #ffffff 50%)', border: '1px solid #ccc' }}></div> 1/2 Congé</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#ffffff', border: '1px solid #ccc' }}></div> Non Travaillé</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#fef08a', border: '1px solid #ccc' }}></div> Jour Férié</span>
           </div>
@@ -188,7 +192,7 @@ export default function PlanningGrid({
                         style={{ 
                           padding: 0, 
                           border: '1px solid var(--border)',
-                          backgroundColor: getCellColor(dayData.dayType, dayData.isWeekend, dayData.isHoliday),
+                          background: getCellColor(dayData.dayType, dayData.isWeekend, dayData.isHoliday),
                           cursor: isMagaliOrAdmin ? 'pointer' : 'default'
                         }}
                         onClick={() => handleCellClick(user, dayData)}
@@ -293,8 +297,10 @@ export default function PlanningGrid({
                   onChange={e => setSelectedCell({ ...selectedCell, dayType: e.target.value })}
                 >
                   <option value="worked">Travaillé (Vert)</option>
+                  <option value="half_worked">1/2 Journée Travaillée (1/2 Vert)</option>
                   <option value="off">Non travaillé (Blanc)</option>
                   <option value="paid_leave">Congé Payé (Rouge)</option>
+                  <option value="half_paid_leave">1/2 Journée Congé Payé (1/2 Rouge)</option>
                 </select>
               </div>
               

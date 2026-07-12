@@ -12,7 +12,16 @@ export function getDefaultDayType(date: Date): string {
   if (isWeekend(date) || isHoliday(date)) {
     return 'off';
   }
-  return 'worked'; // Semaine = travaillé par défaut
+
+  const now = new Date()
+  const currentMonthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+  const dateUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+
+  if (dateUtc >= currentMonthStart) {
+    return 'off';
+  }
+
+  return 'worked'; // Semaine dans le passé = travaillé par défaut
 }
 
 /**
@@ -71,7 +80,15 @@ export function calculateCounters(
     }
 
     if (dayType === 'worked') worked++
+    else if (dayType === 'half_worked') {
+      worked += 0.5
+      off += 0.5
+    }
     else if (dayType === 'paid_leave') paidLeave++
+    else if (dayType === 'half_paid_leave') {
+      paidLeave += 0.5
+      off += 0.5
+    }
     else off++
 
     current.setUTCDate(current.getUTCDate() + 1)

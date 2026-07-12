@@ -9,8 +9,10 @@ import { logAudit } from '@/lib/audit'
 // Déduire le dayType du status classique
 function getDayTypeFromStatus(status: string): string {
   const s = status.toUpperCase()
-  if (['PARIS', 'CIRCO', 'TELETRAVAIL', 'DEPLACEMENT', 'TRAVAILLÉ', 'TRAVAILLE'].includes(s)) return 'worked'
+  if (['PARIS', 'CIRCO', 'TELETRAVAIL', 'DEPLACEMENT', 'TRAVAILLÉ', 'TRAVAILLE', 'PRESENCE'].includes(s)) return 'worked'
+  if (['DEMI_PRESENCE', '1/2 PRESENCE', 'DEMI_TRAVAILLÉ', 'DEMI_TRAVAILLE', 'DEMI_TRAVAILLÉ (MATIN)', 'DEMI_TRAVAILLÉ (APRÈS-MIDI)'].includes(s)) return 'half_worked'
   if (['CONGE', 'CONGÉ', 'CONGE PAYE', 'CONGÉ PAYÉ'].includes(s)) return 'paid_leave'
+  if (['DEMI_CONGE', 'DEMI_CONGÉ', '1/2 CONGE', '1/2 CONGÉ'].includes(s)) return 'half_paid_leave'
   return 'off' // MALADIE, ABSENT, NON TRAVAILLÉ, NON TRAVAILLE ou autre
 }
 
@@ -97,7 +99,7 @@ export async function updateEmployeeDayType(employeeId: string, dateStr: string,
     },
     update: {
       dayType,
-      status: dayType === 'worked' ? 'PRESENCE' : dayType === 'paid_leave' ? 'CONGE' : 'ABSENT',
+      status: dayType === 'worked' ? 'PRESENCE' : dayType === 'half_worked' ? 'DEMI_PRESENCE' : dayType === 'paid_leave' ? 'CONGE' : dayType === 'half_paid_leave' ? 'DEMI_CONGE' : 'ABSENT',
       notes,
       updatedById: session.userId
     },
@@ -105,7 +107,7 @@ export async function updateEmployeeDayType(employeeId: string, dateStr: string,
       employeeId,
       date: normalizedDate,
       dayType,
-      status: dayType === 'worked' ? 'PRESENCE' : dayType === 'paid_leave' ? 'CONGE' : 'ABSENT',
+      status: dayType === 'worked' ? 'PRESENCE' : dayType === 'half_worked' ? 'DEMI_PRESENCE' : dayType === 'paid_leave' ? 'CONGE' : dayType === 'half_paid_leave' ? 'DEMI_CONGE' : 'ABSENT',
       notes,
       updatedById: session.userId
     }
