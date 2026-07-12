@@ -498,6 +498,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       JOIN "Contact" c2 ON c1.id < c2.id
       WHERE c1."archivedAt" IS NULL 
         AND c2."archivedAt" IS NULL
+        AND (c1."updatedAt" >= NOW() - INTERVAL '5 minutes' OR c2."updatedAt" >= NOW() - INTERVAL '5 minutes')
         AND c1.email IS NOT NULL AND c1.email <> '' AND c1.email = c2.email
         AND similarity(c1."lastName", c2."lastName") > 0.6
         AND NOT EXISTS (
@@ -519,6 +520,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       JOIN "Contact" c2 ON c1.id < c2.id
       WHERE c1."archivedAt" IS NULL 
         AND c2."archivedAt" IS NULL
+        AND (c1."updatedAt" >= NOW() - INTERVAL '5 minutes' OR c2."updatedAt" >= NOW() - INTERVAL '5 minutes')
         AND (
           (c1.phone IS NOT NULL AND c1.phone <> '' AND c1.phone = c2.phone)
           OR (c1."mobilePhone" IS NOT NULL AND c1."mobilePhone" <> '' AND c1."mobilePhone" = c2."mobilePhone")
@@ -543,6 +545,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       JOIN "Contact" c2 ON c1.id < c2.id
       WHERE c1."archivedAt" IS NULL 
         AND c2."archivedAt" IS NULL
+        AND (c1."updatedAt" >= NOW() - INTERVAL '5 minutes' OR c2."updatedAt" >= NOW() - INTERVAL '5 minutes')
         AND similarity(c1."firstName" || ' ' || c1."lastName", c2."firstName" || ' ' || c2."lastName") > 0.85
         AND NOT EXISTS (
           SELECT 1 FROM "DuplicateCandidate" dc 
