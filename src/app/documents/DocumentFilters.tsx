@@ -7,48 +7,43 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  // We only need local state for the query input to allow smooth typing
   const [query, setQuery] = useState(searchParams.get('q') || '')
-  const [type, setType] = useState(searchParams.get('type') || '')
-  const [conf, setConf] = useState(searchParams.get('conf') || '')
-  const [author, setAuthor] = useState(searchParams.get('author') || '')
-  const [relation, setRelation] = useState(searchParams.get('relation') || '')
-  const [status, setStatus] = useState(searchParams.get('status') || '')
 
-  // Sync state with URL search params when they change externally (e.g. from folder clicks)
+  // Sync query input value if URL changes externally
   useEffect(() => {
-    setTimeout(() => {
-      setQuery(searchParams.get('q') || '')
-      setType(searchParams.get('type') || '')
-      setConf(searchParams.get('conf') || '')
-      setAuthor(searchParams.get('author') || '')
-      setRelation(searchParams.get('relation') || '')
-      setStatus(searchParams.get('status') || '')
-    }, 0)
+    setQuery(searchParams.get('q') || '')
   }, [searchParams])
 
+  const updateUrl = (newParams: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString())
+    Object.entries(newParams).forEach(([key, value]) => {
+      if (value === null || value === '') {
+        params.delete(key)
+      } else {
+        params.set(key, value)
+      }
+    })
+    router.push(`/documents?${params.toString()}`)
+  }
+
+  // Debounce query changes
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      const params = new URLSearchParams()
-      if (query) params.set('q', query)
-      if (type) params.set('type', type)
-      if (conf) params.set('conf', conf)
-      if (author) params.set('author', author)
-      if (relation) params.set('relation', relation)
-      if (status) params.set('status', status)
-      
-      const folder = searchParams.get('folder')
-      if (folder) params.set('folder', folder)
-      
-      const newQueryString = params.toString()
-      const currentQueryString = searchParams.toString()
-      
-      if (newQueryString !== currentQueryString) {
-        router.push(`/documents?${newQueryString}`)
+      const currentQ = searchParams.get('q') || ''
+      if (query !== currentQ) {
+        updateUrl({ q: query })
       }
     }, 300)
 
     return () => clearTimeout(delayDebounceFn)
-  }, [query, type, conf, author, relation, status, router, searchParams])
+  }, [query])
+
+  const type = searchParams.get('type') || ''
+  const conf = searchParams.get('conf') || ''
+  const author = searchParams.get('author') || ''
+  const relation = searchParams.get('relation') || ''
+  const status = searchParams.get('status') || ''
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem', backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
@@ -60,7 +55,7 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
         style={{ flex: '1 1 250px', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
       />
       
-      <select value={type} onChange={(e) => setType(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
+      <select value={type} onChange={(e) => updateUrl({ type: e.target.value })} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
         <option value="">Tous les types</option>
         <option value="PDF">PDF</option>
         <option value="WORD">Word</option>
@@ -70,7 +65,7 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
         <option value="AUTRE">Autre</option>
       </select>
 
-      <select value={conf} onChange={(e) => setConf(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
+      <select value={conf} onChange={(e) => updateUrl({ conf: e.target.value })} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
         <option value="">Toutes conf. (Défaut)</option>
         <option value="INTERNE">Interne</option>
         <option value="RESTREINT">Restreint</option>
@@ -78,14 +73,14 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
         <option value="CONFIDENTIEL">Confidentiel</option>
       </select>
 
-      <select value={author} onChange={(e) => setAuthor(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
+      <select value={author} onChange={(e) => updateUrl({ author: e.target.value })} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
         <option value="">Tous les auteurs</option>
         {users.map(u => (
           <option key={u.id} value={u.id}>{u.name}</option>
         ))}
       </select>
 
-      <select value={relation} onChange={(e) => setRelation(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
+      <select value={relation} onChange={(e) => updateUrl({ relation: e.target.value })} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
         <option value="">Toutes les origines</option>
         <option value="ORPHELIN">Documents volants</option>
         <option value="CONTACT">Liés à un contact</option>
@@ -94,7 +89,7 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
         <option value="QE">Liés à une QE</option>
       </select>
 
-      <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
+      <select value={status} onChange={(e) => updateUrl({ status: e.target.value })} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
         <option value="">Tous les statuts</option>
         <option value="VALIDATED">Validés</option>
         <option value="PENDING">En attente de validation</option>
@@ -105,7 +100,8 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
       {(query || type || conf || author || relation || status) && (
         <button 
           onClick={() => {
-            setQuery(''); setType(''); setConf(''); setAuthor(''); setRelation(''); setStatus('');
+            setQuery('')
+            updateUrl({ q: null, type: null, conf: null, author: null, relation: null, status: null })
           }}
           style={{ padding: '0.5rem 1rem', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
         >
