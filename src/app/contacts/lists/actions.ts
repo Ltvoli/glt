@@ -31,12 +31,24 @@ export async function createContactList(
     const newList = await prisma.contactList.create({
       data: {
         name: trimmedName,
-        description: description || null,
-        contacts: contactIds && contactIds.length > 0 
-          ? { connect: contactIds.map(id => ({ id })) }
-          : undefined
+        description: description || null
       }
     })
+
+    if (contactIds && contactIds.length > 0) {
+      const chunkSize = 5000
+      for (let i = 0; i < contactIds.length; i += chunkSize) {
+        const chunk = contactIds.slice(i, i + chunkSize)
+        await prisma.contactList.update({
+          where: { id: newList.id },
+          data: {
+            contacts: {
+              connect: chunk.map(id => ({ id }))
+            }
+          }
+        })
+      }
+    }
 
     await logAudit(
       'CREATE_CONTACT_LIST',
@@ -65,14 +77,18 @@ export async function addContactsToList(
       return { success: false, error: 'Paramètres manquants.' }
     }
 
-    await prisma.contactList.update({
-      where: { id: listId },
-      data: {
-        contacts: {
-          connect: contactIds.map(id => ({ id }))
+    const chunkSize = 5000
+    for (let i = 0; i < contactIds.length; i += chunkSize) {
+      const chunk = contactIds.slice(i, i + chunkSize)
+      await prisma.contactList.update({
+        where: { id: listId },
+        data: {
+          contacts: {
+            connect: chunk.map(id => ({ id }))
+          }
         }
-      }
-    })
+      })
+    }
 
     await logAudit(
       'ADD_CONTACTS_TO_LIST',
