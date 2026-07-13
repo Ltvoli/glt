@@ -291,3 +291,12 @@ export async function archiveContactsBulk(
   }
 }
 
+import { buildWhereClause } from '@/lib/contacts-filter'
+
+export async function getFilteredContactsCount(params: Record<string, string | undefined>): Promise<number> {
+  const session = await getSession()
+  if (!session?.userId) return 0
+  const where = buildWhereClause(params)
+  return await prisma.contact.count({ where })
+}
+

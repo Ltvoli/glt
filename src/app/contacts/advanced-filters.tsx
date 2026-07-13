@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, X, MapPin, Phone, User, Map, Filter, SlidersHorizontal, Plus, Trash2 } from 'lucide-react'
+import { getFilteredContactsCount } from './actions'
 
 // ──────────────────────────────────────────────
 // Types
@@ -276,6 +277,69 @@ export default function AdvancedFilters({
   const [rules, setRules] = useState<any[]>([
     { id: crypto.randomUUID(), dataType: 'contacts', property: 'lastName', operator: 'contains', value: '', condition: 'AND' }
   ])
+
+  // Count states
+  const [currentCount, setCurrentCount] = useState(totalContactsCount)
+  const [isCounting, setIsCounting] = useState(false)
+
+  // Sync count state when prop changes
+  useEffect(() => {
+    setCurrentCount(totalContactsCount)
+  }, [totalContactsCount])
+
+  // Debounced live counting on filter changes
+  useEffect(() => {
+    if (!showAdvanced) return
+
+    setIsCounting(true)
+    const timer = setTimeout(async () => {
+      const params: Record<string, string | undefined> = {}
+
+      const byType = (type: ChipType) => chips.filter(c => c.type === type).map(c => c.value).join(',')
+      if (byType('city'))   params.city = byType('city')
+      if (byType('phone'))  params.phone = byType('phone')
+      if (byType('name'))   params.nameQ = byType('name')
+      if (byType('street')) params.streetQ = byType('street')
+
+      if (activeTab === 'advanced') {
+        const rulesPayload = {
+          mode,
+          rules: rules.map(r => ({
+            dataType: r.dataType,
+            property: r.property,
+            operator: r.operator,
+            value: r.value,
+            condition: r.condition,
+          }))
+        }
+        params.advanced_rules = JSON.stringify(rulesPayload)
+      } else {
+        if (lastContactMobile)   params.lastContactMobile = lastContactMobile
+        if (territory)           params.territory = territory
+        if (tag)                 params.tag = tag
+        if (supportLevel)        params.supportLevel = supportLevel
+        if (creatorId)           params.creatorId = creatorId
+        if (emailStatus && emailStatus !== 'all')   params.emailStatus = emailStatus
+        if (phoneStatus && phoneStatus !== 'all')   params.phoneStatus = phoneStatus
+        if (gender && gender !== 'all')             params.gender = gender
+        if (permanenceStep && permanenceStep !== 'all') params.permanenceStep = permanenceStep
+        if (localisationStatus && localisationStatus !== 'all') params.localisationStatus = localisationStatus
+        if (contactType && contactType !== 'all')   params.contactType = contactType
+        if (ageRange)                               params.ageRange = ageRange
+      }
+
+      try {
+        const cnt = await getFilteredContactsCount(params)
+        setCurrentCount(cnt)
+      } catch (err) {
+        console.error('Error fetching live filtered count:', err)
+      } finally {
+        setIsCounting(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [chips, lastContactMobile, territory, tag, supportLevel, creatorId, emailStatus, phoneStatus, gender, permanenceStep, localisationStatus, contactType, ageRange, mode, rules, activeTab, showAdvanced])
 
   // Sync state with URL
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -1085,12 +1149,14 @@ export default function AdvancedFilters({
               <button
                 onClick={applyFilters}
                 style={{
-                  background: 'var(--sidebar-bg)', color: 'white', border: 'none', padding: '0.55rem 1.5rem', borderRadius: '999px', fontSize: '0.825rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s'
+                  background: 'var(--sidebar-bg)', color: 'white', border: 'none', padding: '0.55rem 1.5rem', borderRadius: '999px', fontSize: '0.825rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
+                  opacity: isCounting ? 0.7 : 1
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#1e293b')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'var(--sidebar-bg)')}
+                disabled={isCounting}
               >
-                {totalContactsCount.toLocaleString('fr-FR')} résultats
+                {isCounting ? 'Calcul en cours...' : `${currentCount.toLocaleString('fr-FR')} résultats`}
               </button>
             </div>
           </div>
