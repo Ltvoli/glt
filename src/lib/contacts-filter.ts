@@ -61,7 +61,42 @@ export function buildWhereClause(params: Record<string, string | undefined>) {
 
   // ── Advanced filters ────────────────────────────────────
   if (params.contactType && params.contactType !== 'all') where.type = params.contactType
-  if (params.tag)     where.tags = { some: { tag: { name: params.tag } } }
+  if (params.tag) {
+    const tagNames = params.tag.split(',').map(t => t.trim()).filter(Boolean)
+    if (tagNames.length > 0) {
+      const tagMode = params.tagMode || 'or'
+      if (tagMode === 'and') {
+        for (const tagName of tagNames) {
+          andClauses.push({
+            tags: {
+              some: {
+                tag: {
+                  name: { equals: tagName, mode: 'insensitive' }
+                }
+              }
+            }
+          })
+        }
+      } else if (tagMode === 'not') {
+        where.tags = {
+          none: {
+            tag: {
+              name: { in: tagNames, mode: 'insensitive' }
+            }
+          }
+        }
+      } else {
+        // default: 'or'
+        where.tags = {
+          some: {
+            tag: {
+              name: { in: tagNames, mode: 'insensitive' }
+            }
+          }
+        }
+      }
+    }
+  }
   if (params.lastInteraction) where.lastInteraction = { gte: new Date(params.lastInteraction) }
   if (params.supportLevel)    where.supportLevel = params.supportLevel
 
@@ -216,6 +251,20 @@ export function buildWhereClause(params: Record<string, string | undefined>) {
 }
 
 function buildContactRule(property: string, operator: string, value: string) {
+  if (property === 'tags' || property === 'tag') {
+    if (operator === 'isEmpty') {
+      return { tags: { none: {} } }
+    } else if (operator === 'isNotEmpty') {
+      return { tags: { some: {} } }
+    } else if (operator === 'contains') {
+      return { tags: { some: { tag: { name: { contains: value, mode: 'insensitive' } } } } }
+    } else if (operator === 'notContains' || operator === 'not_contains') {
+      return { tags: { none: { tag: { name: { contains: value, mode: 'insensitive' } } } } }
+    } else if (operator === 'equals') {
+      return { tags: { some: { tag: { name: { equals: value, mode: 'insensitive' } } } } }
+    }
+  }
+
   const clause: any = {}
   
   const booleanFields = ['noContact', 'isNpai', 'consentEmail', 'consentPhone', 'consentSms', 'consentPostal', 'consentCustom']
@@ -230,6 +279,8 @@ function buildContactRule(property: string, operator: string, value: string) {
     clause[property] = { not: null }
   } else if (operator === 'contains') {
     clause[property] = { contains: value, mode: 'insensitive' }
+  } else if (operator === 'notContains' || operator === 'not_contains') {
+    clause[property] = { not: { contains: value, mode: 'insensitive' } }
   } else if (operator === 'equals') {
     clause[property] = { equals: parsedValue }
   } else if (operator === 'gte') {

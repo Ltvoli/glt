@@ -7,6 +7,7 @@ import PaginationBar from './pagination-bar'
 import ContactsTabs from './contacts-tabs'
 
 import { buildWhereClause } from '@/lib/contacts-filter'
+import { getSavedFilters } from './filters-actions'
 
 // ──────────────────────────────────────────────────────────
 // Page component
@@ -23,7 +24,21 @@ export default async function ContactsPage({
 
   const where = buildWhereClause(params)
 
-  const [contacts, totalContacts, pendingDuplicates, allTags, allCities, allTerritories, teamMembers] = await Promise.all([
+  const [
+    contacts,
+    totalContacts,
+    pendingDuplicates,
+    allTags,
+    cityCounts,
+    territoryCounts,
+    teamMembers,
+    tagCounts,
+    supportCounts,
+    typeCounts,
+    ageCounts,
+    creatorCounts,
+    savedFilters
+  ] = await Promise.all([
     prisma.contact.findMany({
       where,
       orderBy: { lastName: 'asc' },
@@ -38,32 +53,112 @@ export default async function ContactsPage({
     prisma.contact.count({ where }),
     prisma.duplicateCandidate.count({ where: { status: 'PENDING' } }),
     prisma.tag.findMany({ orderBy: { name: 'asc' } }),
-    prisma.contact.findMany({
+    prisma.contact.groupBy({
+      by: ['city'],
       where: { archivedAt: null, city: { not: null } },
-      select: { city: true },
-      distinct: ['city'],
-      orderBy: { city: 'asc' },
+      _count: { _all: true },
+      orderBy: { city: 'asc' }
     }),
-    prisma.contact.findMany({
+    prisma.contact.groupBy({
+      by: ['territory'],
       where: { archivedAt: null, territory: { not: null } },
-      select: { territory: true },
-      distinct: ['territory'],
-      orderBy: { territory: 'asc' },
+      _count: { _all: true },
+      orderBy: { territory: 'asc' }
     }),
     prisma.user.findMany({
       select: { id: true, firstName: true, lastName: true },
       orderBy: { lastName: 'asc' }
-    })
+    }),
+    prisma.contactTag.groupBy({
+      by: ['tagId'],
+      where: { contact: { archivedAt: null } },
+      _count: { _all: true }
+    }),
+    prisma.contact.groupBy({
+      by: ['supportLevel'],
+      where: { archivedAt: null },
+      _count: { _all: true }
+    }),
+    prisma.contact.groupBy({
+      by: ['type'],
+      where: { archivedAt: null },
+      _count: { _all: true }
+    }),
+    prisma.contact.groupBy({
+      by: ['ageRange'],
+      where: { archivedAt: null, ageRange: { not: null } },
+      _count: { _all: true }
+    }),
+    prisma.contact.groupBy({
+      by: ['createdById'],
+      where: { archivedAt: null },
+      _count: { _all: true }
+    }),
+    getSavedFilters()
   ])
 
-  const totalPages    = Math.ceil(totalContacts / itemsPerPage)
-  const uniqueCities  = allCities.map(c => c.city).filter(Boolean) as string[]
-  const uniqueTerritories = allTerritories.map(t => t.territory).filter(Boolean) as string[]
+  const totalPages = Math.ceil(totalContacts / itemsPerPage)
+
+  // Map counts to unique lists and structures
+  const uniqueCities = (cityCounts as any[]).map(c => ({
+    name: c.city as string,
+    count: c._count._all
+  }))
+
+  const uniqueTerritories = (territoryCounts as any[]).map(t => ({
+    name: t.territory as string,
+    count: t._count._all
+  }))
+
+  const tagCountsMap = new Map((tagCounts as any[]).map(tc => [tc.tagId, tc._count._all]))
+  const allTagsWithCounts = allTags.map(t => ({
+    id: t.id,
+    name: t.name,
+    count: tagCountsMap.get(t.id) || 0
+  }))
+
+  const supportCountsMap = new Map((supportCounts as any[]).map(sc => [sc.supportLevel, sc._count._all]))
+  const supportLevelsWithCounts = [
+    { value: '1', label: '1 — Très défavorable', count: supportCountsMap.get('1') || 0 },
+    { value: '2', label: '2 — Défavorable', count: supportCountsMap.get('2') || 0 },
+    { value: '3', label: '3 — Neutre', count: supportCountsMap.get('3') || 0 },
+    { value: '4', label: '4 — Favorable', count: supportCountsMap.get('4') || 0 },
+    { value: '5', label: '5 — Très favorable', count: supportCountsMap.get('5') || 0 }
+  ]
+
+  const typeCountsMap = new Map((typeCounts as any[]).map(tc => [tc.type, tc._count._all]))
+  const contactTypesWithCounts = [
+    { value: 'ELECTEUR', label: 'Électeur', count: typeCountsMap.get('ELECTEUR') || 0 },
+    { value: 'ELU', label: 'Élu', count: typeCountsMap.get('ELU') || 0 },
+    { value: 'CONTACT_MAIRIE', label: 'Contact Mairie', count: typeCountsMap.get('CONTACT_MAIRIE') || 0 },
+    { value: 'ASSO', label: 'Association', count: typeCountsMap.get('ASSO') || 0 },
+    { value: 'PARTENAIRE', label: 'Partenaire', count: typeCountsMap.get('PARTENAIRE') || 0 },
+    { value: 'PRESSE', label: 'Presse', count: typeCountsMap.get('PRESSE') || 0 },
+    { value: 'AUTRE', label: 'Autre', count: typeCountsMap.get('AUTRE') || 0 }
+  ]
+
+  const ageCountsMap = new Map((ageCounts as any[]).map(ac => [ac.ageRange, ac._count._all]))
+  const ageRangesWithCounts = [
+    { value: 'Moins de 18 ans', count: ageCountsMap.get('Moins de 18 ans') || 0 },
+    { value: '18-25 ans', count: ageCountsMap.get('18-25 ans') || 0 },
+    { value: '26-35 ans', count: ageCountsMap.get('26-35 ans') || 0 },
+    { value: '36-50 ans', count: ageCountsMap.get('36-50 ans') || 0 },
+    { value: '51-65 ans', count: ageCountsMap.get('51-65 ans') || 0 },
+    { value: 'Plus de 65 ans', count: ageCountsMap.get('Plus de 65 ans') || 0 }
+  ]
+
+  const creatorCountsMap = new Map((creatorCounts as any[]).map(cc => [cc.createdById, cc._count._all]))
+  const teamMembersWithCounts = teamMembers.map(m => ({
+    id: m.id,
+    firstName: m.firstName,
+    lastName: m.lastName,
+    count: creatorCountsMap.get(m.id) || 0
+  }))
 
   // Serialize filter params for client-side export URLs
   const filterParamsObj = new URLSearchParams()
   const filterKeys = [
-    'city', 'nameQ', 'phone', 'streetQ', 'q', 'tag',
+    'city', 'nameQ', 'phone', 'streetQ', 'q', 'tag', 'tagMode',
     'lastInteraction', 'supportLevel', 'emailStatus', 'phoneStatus',
     'gender', 'addressStatus', 'contactType',
     'lastContactMobile', 'territory', 'creatorId', 'localisationStatus', 'permanenceStep',
@@ -114,11 +209,15 @@ export default async function ContactsPage({
 
       {/* ─── Smart Search ─── */}
       <AdvancedFilters 
-        allTags={allTags} 
+        allTags={allTagsWithCounts} 
         uniqueCities={uniqueCities} 
         uniqueTerritories={uniqueTerritories}
-        teamMembers={teamMembers}
+        teamMembers={teamMembersWithCounts}
         totalContactsCount={totalContacts}
+        savedFilters={savedFilters}
+        supportLevels={supportLevelsWithCounts}
+        contactTypes={contactTypesWithCounts}
+        ageRanges={ageRangesWithCounts}
       />
 
       {/* ─── Count ─── */}

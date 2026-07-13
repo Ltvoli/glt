@@ -81,17 +81,18 @@ function Suggestions({
   onSelect,
 }: {
   query: string
-  uniqueCities: string[]
+  uniqueCities: any[]
   onSelect: (value: string, type: ChipType) => void
 }) {
   if (query.length < 2) return null
 
   const q = query.toLowerCase()
   const citySuggestions = uniqueCities
-    .filter(c => c.toLowerCase().includes(q))
+    .filter(c => c.name.toLowerCase().includes(q))
     .slice(0, 5)
 
-  const detectedType = detectType(query, uniqueCities)
+  const cityNames = uniqueCities.map(c => c.name)
+  const detectedType = detectType(query, cityNames)
 
   return (
     <div style={{
@@ -132,8 +133,8 @@ function Suggestions({
 
       {citySuggestions.map(city => (
         <button
-          key={city}
-          onMouseDown={(e) => { e.preventDefault(); onSelect(city, 'city') }}
+          key={city.name}
+          onMouseDown={(e) => { e.preventDefault(); onSelect(city.name, 'city') }}
           style={{
             width: '100%',
             display: 'flex',
@@ -150,7 +151,7 @@ function Suggestions({
           onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
           <MapPin size={13} style={{ color: CHIP_META.city.color, flexShrink: 0 }} />
-          <span>Ville : <strong>{city}</strong></span>
+          <span>Ville : <strong>{city.name}</strong> ({city.count})</span>
         </button>
       ))}
     </div>
@@ -167,6 +168,7 @@ const getPropertyOptions = (dataType: string) => {
       { value: 'firstName', label: 'Prénom' },
       { value: 'usageName', label: "Nom d'usage" },
       { value: 'type', label: 'Type de contact' },
+      { value: 'tag', label: 'Tag (Étiquette)' },
       { value: 'email', label: 'Email' },
       { value: 'phone', label: 'Téléphone (Fixe)' },
       { value: 'mobilePhone', label: 'Téléphone (Mobile)' },
@@ -218,20 +220,30 @@ const getPropertyOptions = (dataType: string) => {
 // Main component
 // ──────────────────────────────────────────────
 export default function AdvancedFilters({
-  allTags,
+  allTags = [],
   uniqueCities = [],
   uniqueTerritories = [],
   teamMembers = [],
   totalContactsCount = 0,
+  savedFilters = [],
+  supportLevels = [],
+  contactTypes = [],
+  ageRanges = [],
 }: {
-  allTags: any[]
-  uniqueCities?: string[]
-  uniqueTerritories?: string[]
+  allTags?: any[]
+  uniqueCities?: any[]
+  uniqueTerritories?: any[]
   teamMembers?: any[]
   totalContactsCount?: number
+  savedFilters?: any[]
+  supportLevels?: any[]
+  contactTypes?: any[]
+  ageRanges?: any[]
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  const cityNames = uniqueCities.map(c => typeof c === 'string' ? c : c.name)
 
   const buildChipsFromParams = (): Chip[] => {
     const chips: Chip[] = []
@@ -262,6 +274,7 @@ export default function AdvancedFilters({
   const [lastContactMobile, setLastContactMobile]   = useState(searchParams.get('lastContactMobile') || '')
   const [territory, setTerritory]                   = useState(searchParams.get('territory') || '')
   const [tag, setTag]                               = useState(searchParams.get('tag') || '')
+  const [tagMode, setTagMode]                       = useState(searchParams.get('tagMode') || 'or')
   const [supportLevel, setSupportLevel]             = useState(searchParams.get('supportLevel') || '')
   const [creatorId, setCreatorId]                   = useState(searchParams.get('creatorId') || '')
   const [emailStatus, setEmailStatus]               = useState(searchParams.get('emailStatus') || 'all')
@@ -281,6 +294,15 @@ export default function AdvancedFilters({
   // Count states
   const [currentCount, setCurrentCount] = useState(totalContactsCount)
   const [isCounting, setIsCounting] = useState(false)
+
+  // Saved filters states
+  const [saveName, setSaveName] = useState('')
+  const [saveDescription, setSaveDescription] = useState('')
+  const [saveShared, setSaveShared] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [showSaveSection, setShowSaveSection] = useState(false)
 
   // Sync count state when prop changes
   useEffect(() => {
@@ -316,7 +338,10 @@ export default function AdvancedFilters({
       } else {
         if (lastContactMobile)   params.lastContactMobile = lastContactMobile
         if (territory)           params.territory = territory
-        if (tag)                 params.tag = tag
+        if (tag) {
+          params.tag = tag
+          if (tagMode) params.tagMode = tagMode
+        }
         if (supportLevel)        params.supportLevel = supportLevel
         if (creatorId)           params.creatorId = creatorId
         if (emailStatus && emailStatus !== 'all')   params.emailStatus = emailStatus
@@ -339,7 +364,7 @@ export default function AdvancedFilters({
     }, 300)
 
     return () => clearTimeout(timer)
-  }, [chips, lastContactMobile, territory, tag, supportLevel, creatorId, emailStatus, phoneStatus, gender, permanenceStep, localisationStatus, contactType, ageRange, mode, rules, activeTab, showAdvanced])
+  }, [chips, lastContactMobile, territory, tag, tagMode, supportLevel, creatorId, emailStatus, phoneStatus, gender, permanenceStep, localisationStatus, contactType, ageRange, mode, rules, activeTab, showAdvanced])
 
   // Sync state with URL
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -348,6 +373,7 @@ export default function AdvancedFilters({
     setLastContactMobile(searchParams.get('lastContactMobile') || '')
     setTerritory(searchParams.get('territory') || '')
     setTag(searchParams.get('tag') || '')
+    setTagMode(searchParams.get('tagMode') || 'or')
     setSupportLevel(searchParams.get('supportLevel') || '')
     setCreatorId(searchParams.get('creatorId') || '')
     setEmailStatus(searchParams.get('emailStatus') || 'all')
@@ -402,7 +428,10 @@ export default function AdvancedFilters({
     } else {
       if (lastContactMobile)   params.set('lastContactMobile', lastContactMobile)
       if (territory)           params.set('territory', territory)
-      if (tag)                 params.set('tag', tag)
+      if (tag) {
+        params.set('tag', tag)
+        if (tagMode) params.set('tagMode', tagMode)
+      }
       if (supportLevel)        params.set('supportLevel', supportLevel)
       if (creatorId)           params.set('creatorId', creatorId)
       if (emailStatus && emailStatus !== 'all')   params.set('emailStatus', emailStatus)
@@ -435,6 +464,248 @@ export default function AdvancedFilters({
     buildAndNavigate(newChips)
   }
 
+  const applySavedFilter = (payloadStr: string) => {
+    try {
+      const parsed = JSON.parse(payloadStr)
+      const params = new URLSearchParams()
+      Object.entries(parsed).forEach(([k, v]) => {
+        if (v) params.set(k, v as string)
+      })
+      router.push(`/contacts?${params.toString()}`)
+      setShowAdvanced(false)
+    } catch (err) {
+      console.error('Error applying saved filter:', err)
+    }
+  }
+
+  const handleSaveFilter = async () => {
+    if (!saveName.trim()) {
+      setSaveError('Veuillez saisir un nom pour le filtre.')
+      return
+    }
+    setIsSaving(true)
+    setSaveError('')
+    setSaveSuccess(false)
+    
+    const payloadObj: Record<string, string> = {}
+    const byType = (type: ChipType) => chips.filter(c => c.type === type).map(c => c.value).join(',')
+    if (byType('city'))   payloadObj.city = byType('city')
+    if (byType('phone'))  payloadObj.phone = byType('phone')
+    if (byType('name'))   payloadObj.nameQ = byType('name')
+    if (byType('street')) payloadObj.streetQ = byType('street')
+
+    if (activeTab === 'advanced') {
+      const rulesPayload = {
+        mode,
+        rules: rules.map(r => ({
+          dataType: r.dataType,
+          property: r.property,
+          operator: r.operator,
+          value: r.value,
+          condition: r.condition,
+        }))
+      }
+      payloadObj.advanced_rules = JSON.stringify(rulesPayload)
+    } else {
+      if (lastContactMobile)   payloadObj.lastContactMobile = lastContactMobile
+      if (territory)           payloadObj.territory = territory
+      if (tag) {
+        payloadObj.tag = tag
+        if (tagMode) payloadObj.tagMode = tagMode
+      }
+      if (supportLevel)        payloadObj.supportLevel = supportLevel
+      if (creatorId)           payloadObj.creatorId = creatorId
+      if (emailStatus && emailStatus !== 'all')   payloadObj.emailStatus = emailStatus
+      if (phoneStatus && phoneStatus !== 'all')   payloadObj.phoneStatus = phoneStatus
+      if (gender && gender !== 'all')             payloadObj.gender = gender
+      if (permanenceStep && permanenceStep !== 'all') payloadObj.permanenceStep = permanenceStep
+      if (localisationStatus && localisationStatus !== 'all') payloadObj.localisationStatus = localisationStatus
+      if (contactType && contactType !== 'all')   payloadObj.contactType = contactType
+      if (ageRange)                               payloadObj.ageRange = ageRange
+    }
+
+    try {
+      const { createSavedFilter } = await import('./filters-actions')
+      const res = await createSavedFilter(saveName, saveDescription, JSON.stringify(payloadObj), saveShared)
+      if (res.success) {
+        setSaveSuccess(true)
+        setSaveName('')
+        setSaveDescription('')
+        setSaveShared(false)
+        setShowSaveSection(false)
+        router.refresh()
+      } else {
+        setSaveError(res.error || 'Erreur lors de la sauvegarde.')
+      }
+    } catch (err: any) {
+      setSaveError(err.message || 'Erreur interne.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteFilter = async (id: string) => {
+    if (!confirm('Voulez-vous vraiment supprimer ce filtre enregistré ?')) return
+    try {
+      const { deleteSavedFilter } = await import('./filters-actions')
+      const res = await deleteSavedFilter(id)
+      if (res.success) {
+        router.refresh()
+      } else {
+        alert(res.error || 'Erreur lors de la suppression.')
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erreur interne.')
+    }
+  }
+
+  const getActiveFilterBadges = () => {
+    const badges: { key: string; label: string; remove: () => void }[] = []
+    
+    const p = searchParams
+    
+    if (p.get('tag')) {
+      const modeText = p.get('tagMode') === 'and' ? 'ET' : p.get('tagMode') === 'not' ? 'SANS' : 'OU'
+      badges.push({
+        key: 'tag',
+        label: `Tags (${modeText}) : ${p.get('tag')}`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('tag')
+          params.delete('tagMode')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    if (p.get('supportLevel')) {
+      badges.push({
+        key: 'supportLevel',
+        label: `Soutien : ${p.get('supportLevel')}`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('supportLevel')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    if (p.get('contactType')) {
+      badges.push({
+        key: 'contactType',
+        label: `Type : ${p.get('contactType')}`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('contactType')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    if (p.get('ageRange')) {
+      badges.push({
+        key: 'ageRange',
+        label: `Âge : ${p.get('ageRange')}`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('ageRange')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    if (p.get('territory')) {
+      badges.push({
+        key: 'territory',
+        label: `Territoire : ${p.get('territory')}`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('territory')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    if (p.get('creatorId')) {
+      const creator = teamMembers.find(m => m.id === p.get('creatorId'))
+      const name = creator ? `${creator.firstName} ${creator.lastName}` : p.get('creatorId')
+      badges.push({
+        key: 'creatorId',
+        label: `Créé par : ${name}`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('creatorId')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    if (p.get('emailStatus') && p.get('emailStatus') !== 'all') {
+      const val = p.get('emailStatus') === 'has_email' ? 'Avec email' : 'Sans email'
+      badges.push({
+        key: 'emailStatus',
+        label: `Email : ${val}`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('emailStatus')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    if (p.get('phoneStatus') && p.get('phoneStatus') !== 'all') {
+      const val = p.get('phoneStatus') === 'mobile' ? 'Mobile' : p.get('phoneStatus') === 'any' ? 'Avec tél.' : 'Sans tél.'
+      badges.push({
+        key: 'phoneStatus',
+        label: `Tél : ${val}`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('phoneStatus')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    if (p.get('gender') && p.get('gender') !== 'all') {
+      badges.push({
+        key: 'gender',
+        label: `Genre : ${p.get('gender')}`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('gender')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    if (p.get('permanenceStep') && p.get('permanenceStep') !== 'all') {
+      badges.push({
+        key: 'permanenceStep',
+        label: `Perm. : ${p.get('permanenceStep')}`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('permanenceStep')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    if (p.get('localisationStatus') && p.get('localisationStatus') !== 'all') {
+      badges.push({
+        key: 'localisationStatus',
+        label: `Localisation : ${p.get('localisationStatus')}`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('localisationStatus')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    if (p.get('advanced_rules')) {
+      badges.push({
+        key: 'advanced_rules',
+        label: `Filtres avancés`,
+        remove: () => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.delete('advanced_rules')
+          router.push(`/contacts?${params.toString()}`)
+        }
+      })
+    }
+    
+    return badges
+  }
+
   // Reset all filters
   const resetAll = () => {
     setChips([])
@@ -442,6 +713,7 @@ export default function AdvancedFilters({
     setLastContactMobile('')
     setTerritory('')
     setTag('')
+    setTagMode('or')
     setSupportLevel('')
     setCreatorId('')
     setEmailStatus('all')
@@ -480,6 +752,7 @@ export default function AdvancedFilters({
         lastContactMobile,
         territory,
         tag,
+        tagMode,
         supportLevel,
         creatorId,
         emailStatus,
@@ -497,7 +770,7 @@ export default function AdvancedFilters({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && inputValue.trim()) {
-      addChip(inputValue, detectType(inputValue, uniqueCities))
+      addChip(inputValue, detectType(inputValue, cityNames))
     }
     if (e.key === 'Backspace' && !inputValue && chips.length > 0) {
       removeChip(chips[chips.length - 1].id)
@@ -585,6 +858,43 @@ export default function AdvancedFilters({
           </button>
         )}
 
+        {/* Saved Filters Dropdown */}
+        {savedFilters.length > 0 && (
+          <>
+            <div style={{ width: '1px', height: '24px', background: 'var(--border)', flexShrink: 0 }} />
+            <div style={{ position: 'relative' }}>
+              <select
+                onChange={e => {
+                  if (e.target.value) {
+                    applySavedFilter(e.target.value)
+                    e.target.value = ''
+                  }
+                }}
+                defaultValue=""
+                style={{
+                  padding: '0.4rem 0.5rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  backgroundColor: 'white',
+                  color: 'var(--text-muted)',
+                  outline: 'none',
+                  maxWidth: '180px'
+                }}
+              >
+                <option value="" disabled>💾 Filtres sauv.</option>
+                {savedFilters.map(f => (
+                  <option key={f.id} value={f.payload}>
+                    {f.name} {f.isShared ? '👥' : '🔒'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+
         <div style={{ width: '1px', height: '24px', background: 'var(--border)', flexShrink: 0 }} />
 
         {/* Advanced filters toggle */}
@@ -609,6 +919,52 @@ export default function AdvancedFilters({
           {hasAdvancedFilters ? `Filtres (${totalActiveFilters})` : 'Filtres'}
         </button>
       </div>
+
+      {/* ─── Active Filter Pills ─── */}
+      {getActiveFilterBadges().length > 0 && (
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center',
+          marginTop: '0.5rem', padding: '0.25rem 0.5rem'
+        }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>Filtres actifs :</span>
+          {getActiveFilterBadges().map(badge => (
+            <span
+              key={badge.key}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                padding: '0.2rem 0.6rem', borderRadius: '999px',
+                fontSize: '0.76rem', fontWeight: 600,
+                backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569'
+              }}
+            >
+              {badge.label}
+              <button
+                onClick={badge.remove}
+                title="Supprimer ce filtre"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', padding: 0,
+                  color: '#94a3b8'
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                onMouseLeave={e => (e.currentTarget.style.color = '#94a3b8')}
+              >
+                <X size={12} strokeWidth={2.5} />
+              </button>
+            </span>
+          ))}
+          <button
+            onClick={resetAll}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: '0.76rem', color: '#ef4444', fontWeight: 600,
+              textDecoration: 'underline', padding: '0.2rem'
+            }}
+          >
+            Tout effacer
+          </button>
+        </div>
+      )}
 
       {/* ─── Hint row ─── */}
       {chips.length === 0 && (
@@ -707,22 +1063,61 @@ export default function AdvancedFilters({
                     style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
                   >
                     <option value="">Choisir</option>
-                    {uniqueTerritories.map(t => <option key={t} value={t}>{t}</option>)}
+                    {uniqueTerritories.map(t => <option key={t.name} value={t.name}>{t.name} ({t.count})</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
                     Tags
                   </label>
-                  <select
-                    value={tag}
-                    onChange={e => setTag(e.target.value)}
-                    className="form-control"
-                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
-                  >
-                    <option value="">Rechercher des citoyens</option>
-                    {allTags.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                  </select>
+                  <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', maxHeight: '120px', overflowY: 'auto', background: 'white' }}>
+                    {allTags.map(t => {
+                      const selectedTags = tag.split(',').filter(Boolean)
+                      const isChecked = selectedTags.includes(t.name)
+                      return (
+                        <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', cursor: 'pointer', marginBottom: '4px' }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={e => {
+                              let newTags = [...selectedTags]
+                              if (e.target.checked) {
+                                newTags.push(t.name)
+                              } else {
+                                newTags = newTags.filter(x => x !== t.name)
+                              }
+                              setTag(newTags.join(','))
+                            }}
+                            style={{ accentColor: '#ec4899' }}
+                          />
+                          <span>{t.name} ({t.count})</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '0.4rem' }}>
+                    {['or', 'and', 'not'].map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setTagMode(mode)}
+                        style={{
+                          flex: 1,
+                          padding: '3px 6px',
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          borderRadius: '4px',
+                          border: '1px solid var(--border)',
+                          cursor: 'pointer',
+                          backgroundColor: tagMode === mode ? '#ec4899' : 'white',
+                          color: tagMode === mode ? 'white' : '#475569',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        {mode === 'or' ? 'OU' : mode === 'and' ? 'ET' : 'SANS'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label style={{ display: 'block', color: '#ec4899', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
@@ -735,11 +1130,9 @@ export default function AdvancedFilters({
                     style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
                   >
                     <option value="">Choisir</option>
-                    <option value="1">1 — Très défavorable</option>
-                    <option value="2">2 — Défavorable</option>
-                    <option value="3">3 — Neutre</option>
-                    <option value="4">4 — Favorable</option>
-                    <option value="5">5 — Très favorable</option>
+                    {supportLevels.map(sl => (
+                      <option key={sl.value} value={sl.value}>{sl.label} ({sl.count})</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -753,13 +1146,9 @@ export default function AdvancedFilters({
                     style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
                   >
                     <option value="all">Tous les types</option>
-                    <option value="ELECTEUR">Électeur</option>
-                    <option value="ELU">Élu</option>
-                    <option value="CONTACT_MAIRIE">Contact Mairie</option>
-                    <option value="ASSO">Association</option>
-                    <option value="PARTENAIRE">Partenaire</option>
-                    <option value="PRESSE">Presse</option>
-                    <option value="AUTRE">Autre</option>
+                    {contactTypes.map(ct => (
+                      <option key={ct.value} value={ct.value}>{ct.label} ({ct.count})</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -773,12 +1162,9 @@ export default function AdvancedFilters({
                     style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
                   >
                     <option value="">Choisir</option>
-                    <option value="Moins de 18 ans">Moins de 18 ans</option>
-                    <option value="18-25 ans">18-25 ans</option>
-                    <option value="26-35 ans">26-35 ans</option>
-                    <option value="36-50 ans">36-50 ans</option>
-                    <option value="51-65 ans">51-65 ans</option>
-                    <option value="Plus de 65 ans">Plus de 65 ans</option>
+                    {ageRanges.map(ar => (
+                      <option key={ar.value} value={ar.value}>{ar.value} ({ar.count})</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -798,7 +1184,7 @@ export default function AdvancedFilters({
                   >
                     <option value="">Choisir</option>
                     {teamMembers.map(m => (
-                      <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>
+                      <option key={m.id} value={m.id}>{m.firstName} {m.lastName} ({m.count})</option>
                     ))}
                   </select>
                 </div>
@@ -982,50 +1368,37 @@ export default function AdvancedFilters({
                             style={{
                               flex: 1, padding: '0.25rem', borderRadius: '4px', border: 'none', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
                               background: rule.condition === 'AND' ? '#22c55e' : 'transparent',
-                              color: rule.condition === 'AND' ? 'white' : '#64748b'
+                              color: rule.condition === 'AND' ? 'white' : '#64748b',
+                              transition: 'all 0.15s'
                             }}
                           >
-                            et
+                            ET
                           </button>
                           <button
                             onClick={() => updateRule(rule.id, { condition: 'OR' })}
                             style={{
                               flex: 1, padding: '0.25rem', borderRadius: '4px', border: 'none', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
                               background: rule.condition === 'OR' ? '#22c55e' : 'transparent',
-                              color: rule.condition === 'OR' ? 'white' : '#64748b'
+                              color: rule.condition === 'OR' ? 'white' : '#64748b',
+                              transition: 'all 0.15s'
                             }}
                           >
-                            ou
+                            OU
                           </button>
                         </div>
-                        <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                        <div style={{ flex: 1, height: '1px', background: 'var(--border)' }}></div>
                       </div>
                     )}
 
-                    {/* Inputs row */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '160px 180px 150px 1fr 80px', gap: '1rem', alignItems: 'flex-end' }}>
-                      {/* Data Type */}
+                    {/* Rule Inputs */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.5fr auto', gap: '0.75rem', alignItems: 'flex-end', background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      
+                      {/* Property */}
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Type de données</label>
-                        <select
-                          value={rule.dataType}
-                          onChange={e => handleDataTypeChange(rule.id, e.target.value)}
-                          className="form-control"
-                          style={{ fontSize: '0.85rem', padding: '0.4rem 0.5rem' }}
-                        >
-                          <option value="contacts">Contacts</option>
-                          <option value="tasks">Tâches</option>
-                          <option value="mailcases">Courriers</option>
-                          <option value="writtenquestions">Questions Écrites</option>
-                        </select>
-                      </div>
-
-                      {/* Properties */}
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Propriétés</label>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Champ ciblé</label>
                         <select
                           value={rule.property}
-                          onChange={e => updateRule(rule.id, { property: e.target.value })}
+                          onChange={e => handleDataTypeChange(rule.id, e.target.value)}
                           className="form-control"
                           style={{ fontSize: '0.85rem', padding: '0.4rem 0.5rem' }}
                         >
@@ -1045,6 +1418,7 @@ export default function AdvancedFilters({
                           style={{ fontSize: '0.85rem', padding: '0.4rem 0.5rem' }}
                         >
                           <option value="contains">contient</option>
+                          <option value="notContains">ne contient pas</option>
                           <option value="equals">est égal à</option>
                           <option value="isEmpty">est vide</option>
                           <option value="isNotEmpty">est renseigné</option>
@@ -1075,23 +1449,12 @@ export default function AdvancedFilters({
                       </div>
 
                       {/* Delete */}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        {idx === 0 ? (
-                          <button
-                            onClick={() => resetAll()}
-                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, paddingBottom: '0.5rem' }}
-                          >
-                            Effacer
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => deleteRule(rule.id)}
-                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', paddingBottom: '0.5rem' }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => deleteRule(rule.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', paddingBottom: '0.5rem' }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
 
                   </div>
@@ -1101,6 +1464,7 @@ export default function AdvancedFilters({
               {/* Add rule buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1.5rem' }}>
                 <button
+                  type="button"
                   onClick={addRule}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'none', border: 'none',
@@ -1110,6 +1474,7 @@ export default function AdvancedFilters({
                   <Plus size={14} /> Ajouter un filtre
                 </button>
                 <button
+                  type="button"
                   onClick={addRule}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'none', border: 'none',
@@ -1122,6 +1487,108 @@ export default function AdvancedFilters({
 
             </div>
           )}
+
+          {/* Section : Recherches enregistrées */}
+          <div style={{ marginTop: '2rem', borderTop: '1px dashed var(--border)', paddingTop: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--foreground)' }}>💾 Recherches enregistrées</span>
+              <button
+                type="button"
+                onClick={() => setShowSaveSection(!showSaveSection)}
+                style={{
+                  background: 'none', border: 'none', color: '#ec4899',
+                  fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline'
+                }}
+              >
+                {showSaveSection ? 'Annuler' : 'Enregistrer ces filtres'}
+              </button>
+            </div>
+
+            {showSaveSection && (
+              <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px', marginBottom: '1rem' }}>
+                <div style={{ marginBottom: '8px' }}>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Nom du filtre</label>
+                  <input
+                    type="text"
+                    value={saveName}
+                    onChange={e => setSaveName(e.target.value)}
+                    placeholder="ex: Électeurs +65 ans"
+                    className="form-control"
+                    style={{ fontSize: '0.85rem', padding: '0.4rem 0.5rem' }}
+                  />
+                </div>
+                <div style={{ marginBottom: '8px' }}>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Description (facultative)</label>
+                  <input
+                    type="text"
+                    value={saveDescription}
+                    onChange={e => setSaveDescription(e.target.value)}
+                    placeholder="ex: Utilisé pour le publipostage"
+                    className="form-control"
+                    style={{ fontSize: '0.85rem', padding: '0.4rem 0.5rem' }}
+                  />
+                </div>
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    type="checkbox"
+                    id="saveSharedCb"
+                    checked={saveShared}
+                    onChange={e => setSaveShared(e.target.checked)}
+                    style={{ accentColor: '#ec4899' }}
+                  />
+                  <label htmlFor="saveSharedCb" style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                    Partager ce filtre avec l'équipe 👥
+                  </label>
+                </div>
+                {saveError && <p style={{ fontSize: '0.78rem', color: '#ef4444', margin: '0 0 8px 0' }}>{saveError}</p>}
+                <button
+                  type="button"
+                  onClick={handleSaveFilter}
+                  disabled={isSaving}
+                  style={{
+                    width: '100%', padding: '0.45rem', fontSize: '0.8rem', fontWeight: 600,
+                    backgroundColor: '#ec4899', color: 'white', border: 'none', borderRadius: '6px',
+                    cursor: isSaving ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {isSaving ? 'Enregistrement...' : 'Enregistrer'}
+                </button>
+              </div>
+            )}
+
+            {savedFilters.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '150px', overflowY: 'auto', paddingRight: '4px' }}>
+                {savedFilters.map(f => (
+                  <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px', border: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {f.name} {f.isShared ? '👥' : '🔒'}
+                      </span>
+                      {f.description && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.description}</span>}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => applySavedFilter(f.payload)}
+                        style={{ background: 'none', border: 'none', color: '#ec4899', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                      >
+                        Appliquer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFilter(f.id)}
+                        style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px' }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>Aucun filtre enregistré.</p>
+            )}
+          </div>
 
           {/* Drawer Actions */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
@@ -1167,4 +1634,3 @@ export default function AdvancedFilters({
     </div>
   )
 }
-

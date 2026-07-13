@@ -91,6 +91,7 @@ model User {
   bulkCommunications   BulkCommunication[]   @relation("BulkCommsCreator")
   interactionsCreated  ContactInteraction[]
   taskComments         TaskComment[]         @relation("TaskCommentAuthor")
+  savedFilters         SavedFilter[]
 }
 
 model UserSession {
@@ -1014,5 +1015,21 @@ model PlanningComment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([date])
+}
+
+model SavedFilter {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  payload     String   // Le JSON stringifié contenant tous les filtres actifs
+  isShared    Boolean  @default(false)
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([userId, name])
 }
 
