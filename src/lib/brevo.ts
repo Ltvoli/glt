@@ -105,3 +105,69 @@ export async function syncContactToBrevo(contactId: string, listIds: number[] = 
     return { success: false, error: String(err) }
   }
 }
+
+export async function syncListToBrevoBatch(contacts: any[], listIds: number[]) {
+  const apiKey = process.env.BREVO_API_KEY
+  if (!apiKey) {
+    console.log(`[BREVO SIMULATION] API Key non configurée. Synchronisation en lot simulée de ${contacts.length} contacts`)
+    return { simulated: true, success: true, count: contacts.length }
+  }
+
+  // Filtrer les contacts sans email et sans SMS/phone
+  const validContacts = contacts.filter(c => c.email || c.mobilePhone || c.phone)
+  if (validContacts.length === 0) {
+    return { success: false, error: 'Aucun contact valide à synchroniser (tous sans email ni téléphone).' }
+  }
+
+  // Construire le CSV
+  let csvContent = 'EMAIL;NOM;PRENOM;VILLE;SMS\n'
+  for (const contact of validContacts) {
+    const email = contact.email || ''
+    const nom = contact.lastName || ''
+    const prenom = contact.firstName || ''
+    const ville = contact.city || ''
+    
+    let formattedSms = contact.mobilePhone || contact.phone || ''
+    if (formattedSms.startsWith('0')) {
+      formattedSms = '33' + formattedSms.substring(1)
+    }
+    formattedSms = formattedSms.replace(/[^0-9]/g, '')
+
+    // Échapper les points-virgules potentiels dans les champs textuels
+    const cleanNom = nom.replace(/;/g, ' ')
+    const cleanPrenom = prenom.replace(/;/g, ' ')
+    const cleanVille = ville.replace(/;/g, ' ')
+
+    csvContent += `${email};${cleanNom};${cleanPrenom};${cleanVille};${formattedSms}\n`
+  }
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/contacts/import', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': apiKey,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        fileBody: csvContent,
+        listIds,
+        updateExistingContacts: true,
+        emptyContactsAttributes: false
+      })
+    })
+
+    if (!res.ok) {
+      const errorText = await res.text()
+      throw new Error(`Erreur Brevo API (${res.status}): ${errorText}`)
+    }
+
+    const data = await res.json()
+    console.log(`[BREVO] Batch import démarré avec succès ! Process ID:`, data.processId)
+    return { success: true, processId: data.processId, count: validContacts.length }
+  } catch (err) {
+    console.error('[BREVO] Échec de l\'import en lot :', err)
+    return { success: false, error: String(err) }
+  }
+}
+

@@ -311,7 +311,7 @@ export async function addContactsToListBulk(
 }
 
 export async function syncListToBrevo(listId: string, brevoListId: number): Promise<{ success: boolean; error?: string; syncedCount?: number }> {
-  const { syncContactToBrevo } = await import('@/lib/brevo')
+  const { syncListToBrevoBatch } = await import('@/lib/brevo')
   try {
     const session = await requireWriteAccess()
     
@@ -327,12 +327,9 @@ export async function syncListToBrevo(listId: string, brevoListId: number): Prom
     if (!list) return { success: false, error: 'Liste introuvable.' }
     if (list.contacts.length === 0) return { success: false, error: 'La liste est vide.' }
 
-    let count = 0
-    for (const contact of list.contacts) {
-      if (contact.email) {
-        const res = await syncContactToBrevo(contact.id, [brevoListId])
-        if (res.success) count++
-      }
+    const res = await syncListToBrevoBatch(list.contacts, [brevoListId])
+    if (!res.success) {
+      return { success: false, error: res.error || 'Erreur lors de l\'import en lot.' }
     }
 
     await logAudit(
@@ -340,11 +337,11 @@ export async function syncListToBrevo(listId: string, brevoListId: number): Prom
       'ContactList',
       listId,
       session.userId,
-      { brevoListId, count }
+      { brevoListId, count: res.count }
     )
 
     revalidatePath(`/contacts/lists/${listId}`)
-    return { success: true, syncedCount: count }
+    return { success: true, syncedCount: res.count }
   } catch (err: any) {
     console.error('Error syncing list to Brevo:', err)
     return { success: false, error: err.message || 'Erreur interne' }
