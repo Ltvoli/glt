@@ -450,3 +450,69 @@ export async function getAllAuditLogsForExportAction(
     return { success: false, error: err.message || 'Erreur interne' }
   }
 }
+
+export async function getBrevoSettingsAction(): Promise<ActionResult<{ apiKey: string; senderEmail: string; senderName: string; signature: string }>> {
+  try {
+    await requireAdministrateurSession()
+    const settings = await prisma.setting.findMany({
+      where: {
+        key: {
+          in: ['brevo_api_key', 'brevo_sender_email', 'brevo_sender_name', 'brevo_email_signature']
+        }
+      }
+    })
+    const configMap = new Map(settings.map(s => [s.key, s.value]))
+    return {
+      success: true,
+      data: {
+        apiKey: configMap.get('brevo_api_key') || '',
+        senderEmail: configMap.get('brevo_sender_email') || '',
+        senderName: configMap.get('brevo_sender_name') || '',
+        signature: configMap.get('brevo_email_signature') || ''
+      }
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Erreur interne' }
+  }
+}
+
+export async function saveBrevoSettingsAction(apiKey: string, senderEmail: string, senderName: string, signature: string): Promise<ActionResult> {
+  try {
+    const session = await requireAdministrateurSession()
+
+    await prisma.$transaction([
+      prisma.setting.upsert({
+        where: { key: 'brevo_api_key' },
+        create: { key: 'brevo_api_key', value: apiKey, type: 'SECRET', category: 'Brevo', label: 'Clé API Brevo' },
+        update: { value: apiKey }
+      }),
+      prisma.setting.upsert({
+        where: { key: 'brevo_sender_email' },
+        create: { key: 'brevo_sender_email', value: senderEmail, type: 'STRING', category: 'Brevo', label: 'E-mail de l\'expéditeur' },
+        update: { value: senderEmail }
+      }),
+      prisma.setting.upsert({
+        where: { key: 'brevo_sender_name' },
+        create: { key: 'brevo_sender_name', value: senderName, type: 'STRING', category: 'Brevo', label: 'Nom de l\'expéditeur' },
+        update: { value: senderName }
+      }),
+      prisma.setting.upsert({
+        where: { key: 'brevo_email_signature' },
+        create: { key: 'brevo_email_signature', value: signature, type: 'STRING', category: 'Brevo', label: 'Signature de messagerie' },
+        update: { value: signature }
+      })
+    ])
+
+    await logAudit(
+      'UPDATE_BREVO_SETTINGS',
+      'Setting',
+      'Brevo',
+      session.userId,
+      { senderEmail, senderName }
+    )
+
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Erreur interne' }
+  }
+}

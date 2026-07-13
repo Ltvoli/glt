@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Mail, MessageSquare, Loader2, Sparkles, AlertCircle, FileText, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getMessageTemplates, sendBulkCommunicationAction } from './actions'
+import { getMessageTemplates, sendBulkCommunicationAction, getGlobalSignatureAction, sendTestCommunicationAction } from './actions'
 
 interface CommunicationClientProps {
   totalTarget: number
@@ -46,6 +46,15 @@ export default function CommunicationClient({
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
+  const [signature, setSignature] = useState('')
+  const [isSendingTest, setIsSendingTest] = useState(false)
+
+  // Fetch signature on mount
+  useEffect(() => {
+    getGlobalSignatureAction().then(res => {
+      setSignature(res)
+    })
+  }, [])
 
   // Fetch templates when channel changes
   useEffect(() => {
@@ -101,12 +110,17 @@ export default function CommunicationClient({
 
   const getPreviewContent = (text: string) => {
     if (!text) return ''
-    return text
+    let replaced = text
       .replace(/{firstName}/g, firstContact?.firstName || 'Jean')
       .replace(/{lastName}/g, firstContact?.lastName || 'Dupont')
       .replace(/{city}/g, firstContact?.city || 'Paris')
       .replace(/{email}/g, firstContact?.email || 'jean.dupont@example.com')
       .replace(/{phone}/g, firstContact?.mobilePhone || firstContact?.phone || '0612345678')
+
+    if (channel === 'EMAIL' && signature) {
+      replaced += '\n\n' + signature
+    }
+    return replaced
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -460,6 +474,59 @@ export default function CommunicationClient({
                 {channel === 'EMAIL' ? <Mail size={18} /> : <MessageSquare size={18} />}
                 Confirmer et envoyer à {activeCount} contact(s)
               </>
+            )}
+          </button>
+
+          {/* Test Send Button */}
+          <button
+            type="button"
+            disabled={isSendingTest || !content.trim() || (channel === 'EMAIL' && !subject.trim())}
+            onClick={async () => {
+              if (channel === 'EMAIL' && !subject.trim()) {
+                toast.error('Le sujet est obligatoire pour un e-mail de test.')
+                return
+              }
+              if (!content.trim()) {
+                toast.error('Le contenu est obligatoire pour un e-mail de test.')
+                return
+              }
+
+              setIsSendingTest(true)
+              try {
+                const res = await sendTestCommunicationAction(channel, channel === 'EMAIL' ? subject : null, content)
+                if (res.success) {
+                  toast.success('Test envoyé avec succès ! Vérifiez votre boîte de réception.')
+                } else {
+                  toast.error(res.error || 'Erreur lors de l\'envoi du test.')
+                }
+              } catch (err: any) {
+                toast.error(err.message || 'Erreur lors de l\'envoi.')
+              } finally {
+                setIsSendingTest(false)
+              }
+            }}
+            style={{
+              width: '100%',
+              padding: '10px',
+              borderRadius: '10px',
+              border: '2px solid var(--primary, #3b82f6)',
+              background: 'white',
+              color: 'var(--primary, #3b82f6)',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              cursor: (!content.trim() || (channel === 'EMAIL' && !subject.trim())) ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              transition: 'all 0.15s',
+              marginTop: '0.5rem',
+            }}
+          >
+            {isSendingTest ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <>🧪 Envoyer un test à mon adresse</>
             )}
           </button>
         </form>

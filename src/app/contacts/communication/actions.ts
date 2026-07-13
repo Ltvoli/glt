@@ -105,6 +105,12 @@ export async function sendBulkCommunicationAction(
 
     const failedCount = contacts.length - validContacts.length
 
+    // Retrieve signature setting
+    const signatureSetting = await prisma.setting.findUnique({
+      where: { key: 'brevo_email_signature' }
+    })
+    const signature = signatureSetting?.value || ''
+
     // 3. Create the bulk communication record
     const bulkComm = await prisma.bulkCommunication.create({
       data: {
@@ -120,12 +126,16 @@ export async function sendBulkCommunicationAction(
 
     // 4. Simulate sending and record audit logs
     for (const contact of validContacts) {
-      const personalizedContent = content
+      let personalizedContent = content
         .replace(/{firstName}/g, contact.firstName || '')
         .replace(/{lastName}/g, contact.lastName || '')
         .replace(/{city}/g, contact.city || '')
         .replace(/{email}/g, contact.email || '')
         .replace(/{phone}/g, contact.mobilePhone || contact.phone || '')
+
+      if (channel === 'EMAIL' && signature) {
+        personalizedContent += '\n\n' + signature
+      }
 
       const recipient = channel === 'EMAIL' ? contact.email : contact.mobilePhone
 
@@ -201,5 +211,73 @@ export async function getMessageTemplates(channel: 'EMAIL' | 'SMS') {
   } catch (err) {
     console.error('Error fetching message templates:', err)
     return []
+  }
+}
+
+export async function getGlobalSignatureAction(): Promise<string> {
+  try {
+    const config = await prisma.setting.findUnique({
+      where: { key: 'brevo_email_signature' }
+    })
+    return config?.value || ''
+  } catch (err) {
+    console.error('Error fetching email signature:', err)
+    return ''
+  }
+}
+
+export async function sendTestCommunicationAction(
+  channel: 'EMAIL' | 'SMS',
+  subject: string | null,
+  content: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await requireWriteAccess()
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId }
+    })
+
+    if (!user) {
+      return { success: false, error: 'Utilisateur introuvable.' }
+    }
+
+    const recipient = channel === 'EMAIL' ? user.email : '0600000000'
+
+    if (!recipient) {
+      return { success: false, error: `Aucune coordonnée (${channel === 'EMAIL' ? 'e-mail' : 'téléphone'}) trouvée dans votre profil pour l'envoi de test.` }
+    }
+
+    let personalizedContent = content
+      .replace(/{firstName}/g, user.firstName || '')
+      .replace(/{lastName}/g, user.lastName || '')
+      .replace(/{city}/g, 'Paris (Test)')
+      .replace(/{email}/g, user.email || '')
+      .replace(/{phone}/g, '0600000000')
+
+    if (channel === 'EMAIL') {
+      const signatureSetting = await prisma.setting.findUnique({
+        where: { key: 'brevo_email_signature' }
+      })
+      const signature = signatureSetting?.value || ''
+      if (signature) {
+        personalizedContent += '\n\n' + signature
+      }
+
+      const htmlContent = personalizedContent.replace(/\n/g, '<br />')
+      await sendBrevoEmail(
+        recipient,
+        `${user.firstName} ${user.lastName}`,
+        `[TEST] ${subject || "Communication — BP-Lionel Tivoli"}`,
+        htmlContent
+      )
+    } else {
+      console.log(`[TEST ENVOI SMS] pour ${user.firstName} ${user.lastName} (${recipient}) : ${personalizedContent}`)
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    console.error('Error in sendTestCommunicationAction:', err)
+    return { success: false, error: err.message || 'Erreur interne lors de l\'envoi du test.' }
   }
 }

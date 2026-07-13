@@ -11,6 +11,8 @@ import {
   testWebhookAction,
   getAuditLogsAction,
   getAllAuditLogsForExportAction,
+  getBrevoSettingsAction,
+  saveBrevoSettingsAction,
   AuditLogResult
 } from './actions'
 import { 
@@ -82,10 +84,17 @@ export default function IntegrationsClient({
   initialKeys,
   initialWebhooks
 }: IntegrationsClientProps) {
-  const [activeTab, setActiveTab] = useState<'keys' | 'webhooks' | 'audit'>('keys')
+  const [activeTab, setActiveTab] = useState<'keys' | 'webhooks' | 'audit' | 'brevo'>('keys')
   const [keys, setKeys] = useState<ApiKey[]>(initialKeys)
   const [webhooks, setWebhooks] = useState<WebhookType[]>(initialWebhooks)
   
+  // Brevo Settings State
+  const [brevoApiKey, setBrevoApiKey] = useState('')
+  const [brevoSenderEmail, setBrevoSenderEmail] = useState('')
+  const [brevoSenderName, setBrevoSenderName] = useState('')
+  const [brevoSignature, setBrevoSignature] = useState('')
+  const [isSavingBrevo, setIsSavingBrevo] = useState(false)
+
   // Api Keys Form State
   const [keyName, setKeyName] = useState('')
   const [keyScopes, setKeyScopes] = useState<string[]>([])
@@ -113,6 +122,18 @@ export default function IntegrationsClient({
   const [logsPending, startLogsTransition] = useTransition()
   const [successBanner, setSuccessBanner] = useState('')
   const [errorBanner, setErrorBanner] = useState('')
+
+  // Load Brevo config on mount
+  useEffect(() => {
+    getBrevoSettingsAction().then(res => {
+      if (res.success && res.data) {
+        setBrevoApiKey(res.data.apiKey)
+        setBrevoSenderEmail(res.data.senderEmail)
+        setBrevoSenderName(res.data.senderName)
+        setBrevoSignature(res.data.signature)
+      }
+    })
+  }, [])
 
   const fetchAuditLogs = useCallback(async (targetPage: number) => {
     setLogsLoading(true)
@@ -420,6 +441,22 @@ export default function IntegrationsClient({
           }}
         >
           <FileClock size={16} style={{ display: 'inline', marginRight: '0.25rem', verticalAlign: 'text-bottom' }} /> Audit & Logs
+        </button>
+        <button
+          onClick={() => setActiveTab('brevo')}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '0.5rem 1rem',
+            cursor: 'pointer',
+            fontWeight: '600',
+            color: activeTab === 'brevo' ? 'var(--primary)' : 'var(--text-muted)',
+            borderBottom: activeTab === 'brevo' ? '2px solid var(--primary)' : '2px solid transparent',
+            marginBottom: '-0.6rem',
+            fontSize: '0.875rem'
+          }}
+        >
+          ✉️ Brevo
         </button>
       </div>
 
@@ -1116,7 +1153,99 @@ export default function IntegrationsClient({
               </div>
             </div>
           )}
+        </div>
+      )}
 
+      {/* Tab: Brevo Configuration */}
+      {activeTab === 'brevo' && (
+        <div style={{ maxWidth: '600px' }}>
+          <div className="card" style={{ padding: '1.5rem' }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ✉️ Configuration de la connexion Brevo
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+              Configurez vos identifiants d'envoi Brevo. Ces paramètres seront stockés de manière sécurisée en base de données et prendront le pas sur les variables d'environnement.
+            </p>
+
+            <form onSubmit={async (e) => {
+              e.preventDefault()
+              setErrorBanner('')
+              setSuccessBanner('')
+              setIsSavingBrevo(true)
+              const res = await saveBrevoSettingsAction(brevoApiKey, brevoSenderEmail, brevoSenderName, brevoSignature)
+              setIsSavingBrevo(false)
+              if (res.success) {
+                setSuccessBanner('Paramètres Brevo enregistrés avec succès.')
+              } else {
+                setErrorBanner(res.error || 'Erreur lors de l\'enregistrement')
+              }
+            }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.25rem' }}>
+                  Clé API Brevo (v3)
+                </label>
+                <input
+                  type="password"
+                  value={brevoApiKey}
+                  onChange={e => setBrevoApiKey(e.target.value)}
+                  className="form-control"
+                  placeholder="xkeysib-..."
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.25rem' }}>
+                  E-mail de l'expéditeur
+                </label>
+                <input
+                  type="email"
+                  value={brevoSenderEmail}
+                  onChange={e => setBrevoSenderEmail(e.target.value)}
+                  className="form-control"
+                  placeholder="contact@cabinet.fr"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.25rem' }}>
+                  Nom de l'expéditeur
+                </label>
+                <input
+                  type="text"
+                  value={brevoSenderName}
+                  onChange={e => setBrevoSenderName(e.target.value)}
+                  className="form-control"
+                  placeholder="Lionel Tivoli"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.25rem' }}>
+                  Signature automatique des e-mails
+                </label>
+                <textarea
+                  value={brevoSignature}
+                  onChange={e => setBrevoSignature(e.target.value)}
+                  className="form-control"
+                  placeholder="Cordialement,&#10;L'équipe de Lionel Tivoli"
+                  rows={4}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSavingBrevo}
+                className="button"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', height: '38px', marginTop: '0.5rem', cursor: isSavingBrevo ? 'not-allowed' : 'pointer' }}
+              >
+                {isSavingBrevo ? <Loader2 size={16} className="animate-spin" /> : 'Enregistrer la configuration'}
+              </button>
+            </form>
+          </div>
         </div>
       )}
 

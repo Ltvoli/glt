@@ -65,6 +65,11 @@ export default function AdminNav({ dbRole }: AdminNavProps) {
       icon: FileText
     },
     {
+      name: 'Modèles de messages',
+      href: '/admin/templates/messages',
+      icon: FileText
+    },
+    {
       name: 'Intégrations & API',
       href: '/admin/integrations',
       icon: Webhook,

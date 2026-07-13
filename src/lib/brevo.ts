@@ -1,14 +1,30 @@
 import prisma from '@/lib/prisma'
 
+export async function getBrevoConfig() {
+  const settings = await prisma.setting.findMany({
+    where: {
+      key: {
+        in: ['brevo_api_key', 'brevo_sender_email', 'brevo_sender_name', 'brevo_email_signature']
+      }
+    }
+  })
+
+  const configMap = new Map(settings.map(s => [s.key, s.value]))
+
+  const apiKey = configMap.get('brevo_api_key') || process.env.BREVO_API_KEY || ''
+  const senderEmail = configMap.get('brevo_sender_email') || process.env.BREVO_SENDER_EMAIL || 'no-reply@cabinet-parlementaire.fr'
+  const senderName = configMap.get('brevo_sender_name') || process.env.BREVO_SENDER_NAME || 'BP-Lionel Tivoli'
+  const signature = configMap.get('brevo_email_signature') || ''
+
+  return { apiKey, senderEmail, senderName, signature }
+}
+
 export async function sendBrevoEmail(toEmail: string, toName: string, subject: string, htmlContent: string) {
-  const apiKey = process.env.BREVO_API_KEY
+  const { apiKey, senderEmail, senderName } = await getBrevoConfig()
   if (!apiKey) {
     console.log(`[BREVO SIMULATION] API Key non configurée (BREVO_API_KEY). Envoi simulé à ${toEmail} (${toName}) : ${subject}`)
     return { simulated: true }
   }
-
-  const senderEmail = process.env.BREVO_SENDER_EMAIL || 'no-reply@cabinet-parlementaire.fr'
-  const senderName = process.env.BREVO_SENDER_NAME || 'BP-Lionel Tivoli'
 
   try {
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -41,7 +57,7 @@ export async function sendBrevoEmail(toEmail: string, toName: string, subject: s
 }
 
 export async function syncContactToBrevo(contactId: string, listIds: number[] = []) {
-  const apiKey = process.env.BREVO_API_KEY
+  const { apiKey } = await getBrevoConfig()
   if (!apiKey) {
     console.log(`[BREVO SIMULATION] API Key non configurée. Synchronisation simulée du contact ${contactId}`)
     return { simulated: true }
@@ -107,7 +123,7 @@ export async function syncContactToBrevo(contactId: string, listIds: number[] = 
 }
 
 export async function syncListToBrevoBatch(contacts: any[], listIds: number[]) {
-  const apiKey = process.env.BREVO_API_KEY
+  const { apiKey } = await getBrevoConfig()
   if (!apiKey) {
     console.log(`[BREVO SIMULATION] API Key non configurée. Synchronisation en lot simulée de ${contacts.length} contacts`)
     return { simulated: true, success: true, count: contacts.length }
