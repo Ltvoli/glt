@@ -11,7 +11,7 @@ export default function ImportPage() {
 
       <div className="card" style={{ maxWidth: '800px' }}>
         <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-          Sélectionnez le fichier Excel (.xlsx, .xls) ou CSV exporté depuis Qomon. Le système détectera automatiquement les colonnes et importera les contacts.
+          Sélectionnez le fichier Excel (.xlsx, .xls) ou CSV contenant vos contacts. Le système détectera automatiquement les colonnes et importera les contacts.
           Les doublons (nom + email ou nom + téléphone) seront mis en attente pour vérification manuelle.
         </p>
 

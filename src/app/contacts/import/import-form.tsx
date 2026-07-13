@@ -54,7 +54,7 @@ export default function ImportForm() {
         <form onSubmit={handleImport} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div className="form-group">
             <label htmlFor="file" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-              Fichier Excel ou CSV Qomon
+              Fichier Excel ou CSV
             </label>
             <input 
               type="file" 

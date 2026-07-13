@@ -43,6 +43,10 @@ export default async function WeeklyReportPage({ searchParams }: { searchParams:
 
   // --- STATS PLANNING & UTILISATEURS ---
   const users = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      archivedAt: null
+    },
     include: {
       tasksAssigned: { where: { status: { notIn: ['TERMINEE', 'ANNULEE'] }, createdAt: { lte: endOfWeek } } },
       mailCases: { where: { status: { notIn: ['REPONDU', 'CLASSE'] }, receiveDate: { lte: endOfWeek } } },

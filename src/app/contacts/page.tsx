@@ -179,7 +179,7 @@ export default async function ContactsPage({
             <Download size={15} /> Exporter (CSV)
           </a>
           <Link href="/contacts/import" className="button outline" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Upload size={15} /> Import Qomon
+            <Upload size={15} /> Importer (Excel/CSV)
           </Link>
           <Link href="/contacts/new" className="button" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Plus size={15} /> Nouveau Contact

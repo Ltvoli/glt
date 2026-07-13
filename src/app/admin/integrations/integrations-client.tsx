@@ -608,7 +608,7 @@ export default function IntegrationsClient({
                     type="text"
                     className="form-control"
                     required
-                    placeholder="Ex: Clé Qomon Staging, Linear Bot"
+                    placeholder="Ex: Clé API Staging, Linear Bot"
                     value={keyName}
                     onChange={e => setKeyName(e.target.value)}
                   />
@@ -845,7 +845,7 @@ export default function IntegrationsClient({
                   type="text"
                   className="form-control"
                   required
-                  placeholder="Ex: Synchronisation Qomon, Slack Bot"
+                  placeholder="Ex: Webhook Brevo, Slack Bot"
                   value={webhookName}
                   onChange={e => setWebhookName(e.target.value)}
                 />
