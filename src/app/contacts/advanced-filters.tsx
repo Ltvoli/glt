@@ -306,14 +306,18 @@ export default function AdvancedFilters({
 
   // Sync count state when prop changes
   useEffect(() => {
-    setCurrentCount(totalContactsCount)
+    Promise.resolve().then(() => {
+      setCurrentCount(totalContactsCount)
+    })
   }, [totalContactsCount])
 
   // Debounced live counting on filter changes
   useEffect(() => {
     if (!showAdvanced) return
 
-    setIsCounting(true)
+    Promise.resolve().then(() => {
+      setIsCounting(true)
+    })
     const timer = setTimeout(async () => {
       const params: Record<string, string | undefined> = {}
 
