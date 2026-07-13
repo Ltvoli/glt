@@ -36,6 +36,9 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
       if (relation) params.set('relation', relation)
       if (status) params.set('status', status)
       
+      const folder = searchParams.get('folder')
+      if (folder) params.set('folder', folder)
+      
       const newQueryString = params.toString()
       const currentQueryString = searchParams.toString()
       
