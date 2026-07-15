@@ -676,12 +676,15 @@ model Document {
 }
 
 model DocumentFolder {
-  id        String     @id @default(cuid())
-  name      String     @unique
-  color     String     @default("#64748b")
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  documents Document[] @relation("FolderDocuments")
+  id        String           @id @default(cuid())
+  name      String
+  color     String           @default("#64748b")
+  parentId  String?
+  parent    DocumentFolder?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children  DocumentFolder[] @relation("FolderHierarchy")
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  documents Document[]       @relation("FolderDocuments")
 }
 
 model Notification {

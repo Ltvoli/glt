@@ -14,6 +14,15 @@ export default function DocumentActions({ document, folders = [] }: { document: 
   const [documentType, setDocumentType] = useState(document.documentType)
   const [status, setStatus] = useState(document.status || 'VALIDATED')
   const [folderId, setFolderId] = useState<string | null>(document.folderId || null)
+  const [tagsString, setTagsString] = useState<string>(() => {
+    try {
+      if (document.tags) {
+        const parsed = JSON.parse(document.tags)
+        if (Array.isArray(parsed)) return parsed.join(', ')
+      }
+    } catch {}
+    return typeof document.tags === 'string' ? document.tags : ''
+  })
   
   const router = useRouter()
 
@@ -31,7 +40,11 @@ export default function DocumentActions({ document, folders = [] }: { document: 
 
   const handleSave = async () => {
     try {
-      await updateDocument(document.id, { title, confidentiality, documentType, status, folderId })
+      const tags = tagsString
+        .split(',')
+        .map(t => t.trim())
+        .filter(t => t.length > 0)
+      await updateDocument(document.id, { title, confidentiality, documentType, status, folderId, tags })
       setIsEditing(false)
       setIsOpen(false)
       router.refresh()
@@ -146,6 +159,16 @@ export default function DocumentActions({ document, folders = [] }: { document: 
                     <option key={f.id} value={f.id}>{f.name}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 500, display: 'block', marginBottom: '0.25rem' }}>Tags (séparés par des virgules)</label>
+                <input 
+                  type="text" 
+                  value={tagsString} 
+                  onChange={e => setTagsString(e.target.value)}
+                  placeholder="Ex: Urgent, À traiter"
+                  style={{ width: '100%', padding: '0.25rem 0.5rem', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '0.875rem' }}
+                />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
                 <button onClick={() => setIsEditing(false)} style={{ padding: '0.25rem 0.5rem', background: 'none', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}>Annuler</button>

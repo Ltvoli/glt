@@ -17,7 +17,7 @@ const PALETTE_COLORS = [
   { name: 'Rose', hex: '#ec4899' },
 ]
 
-export default function FolderCreateModal() {
+export default function FolderCreateModal({ parentId }: { parentId?: string | null }) {
   const [isOpen, setIsOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [name, setName] = useState('')
@@ -31,7 +31,7 @@ export default function FolderCreateModal() {
     setError('')
 
     try {
-      await createFolder(name, selectedColor)
+      await createFolder(name, selectedColor, parentId)
       setIsOpen(false)
       setName('')
       setSelectedColor('#64748b')

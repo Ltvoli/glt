@@ -7,12 +7,17 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // We only need local state for the query input to allow smooth typing
+  // We only need local state for the query and tag inputs to allow smooth typing
   const [query, setQuery] = useState(searchParams.get('q') || '')
+  const [tagQuery, setTagQuery] = useState(searchParams.get('tag') || '')
 
-  // Sync query input value if URL changes externally
+  // Sync inputs if URL changes externally
   useEffect(() => {
-    setQuery(searchParams.get('q') || '')
+    const timer = setTimeout(() => {
+      setQuery(searchParams.get('q') || '')
+      setTagQuery(searchParams.get('tag') || '')
+    }, 0)
+    return () => clearTimeout(timer)
   }, [searchParams])
 
   const updateUrl = (newParams: Record<string, string | null>) => {
@@ -39,6 +44,18 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
     return () => clearTimeout(delayDebounceFn)
   }, [query])
 
+  // Debounce tag query changes
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      const currentTag = searchParams.get('tag') || ''
+      if (tagQuery !== currentTag) {
+        updateUrl({ tag: tagQuery })
+      }
+    }, 300)
+
+    return () => clearTimeout(delayDebounceFn)
+  }, [tagQuery])
+
   const type = searchParams.get('type') || ''
   const conf = searchParams.get('conf') || ''
   const author = searchParams.get('author') || ''
@@ -53,6 +70,14 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         style={{ flex: '1 1 250px', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
+      />
+
+      <input 
+        type="text" 
+        placeholder="Filtrer par tag (ex: Urgent)..." 
+        value={tagQuery}
+        onChange={(e) => setTagQuery(e.target.value)}
+        style={{ flex: '1 1 180px', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} 
       />
       
       <select value={type} onChange={(e) => updateUrl({ type: e.target.value })} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
@@ -97,11 +122,12 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
         <option value="DRAFT">Brouillon</option>
       </select>
 
-      {(query || type || conf || author || relation || status) && (
+      {(query || tagQuery || type || conf || author || relation || status) && (
         <button 
           onClick={() => {
             setQuery('')
-            updateUrl({ q: null, type: null, conf: null, author: null, relation: null, status: null })
+            setTagQuery('')
+            updateUrl({ q: null, tag: null, type: null, conf: null, author: null, relation: null, status: null })
           }}
           style={{ padding: '0.5rem 1rem', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
         >

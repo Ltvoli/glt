@@ -8,13 +8,14 @@ import FolderCreateModal from './FolderCreateModal'
 import FolderGrid from './FolderGrid'
 import DocumentActions from './DocumentActions'
 import DocumentFilters from './DocumentFilters'
+import DocumentRow from './DocumentRow'
 import Link from 'next/link'
 import prisma from '@/lib/prisma'
 
 export default async function DocumentsPage({
   searchParams: searchParamsPromise
 }: {
-  searchParams: Promise<{ q?: string, type?: string, conf?: string, author?: string, relation?: string, status?: string, folder?: string }>
+  searchParams: Promise<{ q?: string, type?: string, conf?: string, author?: string, relation?: string, status?: string, folder?: string, tag?: string }>
 }) {
   const session = await getSession()
   if (!session?.userId) redirect('/login')
@@ -54,6 +55,22 @@ export default async function DocumentsPage({
 
   const activeFolder = searchParams.folder ? folders.find(f => f.id === searchParams.folder) : null
 
+  // Compute breadcrumbs path recursively
+  const buildBreadcrumbs = (folderId: string) => {
+    const path: { id: string, name: string, color: string }[] = []
+    let current = folders.find(f => f.id === folderId)
+    while (current) {
+      path.unshift({ id: current.id, name: current.name, color: current.color })
+      const pid = current.parentId
+      current = pid ? folders.find(f => f.id === pid) : undefined
+    }
+    return path
+  }
+  const breadcrumbs = activeFolder ? buildBreadcrumbs(activeFolder.id) : []
+
+  // Folders to show at the current level
+  const currentLevelFolders = folders.filter(f => f.parentId === (searchParams.folder || null))
+
   const [docs, usersData, folderCounts] = await Promise.all([
     getDocuments(
       searchParams.q,
@@ -62,7 +79,8 @@ export default async function DocumentsPage({
       searchParams.author,
       searchParams.relation,
       searchParams.status,
-      searchParams.folder
+      searchParams.folder,
+      searchParams.tag
     ),
     prisma.user.findMany({
       select: { id: true, firstName: true, lastName: true },
@@ -103,15 +121,15 @@ export default async function DocumentsPage({
         </div>
         
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <FolderCreateModal />
-          <DocumentCreateModal folders={folders} />
-          <DocumentUploadModal folders={folders} />
+          <FolderCreateModal parentId={searchParams.folder || null} />
+          <DocumentCreateModal folders={folders} defaultFolderId={searchParams.folder || null} />
+          <DocumentUploadModal folders={folders} defaultFolderId={searchParams.folder || null} />
         </div>
       </header>
 
       <DocumentFilters users={users} />
 
-      {activeFolder ? (
+      {activeFolder && (
         /* Breadcrumbs when inside a folder */
         <div style={{
           display: 'flex',
@@ -124,15 +142,29 @@ export default async function DocumentsPage({
           marginBottom: '2rem',
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem', fontWeight: '500' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem', fontWeight: '500', flexWrap: 'wrap' }}>
             <Link href={getClearLink()} style={{ color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
               Bibliothèque
             </Link>
-            <span style={{ color: '#cbd5e1' }}>/</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: activeFolder.color }}>
-              <Folder size={18} style={{ fill: `${activeFolder.color}20` }} />
-              {activeFolder.name}
-            </span>
+            {breadcrumbs.map((bc, idx) => {
+              const isLast = idx === breadcrumbs.length - 1
+              return (
+                <div key={bc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ color: '#cbd5e1' }}>/</span>
+                  {isLast ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: bc.color }}>
+                      <Folder size={18} style={{ fill: `${bc.color}20` }} />
+                      {bc.name}
+                    </span>
+                  ) : (
+                    <Link href={`/documents?folder=${bc.id}`} style={{ color: bc.color, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Folder size={18} style={{ fill: `${bc.color}20` }} />
+                      {bc.name}
+                    </Link>
+                  )}
+                </div>
+              )
+            })}
           </div>
           
           <Link
@@ -152,15 +184,18 @@ export default async function DocumentsPage({
             Retourner aux dossiers
           </Link>
         </div>
-      ) : (
-        /* Folders grid when at root */
-        <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#1e293b' }}>Dossiers</h2>
-          <FolderGrid folders={folders} counts={counts} searchParams={searchParams} />
-          
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#1e293b' }}>Tous les documents</h2>
-        </div>
       )}
+
+      <div>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#1e293b' }}>
+          {activeFolder ? 'Sous-dossiers' : 'Dossiers'}
+        </h2>
+        <FolderGrid folders={currentLevelFolders} counts={counts} searchParams={searchParams} />
+        
+        <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#1e293b' }}>
+          {activeFolder ? `Documents dans "${activeFolder.name}"` : 'Tous les documents'}
+        </h2>
+      </div>
 
       <div style={{ display: 'grid', gap: '1rem' }}>
         {docs.length === 0 && (
@@ -169,68 +204,7 @@ export default async function DocumentsPage({
           </div>
         )}
         {docs.map(doc => (
-          <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: 'white' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <a 
-                href={`/api/documents/${doc.id}/download`} 
-                target="_blank" 
-                rel="noreferrer"
-                title="Ouvrir le document"
-                className="document-icon-link"
-              >
-                <FileText size={32} />
-              </a>
-              <div>
-                <h3 style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <a 
-                    href={`/api/documents/${doc.id}/download`} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    title="Ouvrir le document"
-                    className="document-title-link"
-                  >
-                    {doc.title}
-                  </a>
-                  
-                  {doc.status === 'PENDING' && <span style={{ padding: '0.1rem 0.4rem', backgroundColor: '#fef08a', color: '#854d0e', fontSize: '0.7rem', borderRadius: '4px' }}>À valider</span>}
-                  {doc.status === 'REJECTED' && <span style={{ padding: '0.1rem 0.4rem', backgroundColor: '#fecaca', color: '#991b1b', fontSize: '0.7rem', borderRadius: '4px' }}>Rejeté</span>}
-                  {doc.status === 'DRAFT' && <span style={{ padding: '0.1rem 0.4rem', backgroundColor: '#e2e8f0', color: '#475569', fontSize: '0.7rem', borderRadius: '4px' }}>Brouillon</span>}
-
-                  {doc.confidentiality === 'SENSIBLE' && <span style={{ padding: '0.1rem 0.4rem', backgroundColor: '#fef08a', color: '#854d0e', fontSize: '0.7rem', borderRadius: '4px' }}>Sensible</span>}
-                  {doc.confidentiality === 'RESTREINT' && <span style={{ padding: '0.1rem 0.4rem', backgroundColor: '#fed7aa', color: '#9a3412', fontSize: '0.7rem', borderRadius: '4px' }}>Restreint</span>}
-                  {doc.confidentiality === 'CONFIDENTIEL' && <span style={{ padding: '0.1rem 0.4rem', backgroundColor: '#fecaca', color: '#991b1b', fontSize: '0.7rem', borderRadius: '4px' }}>Confidentiel</span>}
-                </h3>
-                <p style={{ fontSize: '0.875rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {doc.documentType} • {(doc.size / 1024).toFixed(1)} KB • Par {doc.uploadedBy.name}
-                  
-                  {doc.contact && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                      <LinkIcon size={12} /> <Link href={`/contacts/${doc.contact.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>{doc.contact.firstName} {doc.contact.lastName}</Link>
-                    </span>
-                  )}
-                  {doc.task && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                      <LinkIcon size={12} /> <Link href={`/tasks/${doc.task.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>Tâche: {doc.task.title}</Link>
-                    </span>
-                  )}
-                  {doc.mailCase && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                      <LinkIcon size={12} /> <Link href={`/mails/${doc.mailCase.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>Courrier: {doc.mailCase.reference}</Link>
-                    </span>
-                  )}
-                  {doc.question && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                      <LinkIcon size={12} /> <Link href={`/qe/${doc.question.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>QE: {doc.question.anNumber || doc.question.title}</Link>
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <DocumentActions document={JSON.parse(JSON.stringify(doc))} folders={folders} />
-            </div>
-          </div>
+          <DocumentRow key={doc.id} doc={doc} folders={folders} />
         ))}
       </div>
     </div>
