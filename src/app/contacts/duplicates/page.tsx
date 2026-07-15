@@ -21,16 +21,15 @@ export default async function DuplicatesPage() {
     where: { archivedAt: null }
   })
 
-  // Compter les contacts avec nom/prénom exact identique
+  // Compter les contacts avec nom/prénom exact identique (requête optimisée sans sous-requête corrélée)
   const duplicateContactsCountResult = await prisma.$queryRawUnsafe<{ count: number }[]>(`
-    SELECT COUNT(*)::integer as count FROM "Contact" c
-    WHERE "archivedAt" IS NULL AND EXISTS (
-      SELECT 1 FROM "Contact" c2
-      WHERE c2.id <> c.id 
-        AND c2."archivedAt" IS NULL 
-        AND LOWER(c2."firstName") = LOWER(c."firstName") 
-        AND LOWER(c2."lastName") = LOWER(c."lastName")
-    );
+    SELECT COALESCE(SUM(count)::integer, 0) as count FROM (
+      SELECT COUNT(*) as count
+      FROM "Contact"
+      WHERE "archivedAt" IS NULL
+      GROUP BY LOWER("firstName"), LOWER("lastName")
+      HAVING COUNT(*) > 1
+    ) dup;
   `)
   const duplicateContactsCount = duplicateContactsCountResult[0]?.count || 0
 
