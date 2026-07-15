@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { Role } from '@prisma/client'
+import { isPermissionsCacheLoaded, refreshPermissionsCache } from './permissions'
 
 const secretKey = process.env.JWT_SECRET || 'dev-secret-key'
 const key = new TextEncoder().encode(secretKey)
@@ -57,6 +58,11 @@ export async function getSession() {
   
   const payload = await decrypt(session)
   if (!payload) return null
+
+  // Auto-initialize permissions cache if it was cleared/restart occurred
+  if (!isPermissionsCacheLoaded()) {
+    await refreshPermissionsCache()
+  }
   
   return {
     userId: payload.sub,

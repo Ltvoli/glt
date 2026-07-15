@@ -68,7 +68,11 @@ ROLE_PERMISSIONS.COORDINATEUR = ROLE_PERMISSIONS.USER
 ROLE_PERMISSIONS.USER_RAW = ROLE_PERMISSIONS.READONLY
 
 // Dynamic cache
-let rolePermissionsCache: Record<string, string[]> | null = null
+export let rolePermissionsCache: Record<string, string[]> | null = null
+
+export function isPermissionsCacheLoaded(): boolean {
+  return rolePermissionsCache !== null
+}
 
 export async function refreshPermissionsCache() {
   try {
