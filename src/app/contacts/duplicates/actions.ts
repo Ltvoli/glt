@@ -194,11 +194,18 @@ async function fusionnerContacts(
       }
     })
 
-    // 4. Résoudre le candidat courant
-    await tx.duplicateCandidate.update({
-      where: { id: candidateId },
-      data: { status: 'RESOLVED' }
-    })
+    // 4. Résoudre le candidat courant s'il existe
+    if (candidateId && candidateId !== 'manual') {
+      const exists = await tx.duplicateCandidate.findUnique({
+        where: { id: candidateId }
+      })
+      if (exists) {
+        await tx.duplicateCandidate.update({
+          where: { id: candidateId },
+          data: { status: 'RESOLVED' }
+        })
+      }
+    }
 
     // 5. Archiver le contact doublon
     await tx.contact.update({
