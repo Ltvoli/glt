@@ -178,6 +178,9 @@ export default async function ContactsPage({
           <a href={`/api/contacts/export?format=csv&${filterParams}`} className="button outline" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Download size={15} /> Exporter (CSV)
           </a>
+          <Link href="/contacts/duplicates" className="button outline" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#b45309', borderColor: '#fcd34d', backgroundColor: '#fffbeb' }}>
+            <Copy size={15} /> Doublons
+          </Link>
           <Link href="/contacts/import" className="button outline" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Upload size={15} /> Importer (Excel/CSV)
           </Link>
