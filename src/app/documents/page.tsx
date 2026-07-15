@@ -83,6 +83,7 @@ export default async function DocumentsPage({
       searchParams.tag
     ),
     prisma.user.findMany({
+      where: { isActive: true, archivedAt: null },
       select: { id: true, firstName: true, lastName: true },
       orderBy: [
         { firstName: 'asc' },

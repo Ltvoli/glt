@@ -23,7 +23,10 @@ export default async function EditPermanencePage({
     redirect('/permanences')
   }
 
-  const users = await prisma.user.findMany({ select: { id: true, name: true } })
+  const users = await prisma.user.findMany({
+    where: { isActive: true, archivedAt: null },
+    select: { id: true, name: true }
+  })
   const { getModuleFields } = await import('@/lib/fields')
   const fieldConfig = await getModuleFields('permanences')
 

@@ -23,7 +23,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
   const isMagaliOrAdmin = currentUser ? hasPermission(currentUser.role, 'MANAGE_PLANNING') : false
 
   const usersData = (await prisma.user.findMany({
-    where: { archivedAt: null },
+    where: { isActive: true, archivedAt: null },
     orderBy: [
       { lastName: 'asc' },
       { firstName: 'asc' }

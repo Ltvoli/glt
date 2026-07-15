@@ -118,6 +118,16 @@ export async function POST(req: NextRequest) {
         } catch (e) {
           console.error('Erreur de parsing PDF:', e)
         }
+      } else if (
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        file.name.endsWith('.docx')
+      ) {
+        try {
+          const { extractTextFromDocx } = await import('@/lib/document-parser')
+          extractedText = extractTextFromDocx(buffer)
+        } catch (e) {
+          console.error('Erreur de parsing DOCX:', e)
+        }
       }
       // Image OCR using Tesseract is deactivated (times out on Vercel serverless)
     } catch (ocrError) {

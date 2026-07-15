@@ -9,7 +9,10 @@ export default async function NewQEPage() {
   const session = await getSession()
   if (!session?.userId) redirect('/login')
 
-  const users = await prisma.user.findMany({ select: { id: true, name: true } })
+  const users = await prisma.user.findMany({
+    where: { isActive: true, archivedAt: null },
+    select: { id: true, name: true }
+  })
   const contacts = await prisma.contact.findMany({ 
     where: { archivedAt: null },
     select: { id: true, firstName: true, lastName: true }

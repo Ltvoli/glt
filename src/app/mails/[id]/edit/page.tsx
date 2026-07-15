@@ -19,7 +19,10 @@ export default async function EditMailPage({ params }: { params: Promise<{ id: s
 
   if (!mail) redirect('/mails')
 
-  const users = await prisma.user.findMany({ select: { id: true, name: true } })
+  const users = await prisma.user.findMany({
+    where: { isActive: true, archivedAt: null },
+    select: { id: true, name: true }
+  })
   const contacts = await prisma.contact.findMany({ 
     where: { archivedAt: null },
     select: { id: true, firstName: true, lastName: true }

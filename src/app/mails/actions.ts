@@ -578,9 +578,33 @@ export async function analyzeMailCaseAction(mailCaseId: string) {
 
     const doc = mail.documents[0]
     if (doc) {
-      const buffer = await getDocumentBuffer(doc)
-      contentForAi = buffer.toString('base64')
-      mimeType = doc.mimeType
+      if (doc.extractedText) {
+        contentForAi = doc.extractedText
+        mimeType = "text/plain"
+      } else {
+        const buffer = await getDocumentBuffer(doc)
+        if (
+          doc.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+          doc.originalName.endsWith('.docx')
+        ) {
+          const { extractTextFromDocx } = await import('@/lib/document-parser')
+          const text = extractTextFromDocx(buffer)
+          contentForAi = text
+          mimeType = "text/plain"
+          // Sauvegarde du texte extrait pour accélérer les futures analyses
+          try {
+            await prisma.document.update({
+              where: { id: doc.id },
+              data: { extractedText: text }
+            })
+          } catch (dbErr) {
+            console.error('[analyzeMailCaseAction] Erreur lors de la sauvegarde du texte extrait dans la BDD:', dbErr)
+          }
+        } else {
+          contentForAi = buffer.toString('base64')
+          mimeType = doc.mimeType
+        }
+      }
     }
 
     if (!contentForAi) {

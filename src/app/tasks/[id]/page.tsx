@@ -90,7 +90,9 @@ export default async function TaskDetailPage({
     notFound()
   }
 
-  const users = await prisma.user.findMany()
+  const users = await prisma.user.findMany({
+    where: { isActive: true, archivedAt: null }
+  })
   const allTags = await prisma.tag.findMany({ orderBy: { name: 'asc' } })
   const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
   const { getModuleFields } = await import('@/lib/fields')

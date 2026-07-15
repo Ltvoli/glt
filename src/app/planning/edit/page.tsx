@@ -29,6 +29,7 @@ export default async function PlanningEditPage() {
   if (!session?.userId) redirect('/login')
 
   const dbUsers = await prisma.user.findMany({
+    where: { isActive: true, archivedAt: null },
     orderBy: [
       { lastName: 'asc' },
       { firstName: 'asc' }

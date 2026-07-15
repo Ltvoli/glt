@@ -17,7 +17,10 @@ export default async function EditQEPage({ params }: { params: Promise<{ id: str
 
   if (!qe) redirect('/qe')
 
-  const users = await prisma.user.findMany({ select: { id: true, name: true } })
+  const users = await prisma.user.findMany({
+    where: { isActive: true, archivedAt: null },
+    select: { id: true, name: true }
+  })
   const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })
   const { getModuleFields } = await import('@/lib/fields')
   const fieldConfig = await getModuleFields('writtenquestions')

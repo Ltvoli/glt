@@ -86,7 +86,9 @@ export default async function TasksPage({
       take: itemsPerPage,
     }),
     prisma.task.count({ where: whereClause }),
-    prisma.user.findMany()
+    prisma.user.findMany({
+      where: { isActive: true, archivedAt: null }
+    })
   ])
 
   const totalPages = Math.ceil(totalTasks / itemsPerPage)

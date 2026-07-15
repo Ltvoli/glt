@@ -7,7 +7,9 @@ export default async function NewTaskPage({
 }: {
   searchParams: Promise<{ contactId?: string }>
 }) {
-  const users = await prisma.user.findMany()
+  const users = await prisma.user.findMany({
+    where: { isActive: true, archivedAt: null }
+  })
   const allTags = await prisma.tag.findMany({ orderBy: { name: 'asc' } })
   const { contactId } = await searchParams
   const dictionary = await prisma.appDictionary.findMany({ where: { isActive: true }, orderBy: { order: 'asc' } })

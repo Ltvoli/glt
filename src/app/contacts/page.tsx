@@ -66,6 +66,7 @@ export default async function ContactsPage({
       orderBy: { territory: 'asc' }
     }),
     prisma.user.findMany({
+      where: { isActive: true, archivedAt: null },
       select: { id: true, firstName: true, lastName: true },
       orderBy: { lastName: 'asc' }
     }),
