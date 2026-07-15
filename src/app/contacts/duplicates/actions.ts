@@ -278,6 +278,7 @@ export async function triggerDuplicateDetection() {
     `)
 
     // 3. Détecter par nom très similaire (prénom + nom > 0.85) sans autre info de contact identique
+    // OPTIMISATION : on limite la comparaison aux contacts partageant les 2 premières lettres du nom de famille
     const nameDups = await prisma.$executeRawUnsafe(`
       INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
       SELECT 
@@ -291,6 +292,7 @@ export async function triggerDuplicateDetection() {
       JOIN "Contact" c2 ON c1.id < c2.id
       WHERE c1."archivedAt" IS NULL 
         AND c2."archivedAt" IS NULL
+        AND substring(c1."lastName" from 1 for 2) = substring(c2."lastName" from 1 for 2)
         AND similarity(c1."firstName" || ' ' || c1."lastName", c2."firstName" || ' ' || c2."lastName") > 0.85
         AND NOT EXISTS (
           SELECT 1 FROM "DuplicateCandidate" dc 
@@ -305,6 +307,186 @@ export async function triggerDuplicateDetection() {
   } catch (error: any) {
     console.error('[triggerDuplicateDetection]', error)
     return { error: `Erreur : ${error?.message || 'impossible de lancer la détection'}` }
+  }
+}
+
+export async function bulkMergeExactDuplicates() {
+  const session = await getSession()
+  if (!session?.userId) throw new Error('Non autorisé')
+
+  const allowedRoles = ['ADMINISTRATEUR', 'SUPERVISEUR', 'SUPERADMIN', 'ADMIN']
+  const roleToCheck = session.dbRole || session.role
+  if (!roleToCheck || !allowedRoles.includes(roleToCheck)) {
+    throw new Error('Accès refusé.')
+  }
+
+  try {
+    // 1. Trouver les groupes de doublons de noms/prénoms exacts (actifs)
+    const duplicateGroups = await prisma.$queryRawUnsafe<{ fn: string; ln: string; count: number }[]>(`
+      SELECT LOWER("firstName") as fn, LOWER("lastName") as ln, COUNT(*)::integer as count
+      FROM "Contact"
+      WHERE "archivedAt" IS NULL
+      GROUP BY LOWER("firstName"), LOWER("lastName")
+      HAVING COUNT(*) > 1
+      LIMIT 1000;
+    `)
+
+    let mergedCount = 0
+
+    // 2. Traiter chaque groupe
+    for (const group of duplicateGroups) {
+      const { fn, ln } = group
+
+      // Récupérer tous les contacts correspondants
+      const contacts = await prisma.contact.findMany({
+        where: {
+          firstName: { equals: fn, mode: 'insensitive' },
+          lastName: { equals: ln, mode: 'insensitive' },
+          archivedAt: null
+        }
+      })
+
+      if (contacts.length <= 1) continue
+
+      // Vérifier les conflits potentiels d'e-mail ou de téléphone
+      const emails = new Set(contacts.map(c => c.email?.trim().toLowerCase()).filter(Boolean))
+      const phones = new Set(
+        contacts
+          .map(c => (c.mobilePhone || c.phone)?.trim().replace(/[\s.-]+/g, ''))
+          .filter(Boolean)
+      )
+
+      // S'il y a plus d'un e-mail différent ou plus d'un téléphone différent, on considère qu'il y a conflit
+      if (emails.size > 1 || phones.size > 1) {
+        continue
+      }
+
+      // Déterminer le contact à conserver (le mieux renseigné, ou à défaut le plus ancien)
+      const scoreContact = (c: any) => {
+        let score = 0
+        if (c.email) score += 10
+        if (c.mobilePhone || c.phone) score += 10
+        if (c.city || c.postalCode) score += 5
+        if (c.birthDate) score += 5
+        if (c.notes) score += 2
+        return score
+      }
+
+      const sorted = [...contacts].sort((a, b) => {
+        const scoreA = scoreContact(a)
+        const scoreB = scoreContact(b)
+        if (scoreA !== scoreB) return scoreB - scoreA // plus grand score en premier
+        return a.createdAt.getTime() - b.createdAt.getTime() // plus ancien en premier
+      })
+
+      const primary = sorted[0]
+      const duplicates = sorted.slice(1)
+
+      // Fusionner dans une transaction
+      await prisma.$transaction(async (tx) => {
+        for (const dup of duplicates) {
+          // A. Transférer les GlobalLinks
+          const links = await tx.globalLink.findMany({
+            where: { contactId: dup.id }
+          })
+
+          for (const link of links) {
+            const exists = await tx.globalLink.findFirst({
+              where: {
+                contactId: primary.id,
+                taskId: link.taskId ?? undefined,
+                mailCaseId: link.mailCaseId ?? undefined,
+                questionId: link.questionId ?? undefined,
+              }
+            })
+
+            if (!exists) {
+              await tx.globalLink.update({
+                where: { id: link.id },
+                data: { contactId: primary.id }
+              })
+            } else {
+              await tx.globalLink.delete({
+                where: { id: link.id }
+              })
+            }
+          }
+
+          // B. Transférer les ContactTags
+          const tags = await tx.contactTag.findMany({
+            where: { contactId: dup.id }
+          })
+
+          for (const ct of tags) {
+            const exists = await tx.contactTag.findUnique({
+              where: {
+                contactId_tagId: { contactId: primary.id, tagId: ct.tagId }
+              }
+            })
+
+            if (!exists) {
+              await tx.contactTag.create({
+                data: { contactId: primary.id, tagId: ct.tagId }
+              })
+            }
+
+            await tx.contactTag.delete({
+              where: {
+                contactId_tagId: { contactId: dup.id, tagId: ct.tagId }
+              }
+            })
+          }
+
+          // C. Compléter les champs manquants du contact primaire depuis le doublon
+          const updateData: Record<string, any> = {}
+          const fieldsToFill = [
+            'email', 'mobilePhone', 'phone', 'streetNumber', 'streetName',
+            'postalCode', 'city', 'gender', 'birthDate', 'type', 'supportLevel',
+            'notes', 'profession', 'consentEmail', 'consentPhone', 'consentSms',
+            'consentPostal', 'consentCustom'
+          ] as const
+
+          for (const field of fieldsToFill) {
+            if (!primary[field] && dup[field]) {
+              updateData[field] = dup[field]
+            }
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            await tx.contact.update({
+              where: { id: primary.id },
+              data: updateData
+            })
+          }
+
+          // D. Supprimer les candidats doublons impliquant le contact fusionné
+          await tx.duplicateCandidate.deleteMany({
+            where: {
+              OR: [
+                { contact1Id: dup.id },
+                { contact2Id: dup.id }
+              ]
+            }
+          })
+
+          // E. Archiver le contact en doublon
+          await tx.contact.update({
+            where: { id: dup.id },
+            data: { archivedAt: new Date() }
+          })
+
+          mergedCount++
+        }
+      })
+    }
+
+    revalidatePath('/contacts/duplicates')
+    revalidatePath('/contacts')
+
+    return { success: true, count: mergedCount }
+  } catch (error: any) {
+    console.error('[bulkMergeExactDuplicates]', error)
+    return { error: `Erreur : ${error?.message || 'impossible de fusionner les doublons'}` }
   }
 }
 

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Check, Trash2, ArrowRight } from 'lucide-react'
 import DuplicateActionsForm from './duplicate-actions-form'
 import DetectDuplicatesButton from './detect-duplicates-button'
+import BulkMergeButton from './bulk-merge-button'
 
 
 export default async function DuplicatesPage() {
@@ -15,14 +16,54 @@ export default async function DuplicatesPage() {
     orderBy: { createdAt: 'desc' }
   })
 
+  // Statistiques de la base de données
+  const totalContacts = await prisma.contact.count({
+    where: { archivedAt: null }
+  })
+
+  // Compter les contacts avec nom/prénom exact identique
+  const duplicateContactsCountResult = await prisma.$queryRawUnsafe<{ count: number }[]>(`
+    SELECT COUNT(*)::integer as count FROM "Contact" c
+    WHERE "archivedAt" IS NULL AND EXISTS (
+      SELECT 1 FROM "Contact" c2
+      WHERE c2.id <> c.id 
+        AND c2."archivedAt" IS NULL 
+        AND LOWER(c2."firstName") = LOWER(c."firstName") 
+        AND LOWER(c2."lastName") = LOWER(c."lastName")
+    );
+  `)
+  const duplicateContactsCount = duplicateContactsCountResult[0]?.count || 0
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      {/* Statistiques & Actions de masse */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div className="card" style={{ padding: '1.25rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+          <h3 style={{ margin: 0, fontSize: '0.875rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contacts Actifs</h3>
+          <p style={{ margin: '0.5rem 0 0 0', fontSize: '1.875rem', fontWeight: 'bold', color: '#1e293b' }}>
+            {totalContacts.toLocaleString()}
+          </p>
+        </div>
+        <div className="card" style={{ padding: '1.25rem', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
+          <h3 style={{ margin: 0, fontSize: '0.875rem', color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Doublons de noms exacts</h3>
+          <p style={{ margin: '0.5rem 0 0 0', fontSize: '1.875rem', fontWeight: 'bold', color: '#92400e' }}>
+            {duplicateContactsCount.toLocaleString()}
+          </p>
+          <span style={{ fontSize: '0.75rem', color: '#b45309' }}>
+            Partageant les mêmes nom et prénom
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <Link href="/contacts" className="button outline">Retour aux contacts</Link>
           <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', margin: 0 }}>Gestion des Doublons Potentiels</h1>
         </div>
-        <DetectDuplicatesButton />
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <DetectDuplicatesButton />
+          <BulkMergeButton />
+        </div>
       </div>
 
       {candidates.length === 0 ? (
