@@ -33,6 +33,14 @@ export default async function DuplicatesPage() {
   `)
   const duplicateContactsCount = duplicateContactsCountResult[0]?.count || 0
 
+  const formatDate = (date: Date) => {
+    const d = new Date(date)
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const year = d.getFullYear()
+    return `${day}/${month}/${year}`
+  }
+
   return (
     <div>
       {/* Statistiques & Actions de masse */}
@@ -71,7 +79,7 @@ export default async function DuplicatesPage() {
           <p style={{ fontSize: '1.125rem', color: 'var(--text-muted)' }}>Aucun doublon détecté pour le moment.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: '1.5rem' }}>
+        <div style={{ gridTemplateColumns: '1fr', display: 'grid', gap: '1.5rem' }}>
           {candidates.map(candidate => (
             <div key={candidate.id} className="card" style={{ display: 'grid', gridTemplateColumns: '1fr 40px 1fr 200px', gap: '1.5rem', alignItems: 'center' }}>
               
@@ -81,7 +89,7 @@ export default async function DuplicatesPage() {
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
                   <div>Email: {candidate.contact1.email || '-'}</div>
                   <div>Tél: {candidate.contact1.phone || candidate.contact1.mobilePhone || '-'}</div>
-                  <div>Créé le: {candidate.contact1.createdAt.toLocaleDateString()}</div>
+                  <div>Créé le: {formatDate(candidate.contact1.createdAt)}</div>
                 </div>
                 <div style={{ marginTop: '1rem' }}>
                   <Link href={`/contacts/${candidate.contact1.id}`} className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }} target="_blank">
@@ -104,7 +112,7 @@ export default async function DuplicatesPage() {
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
                   <div>Email: {candidate.contact2.email || '-'}</div>
                   <div>Tél: {candidate.contact2.phone || candidate.contact2.mobilePhone || '-'}</div>
-                  <div>Créé le: {candidate.contact2.createdAt.toLocaleDateString()}</div>
+                  <div>Créé le: {formatDate(candidate.contact2.createdAt)}</div>
                 </div>
                 <div style={{ marginTop: '1rem' }}>
                   <Link href={`/contacts/${candidate.contact2.id}`} className="button outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }} target="_blank">
