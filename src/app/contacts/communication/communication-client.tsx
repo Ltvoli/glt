@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Mail, MessageSquare, Loader2, Sparkles, AlertCircle, FileText, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Mail, MessageSquare, Loader2, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getMessageTemplates, sendBulkCommunicationAction, getGlobalSignatureAction, sendTestCommunicationAction } from './actions'
+import Script from 'next/script'
 
 interface CommunicationClientProps {
   totalTarget: number
@@ -73,18 +74,145 @@ export default function CommunicationClient({
       })
   }, [channel])
 
+  // Initialize Unlayer whenever channel is EMAIL
+  useEffect(() => {
+    if (channel === 'EMAIL' && typeof window !== 'undefined' && (window as any).unlayer) {
+      const timer = setTimeout(() => {
+        const unlayer = (window as any).unlayer
+        unlayer.init({
+          id: 'unlayer-bulk-editor-container',
+          displayMode: 'email',
+          locale: 'fr-FR',
+          mergeTags: {
+            firstName: { name: 'Prénom', value: '{firstName}' },
+            lastName: { name: 'Nom', value: '{lastName}' },
+            city: { name: 'Ville', value: '{city}' },
+            email: { name: 'E-mail', value: '{email}' },
+            phone: { name: 'Téléphone', value: '{phone}' }
+          }
+        })
+
+        // Listen for design changes to export HTML in background
+        unlayer.addEventListener('design:updated', () => {
+          unlayer.exportHtml((data: any) => {
+            setContent(data.html)
+          })
+        })
+
+        // Initial default design
+        unlayer.loadDesign({
+          body: {
+            rows: [
+              {
+                cells: [1],
+                columns: [
+                  {
+                    contents: [
+                      {
+                        type: 'text',
+                        values: {
+                          containerPadding: '10px',
+                          color: '#000000',
+                          textAlign: 'left',
+                          text: '<p>Bonjour {firstName} {lastName},</p><p>Rédigez le contenu de votre e-mail ici...</p>'
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+        // Export initial HTML
+        unlayer.exportHtml((data: any) => {
+          setContent(data.html)
+        })
+      }, 150)
+
+      return () => clearTimeout(timer)
+    }
+  }, [channel])
+
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value
     setSelectedTemplateId(id)
     if (id === '') {
-      setSubject('')
-      setContent('')
+      if (channel === 'EMAIL') {
+        const unlayer = (window as any).unlayer
+        if (unlayer) {
+          unlayer.loadDesign({
+            body: {
+              rows: [
+                {
+                  cells: [1],
+                  columns: [
+                    {
+                      contents: [
+                        {
+                          type: 'text',
+                          values: {
+                            containerPadding: '10px',
+                            color: '#000000',
+                            textAlign: 'left',
+                            text: '<p>Bonjour {firstName} {lastName},</p><p>Rédigez le contenu de votre e-mail ici...</p>'
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        }
+      } else {
+        setSubject('')
+        setContent('')
+      }
       return
     }
+
     const tmpl = templates.find(t => t.id === id)
     if (tmpl) {
       if (tmpl.subject) setSubject(tmpl.subject)
-      setContent(tmpl.content)
+      if (channel === 'EMAIL') {
+        const unlayer = (window as any).unlayer
+        if (unlayer) {
+          if (tmpl.design) {
+            unlayer.loadDesign(JSON.parse(tmpl.design))
+          } else {
+            // Fallback for legacy HTML templates
+            unlayer.loadDesign({
+              body: {
+                rows: [
+                  {
+                    cells: [1],
+                    columns: [
+                      {
+                        contents: [
+                          {
+                            type: 'text',
+                            values: {
+                              containerPadding: '10px',
+                              color: '#000000',
+                              textAlign: 'left',
+                              text: tmpl.content
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            })
+          }
+        }
+      } else {
+        setContent(tmpl.content)
+      }
     }
   }
 
@@ -117,7 +245,7 @@ export default function CommunicationClient({
       .replace(/{email}/g, firstContact?.email || 'jean.dupont@example.com')
       .replace(/{phone}/g, firstContact?.mobilePhone || firstContact?.phone || '0612345678')
 
-    if (channel === 'EMAIL' && signature) {
+    if (channel === 'EMAIL' && signature && !text.trim().toLowerCase().startsWith('<')) {
       replaced += '\n\n' + signature
     }
     return replaced
@@ -131,11 +259,6 @@ export default function CommunicationClient({
       return
     }
 
-    if (!content.trim()) {
-      toast.error('Le contenu du message est obligatoire.')
-      return
-    }
-
     const targetParams = {
       ids: ids ? ids.split(',').filter(Boolean) : undefined,
       listId: listId || undefined,
@@ -145,17 +268,43 @@ export default function CommunicationClient({
 
     setIsSubmitting(true)
     try {
-      const res = await sendBulkCommunicationAction(channel, channel === 'EMAIL' ? subject : null, content, targetParams)
-      if (res.success) {
-        toast.success(`Message groupé envoyé avec succès à ${res.sentCount} contact(s) !`)
-        router.push('/contacts/communications')
+      if (channel === 'EMAIL') {
+        const unlayer = (window as any).unlayer
+        if (unlayer) {
+          unlayer.exportHtml(async (data: any) => {
+            const { html } = data
+            const res = await sendBulkCommunicationAction(channel, subject, html, targetParams)
+            if (res.success) {
+              toast.success(`Message groupé envoyé avec succès à ${res.sentCount} contact(s) !`)
+              router.push('/contacts/communications')
+            } else {
+              toast.error(res.error || "Une erreur est survenue lors de l'envoi.")
+              setIsSubmitting(false)
+            }
+          })
+        } else {
+          toast.error('L’éditeur visuel n’est pas disponible.')
+          setIsSubmitting(false)
+        }
       } else {
-        toast.error(res.error || "Une erreur est survenue lors de l'envoi.")
+        // SMS
+        if (!content.trim()) {
+          toast.error('Le contenu du message est obligatoire.')
+          setIsSubmitting(false)
+          return
+        }
+        const res = await sendBulkCommunicationAction(channel, null, content, targetParams)
+        if (res.success) {
+          toast.success(`Message groupé envoyé avec succès à ${res.sentCount} contact(s) !`)
+          router.push('/contacts/communications')
+        } else {
+          toast.error(res.error || "Une erreur est survenue lors de l'envoi.")
+        }
+        setIsSubmitting(false)
       }
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || "Une erreur est survenue.")
-    } finally {
       setIsSubmitting(false)
     }
   }
@@ -165,7 +314,12 @@ export default function CommunicationClient({
   const hasMissing = missingCount > 0
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '3rem' }}>
+    <div style={{ maxWidth: channel === 'EMAIL' ? '1200px' : '1000px', margin: '0 auto', paddingBottom: '3rem', transition: 'max-width 0.3s ease' }}>
+      <Script 
+        src="https://editor.unlayer.com/embed.js" 
+        strategy="afterInteractive" 
+      />
+
       {/* Back link */}
       <div style={{ marginBottom: '1.5rem' }}>
         <button
@@ -196,7 +350,13 @@ export default function CommunicationClient({
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem', alignItems: 'start' }}>
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: channel === 'EMAIL' ? '1fr' : '1.2fr 1fr', 
+        gap: '2rem', 
+        alignItems: 'start',
+        transition: 'grid-template-columns 0.3s ease'
+      }}>
         {/* Left Column: Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Target Card */}
@@ -287,7 +447,7 @@ export default function CommunicationClient({
                   }}
                 >
                   <Mail size={18} />
-                  Email
+                  Email (Visuel Glisser-Déposer)
                 </button>
                 <button
                   type="button"
@@ -375,72 +535,91 @@ export default function CommunicationClient({
             )}
 
             {/* Message Body */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <label htmlFor="content" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                  Message <span style={{ color: '#ef4444' }}>*</span>
+            {channel === 'EMAIL' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', minHeight: '600px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.5rem' }}>
+                  Création visuelle de l'e-mail (Glisser-Déposer)
                 </label>
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                  {channel === 'SMS' ? `${content.length} caractére(s)` : ''}
-                </span>
+                <div 
+                  id="unlayer-bulk-editor-container" 
+                  style={{ 
+                    height: '600px', 
+                    border: '1px solid #cbd5e1', 
+                    borderRadius: '8px', 
+                    overflow: 'hidden' 
+                  }} 
+                />
               </div>
-              <textarea
-                id="content"
-                ref={textareaRef}
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                placeholder={channel === 'EMAIL' ? "Rédigez votre email ici..." : "Rédigez votre SMS ici..."}
-                required
-                rows={channel === 'EMAIL' ? 10 : 5}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '0.9rem',
-                  color: '#0f172a',
-                  resize: 'vertical',
-                  fontFamily: 'inherit',
-                }}
-              />
-            </div>
-
-            {/* Variable Inserter */}
-            <div>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>
-                <Sparkles size={14} style={{ color: '#eab308' }} />
-                Insérer une variable de personnalisation :
-              </span>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {[
-                  { tag: '{firstName}', label: 'Prénom' },
-                  { tag: '{lastName}', label: 'Nom' },
-                  { tag: '{city}', label: 'Ville' },
-                  { tag: '{email}', label: 'Email' },
-                  { tag: '{phone}', label: 'Téléphone' }
-                ].map(v => (
-                  <button
-                    key={v.tag}
-                    type="button"
-                    onClick={() => insertVariable(v.tag)}
+            ) : (
+              <>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <label htmlFor="content" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                      Message <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                      {channel === 'SMS' ? `${content.length} caractére(s)` : ''}
+                    </span>
+                  </div>
+                  <textarea
+                    id="content"
+                    ref={textareaRef}
+                    value={content}
+                    onChange={e => setContent(e.target.value)}
+                    placeholder="Rédigez votre SMS ici..."
+                    required={channel === 'SMS'}
+                    rows={5}
                     style={{
-                      background: '#f1f5f9',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '6px',
-                      padding: '4px 8px',
-                      fontSize: '0.78rem',
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.9rem',
                       color: '#0f172a',
-                      cursor: 'pointer',
-                      fontWeight: 500,
+                      resize: 'vertical',
+                      fontFamily: 'inherit',
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
-                  >
-                    {v.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+                  />
+                </div>
+
+                {/* Variable Inserter */}
+                <div>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>
+                    <Sparkles size={14} style={{ color: '#eab308' }} />
+                    Insérer une variable de personnalisation :
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {[
+                      { tag: '{firstName}', label: 'Prénom' },
+                      { tag: '{lastName}', label: 'Nom' },
+                      { tag: '{city}', label: 'Ville' },
+                      { tag: '{email}', label: 'Email' },
+                      { tag: '{phone}', label: 'Téléphone' }
+                    ].map(v => (
+                      <button
+                        key={v.tag}
+                        type="button"
+                        onClick={() => insertVariable(v.tag)}
+                        style={{
+                          background: '#f1f5f9',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '6px',
+                          padding: '4px 8px',
+                          fontSize: '0.78rem',
+                          color: '#0f172a',
+                          cursor: 'pointer',
+                          fontWeight: 500,
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Submit Button */}
@@ -480,28 +659,49 @@ export default function CommunicationClient({
           {/* Test Send Button */}
           <button
             type="button"
-            disabled={isSendingTest || !content.trim() || (channel === 'EMAIL' && !subject.trim())}
+            disabled={isSendingTest || (channel === 'EMAIL' ? !subject.trim() : !content.trim())}
             onClick={async () => {
               if (channel === 'EMAIL' && !subject.trim()) {
                 toast.error('Le sujet est obligatoire pour un e-mail de test.')
                 return
               }
-              if (!content.trim()) {
-                toast.error('Le contenu est obligatoire pour un e-mail de test.')
-                return
-              }
 
               setIsSendingTest(true)
               try {
-                const res = await sendTestCommunicationAction(channel, channel === 'EMAIL' ? subject : null, content)
-                if (res.success) {
-                  toast.success('Test envoyé avec succès ! Vérifiez votre boîte de réception.')
+                if (channel === 'EMAIL') {
+                  const unlayer = (window as any).unlayer
+                  if (unlayer) {
+                    unlayer.exportHtml(async (data: any) => {
+                      const { html } = data
+                      const res = await sendTestCommunicationAction(channel, subject, html)
+                      if (res.success) {
+                        toast.success('Test envoyé avec succès ! Vérifiez votre boîte de réception.')
+                      } else {
+                        toast.error(res.error || 'Erreur lors de l\'envoi du test.')
+                      }
+                      setIsSendingTest(false)
+                    })
+                  } else {
+                    toast.error('L’éditeur visuel n’est pas disponible.')
+                    setIsSendingTest(false)
+                  }
                 } else {
-                  toast.error(res.error || 'Erreur lors de l\'envoi du test.')
+                  // SMS
+                  if (!content.trim()) {
+                    toast.error('Le contenu est obligatoire pour un SMS de test.')
+                    setIsSendingTest(false)
+                    return
+                  }
+                  const res = await sendTestCommunicationAction(channel, null, content)
+                  if (res.success) {
+                    toast.success('Test SMS envoyé avec succès !')
+                  } else {
+                    toast.error(res.error || 'Erreur lors de l\'envoi du test.')
+                  }
+                  setIsSendingTest(false)
                 }
               } catch (err: any) {
                 toast.error(err.message || 'Erreur lors de l\'envoi.')
-              } finally {
                 setIsSendingTest(false)
               }
             }}
@@ -514,7 +714,7 @@ export default function CommunicationClient({
               color: 'var(--primary, #3b82f6)',
               fontSize: '0.9rem',
               fontWeight: 600,
-              cursor: (!content.trim() || (channel === 'EMAIL' && !subject.trim())) ? 'not-allowed' : 'pointer',
+              cursor: (channel === 'EMAIL' ? !subject.trim() : !content.trim()) ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -531,85 +731,79 @@ export default function CommunicationClient({
           </button>
         </form>
 
-        {/* Right Column: Live Preview */}
-        <div style={{
-          position: 'sticky',
-          top: '2rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem'
-        }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-            Prévisualisation en temps réel
-          </h2>
-          <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0 }}>
-            Aperçu du message personnalisé pour le premier contact de votre ciblage.
-          </p>
+        {/* Right Column: Live Preview (only for SMS) */}
+        {channel === 'SMS' && (
+          <div style={{
+            position: 'sticky',
+            top: '2rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+              Prévisualisation en temps réel
+            </h2>
+            <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0 }}>
+              Aperçu du message personnalisé pour le premier contact de votre ciblage.
+            </p>
 
-          {firstContact ? (
-            <div style={{
-              background: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              borderRadius: '16px',
-              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-              overflow: 'hidden'
-            }}>
-              {/* Preview Header */}
+            {firstContact ? (
               <div style={{
-                background: '#e2e8f0',
-                padding: '10px 16px',
-                borderBottom: '1px solid #cbd5e1',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
+                background: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                borderRadius: '16px',
+                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                overflow: 'hidden'
               }}>
-                <CheckCircle2 size={16} style={{ color: '#10b981' }} />
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>
-                  Destinataire test : {firstContact.firstName} {firstContact.lastName}
-                </span>
-              </div>
+                {/* Preview Header */}
+                <div style={{
+                  background: '#e2e8f0',
+                  padding: '10px 16px',
+                  borderBottom: '1px solid #cbd5e1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}>
+                  <CheckCircle2 size={16} style={{ color: '#10b981' }} />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>
+                    Destinataire test : {firstContact.firstName} {firstContact.lastName}
+                  </span>
+                </div>
 
-              {/* Preview Body */}
-              <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {channel === 'EMAIL' && (
-                  <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
-                    <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '2px' }}>SUJET :</span>
-                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0f172a' }}>
-                      {getPreviewContent(subject) || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Aucun sujet rédigé</span>}
+                {/* Preview Body */}
+                <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                    <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>MESSAGE :</span>
+                    <div style={{
+                      fontSize: '0.9rem',
+                      color: '#334155',
+                      background: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      padding: '1rem',
+                      minHeight: '150px',
+                      whiteSpace: 'pre-wrap',
+                      fontFamily: 'monospace',
+                    }}>
+                      {getPreviewContent(content) || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Aucun message rédigé</span>}
                     </div>
-                  </div>
-                )}
-                <div>
-                  <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>MESSAGE :</span>
-                  <div style={{
-                    fontSize: '0.9rem',
-                    color: '#334155',
-                    background: 'white',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    padding: '1rem',
-                    minHeight: '150px',
-                    whiteSpace: 'pre-wrap',
-                    fontFamily: channel === 'SMS' ? 'monospace' : 'inherit',
-                  }}>
-                    {getPreviewContent(content) || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Aucun message rédigé</span>}
                   </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div style={{
-              padding: '2rem',
-              border: '1px dashed #cbd5e1',
-              borderRadius: '16px',
-              textAlign: 'center',
-              color: '#94a3b8',
-              fontSize: '0.88rem'
-            }}>
-              Aucun destinataire sélectionné pour générer l'aperçu.
-            </div>
-          )}
-        </div>
+            ) : (
+              <div style={{
+                padding: '2rem',
+                border: '1px dashed #cbd5e1',
+                borderRadius: '16px',
+                textAlign: 'center',
+                color: '#94a3b8',
+                fontSize: '0.88rem'
+              }}>
+                Aucun destinataire sélectionné pour générer l'aperçu.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

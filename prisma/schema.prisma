@@ -733,7 +733,8 @@ model MessageTemplate {
   name      String
   channel   String // EMAIL, SMS, WHATSAPP
   subject   String?
-  content   String
+  content   String   @db.Text
+  design    String?  @db.Text
   variables String // JSON array of allowed variables
   isActive  Boolean  @default(true)
   authorId  String

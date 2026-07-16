@@ -38,7 +38,8 @@ export async function createTemplateAction(
   name: string,
   channel: 'EMAIL' | 'SMS',
   subject: string | null,
-  content: string
+  content: string,
+  design?: string | null
 ) {
   try {
     const session = await requireAdminSession()
@@ -55,6 +56,7 @@ export async function createTemplateAction(
         channel,
         subject: channel === 'EMAIL' ? (subject?.trim() || null) : null,
         content: content.trim(),
+        design: design || null,
         variables: JSON.stringify(['firstName', 'lastName', 'city', 'email', 'phone']),
         authorId: session.userId,
         isActive: true
@@ -82,7 +84,8 @@ export async function updateTemplateAction(
   channel: 'EMAIL' | 'SMS',
   subject: string | null,
   content: string,
-  isActive: boolean
+  isActive: boolean,
+  design?: string | null
 ) {
   try {
     const session = await requireAdminSession()
@@ -100,6 +103,7 @@ export async function updateTemplateAction(
         channel,
         subject: channel === 'EMAIL' ? (subject?.trim() || null) : null,
         content: content.trim(),
+        design: design !== undefined ? design : undefined,
         isActive
       }
     })

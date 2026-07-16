@@ -125,6 +125,8 @@ export async function sendBulkCommunicationAction(
     })
 
     // 4. Simulate sending and record audit logs
+    const isHtml = content.trim().toLowerCase().startsWith('<') || content.includes('<html') || content.includes('<body') || content.includes('<div')
+
     for (const contact of validContacts) {
       let personalizedContent = content
         .replace(/{firstName}/g, contact.firstName || '')
@@ -133,7 +135,7 @@ export async function sendBulkCommunicationAction(
         .replace(/{email}/g, contact.email || '')
         .replace(/{phone}/g, contact.mobilePhone || contact.phone || '')
 
-      if (channel === 'EMAIL' && signature) {
+      if (channel === 'EMAIL' && signature && !isHtml) {
         personalizedContent += '\n\n' + signature
       }
 
@@ -141,7 +143,7 @@ export async function sendBulkCommunicationAction(
 
       if (channel === 'EMAIL' && recipient) {
         try {
-          const htmlContent = personalizedContent.replace(/\n/g, '<br />')
+          const htmlContent = isHtml ? personalizedContent : personalizedContent.replace(/\n/g, '<br />')
           await sendBrevoEmail(
             recipient,
             `${contact.firstName} ${contact.lastName}`,
@@ -248,6 +250,8 @@ export async function sendTestCommunicationAction(
       return { success: false, error: `Aucune coordonnée (${channel === 'EMAIL' ? 'e-mail' : 'téléphone'}) trouvée dans votre profil pour l'envoi de test.` }
     }
 
+    const isHtml = content.trim().toLowerCase().startsWith('<') || content.includes('<html') || content.includes('<body') || content.includes('<div')
+
     let personalizedContent = content
       .replace(/{firstName}/g, user.firstName || '')
       .replace(/{lastName}/g, user.lastName || '')
@@ -260,11 +264,11 @@ export async function sendTestCommunicationAction(
         where: { key: 'brevo_email_signature' }
       })
       const signature = signatureSetting?.value || ''
-      if (signature) {
+      if (signature && !isHtml) {
         personalizedContent += '\n\n' + signature
       }
 
-      const htmlContent = personalizedContent.replace(/\n/g, '<br />')
+      const htmlContent = isHtml ? personalizedContent : personalizedContent.replace(/\n/g, '<br />')
       await sendBrevoEmail(
         recipient,
         `${user.firstName} ${user.lastName}`,

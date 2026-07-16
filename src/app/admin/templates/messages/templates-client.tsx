@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState, useTransition, useRef } from 'react'
-import { Plus, Trash2, Mail, MessageSquare, Edit2, CheckCircle2, AlertCircle, X, Loader2 } from 'lucide-react'
+import React, { useState, useTransition, useRef, useEffect } from 'react'
+import { Plus, Trash2, Mail, MessageSquare, Edit2, X, Loader2 } from 'lucide-react'
 import { createTemplateAction, updateTemplateAction, deleteTemplateAction } from './actions'
 import { toast } from 'sonner'
+import Script from 'next/script'
 
 type Template = {
   id: string
@@ -11,6 +12,7 @@ type Template = {
   channel: string
   subject: string | null
   content: string
+  design: string | null
   isActive: boolean
   createdAt: Date
   author: {
@@ -38,6 +40,69 @@ export default function TemplatesClient({ initialTemplates }: Props) {
   const [isPending, startTransition] = useTransition()
   const contentRef = useRef<HTMLTextAreaElement>(null)
 
+  // Unlayer state
+  const [unlayerLoaded, setUnlayerLoaded] = useState(false)
+
+  // Initialize Unlayer whenever drawer is open and channel is EMAIL
+  useEffect(() => {
+    if (isOpen && channel === 'EMAIL' && typeof window !== 'undefined' && (window as any).unlayer) {
+      const timer = setTimeout(() => {
+        const unlayer = (window as any).unlayer
+        
+        unlayer.init({
+          id: 'unlayer-editor-container',
+          displayMode: 'email',
+          locale: 'fr-FR',
+          mergeTags: {
+            firstName: { name: 'Prénom', value: '{firstName}' },
+            lastName: { name: 'Nom', value: '{lastName}' },
+            city: { name: 'Ville', value: '{city}' },
+            email: { name: 'E-mail', value: '{email}' },
+            phone: { name: 'Téléphone', value: '{phone}' }
+          }
+        })
+
+        // If editing an existing email template with a saved design, load it
+        if (editingTemplate && editingTemplate.channel === 'EMAIL' && editingTemplate.design) {
+          try {
+            const design = JSON.parse(editingTemplate.design)
+            unlayer.loadDesign(design)
+          } catch (e) {
+            console.error('Failed to load template design:', e)
+          }
+        } else {
+          // Clear editor if it's a new email template
+          unlayer.loadDesign({
+            body: {
+              rows: [
+                {
+                  cells: [1],
+                  columns: [
+                    {
+                      contents: [
+                        {
+                          type: 'text',
+                          values: {
+                            containerPadding: '10px',
+                            color: '#000000',
+                            textAlign: 'left',
+                            text: '<p>Bonjour {firstName} {lastName},</p><p>Saisissez le contenu de votre e-mail ici...</p>'
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          })
+        }
+      }, 150)
+
+      return () => clearTimeout(timer)
+    }
+  }, [isOpen, channel, editingTemplate])
+
   const resetForm = () => {
     setName('')
     setChannel('EMAIL')
@@ -57,36 +122,72 @@ export default function TemplatesClient({ initialTemplates }: Props) {
     setIsOpen(true)
   }
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name.trim() || !content.trim()) return
-    if (channel === 'EMAIL' && !subject.trim()) {
-      toast.error('Le sujet est obligatoire pour un e-mail.')
-      return
-    }
-
+  const saveTemplate = (finalContent: string, designStr: string | null) => {
     startTransition(async () => {
       if (editingTemplate) {
-        const res = await updateTemplateAction(editingTemplate.id, name, channel, subject, content, isActive)
+        const res = await updateTemplateAction(
+          editingTemplate.id,
+          name,
+          channel,
+          subject,
+          finalContent,
+          isActive,
+          designStr
+        )
         if (res.success && res.template) {
           toast.success('Modèle mis à jour avec succès.')
-          setTemplates(prev => prev.map(t => t.id === editingTemplate.id ? { ...t, name, channel, subject, content, isActive } as Template : t))
+          setTemplates(prev => prev.map(t => t.id === editingTemplate.id ? { 
+            ...t, 
+            name, 
+            channel, 
+            subject, 
+            content: finalContent, 
+            design: designStr, 
+            isActive 
+          } as Template : t))
           setIsOpen(false)
           resetForm()
         } else {
           toast.error(res.error || 'Erreur lors de la mise à jour.')
         }
       } else {
-        const res = await createTemplateAction(name, channel, subject, content)
+        const res = await createTemplateAction(name, channel, subject, finalContent, designStr)
         if (res.success && res.template) {
           toast.success('Modèle créé avec succès.')
-          // Reload local state to get new values
           window.location.reload()
         } else {
           toast.error(res.error || 'Erreur lors de la création.')
         }
       }
     })
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    if (channel === 'EMAIL' && !subject.trim()) {
+      toast.error('Le sujet est obligatoire pour un e-mail.')
+      return
+    }
+
+    if (channel === 'EMAIL') {
+      const unlayer = (window as any).unlayer
+      if (unlayer) {
+        unlayer.exportHtml((data: any) => {
+          const { design, html } = data
+          saveTemplate(html, JSON.stringify(design))
+        })
+      } else {
+        toast.error('L’éditeur d’e-mail n’est pas disponible.')
+      }
+    } else {
+      // SMS
+      if (!content.trim()) {
+        toast.error('Le contenu du message est obligatoire.')
+        return
+      }
+      saveTemplate(content, null)
+    }
   }
 
   const handleDelete = async (id: string, tname: string) => {
@@ -123,6 +224,12 @@ export default function TemplatesClient({ initialTemplates }: Props) {
 
   return (
     <div>
+      <Script 
+        src="https://editor.unlayer.com/embed.js" 
+        strategy="afterInteractive"
+        onLoad={() => setUnlayerLoaded(true)}
+      />
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
         <button
           onClick={() => { resetForm(); setIsOpen(true) }}
@@ -182,7 +289,7 @@ export default function TemplatesClient({ initialTemplates }: Props) {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'pre-wrap'
                 }}>
-                  {tmpl.content}
+                  {tmpl.channel === 'EMAIL' ? '(Modèle e-mail mis en page visuellement)' : tmpl.content}
                 </p>
               </div>
 
@@ -218,9 +325,15 @@ export default function TemplatesClient({ initialTemplates }: Props) {
           display: 'flex', justifyContent: 'flex-end', backdropFilter: 'blur(2px)'
         }}>
           <div style={{
-            width: '100%', maxWidth: '550px', backgroundColor: 'white',
-            height: '100%', display: 'flex', flexDirection: 'column',
-            boxShadow: '-4px 0 24px rgba(0,0,0,0.15)', overflowY: 'auto'
+            width: '100%', 
+            maxWidth: channel === 'EMAIL' ? '1200px' : '550px', 
+            backgroundColor: 'white',
+            height: '100%', 
+            display: 'flex', 
+            flexDirection: 'column',
+            boxShadow: '-4px 0 24px rgba(0,0,0,0.15)', 
+            overflowY: 'auto',
+            transition: 'max-width 0.3s ease'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>
@@ -232,32 +345,35 @@ export default function TemplatesClient({ initialTemplates }: Props) {
             </div>
 
             <form onSubmit={handleSave} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: 1 }}>
-              <div className="form-group">
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Nom du modèle *
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="ex: Relance réunion publique, SMS Urgence"
-                  className="form-control"
-                  required
-                />
-              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: channel === 'EMAIL' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                    Nom du modèle *
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="ex: Relance réunion publique, SMS Urgence"
+                    className="form-control"
+                    required
+                  />
+                </div>
 
-              <div className="form-group">
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Canal de diffusion *
-                </label>
-                <select
-                  value={channel}
-                  onChange={e => setChannel(e.target.value as 'EMAIL' | 'SMS')}
-                  className="form-control"
-                >
-                  <option value="EMAIL">E-mail</option>
-                  <option value="SMS">SMS</option>
-                </select>
+                <div className="form-group">
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                    Canal de diffusion *
+                  </label>
+                  <select
+                    value={channel}
+                    onChange={e => setChannel(e.target.value as 'EMAIL' | 'SMS')}
+                    className="form-control"
+                    disabled={!!editingTemplate} // Can't change channel of existing template
+                  >
+                    <option value="EMAIL">E-mail (Visuel Glisser-Déposer)</option>
+                    <option value="SMS">SMS (Texte brut)</option>
+                  </select>
+                </div>
               </div>
 
               {channel === 'EMAIL' && (
@@ -276,55 +392,75 @@ export default function TemplatesClient({ initialTemplates }: Props) {
                 </div>
               )}
 
-              <div className="form-group">
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Contenu du message *
-                </label>
-                <textarea
-                  ref={contentRef}
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
-                  placeholder="Saisissez le corps du message..."
-                  className="form-control"
-                  rows={8}
-                  style={{ fontSize: '0.85rem', lineHeight: '1.4' }}
-                  required
-                />
-              </div>
-
-              {/* Variables insertion helper */}
-              <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                  💡 Variables de personnalisation cliquables :
-                </span>
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                  {[
-                    { code: '{firstName}', label: 'Prénom' },
-                    { code: '{lastName}', label: 'Nom' },
-                    { code: '{city}', label: 'Ville' },
-                    { code: '{email}', label: 'E-mail' },
-                    { code: '{phone}', label: 'Téléphone' }
-                  ].map(v => (
-                    <button
-                      key={v.code}
-                      type="button"
-                      onClick={() => insertVariable(v.code)}
-                      style={{
-                        padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px',
-                        border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer',
-                        fontWeight: 600, color: '#0f172a'
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'white')}
-                    >
-                      {v.label}
-                    </button>
-                  ))}
+              {channel === 'EMAIL' ? (
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '600px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                    Création visuelle de l'e-mail (Glisser-Déposer)
+                  </label>
+                  <div 
+                    id="unlayer-editor-container" 
+                    style={{ 
+                      flex: 1, 
+                      minHeight: '550px',
+                      border: '1px solid var(--border)', 
+                      borderRadius: '8px', 
+                      overflow: 'hidden' 
+                    }} 
+                  />
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div className="form-group">
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                      Contenu du message *
+                    </label>
+                    <textarea
+                      ref={contentRef}
+                      value={content}
+                      onChange={e => setContent(e.target.value)}
+                      placeholder="Saisissez le corps du message..."
+                      className="form-control"
+                      rows={8}
+                      style={{ fontSize: '0.85rem', lineHeight: '1.4' }}
+                      required={channel === 'SMS'}
+                    />
+                  </div>
+
+                  {/* Variables insertion helper */}
+                  <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
+                      💡 Variables de personnalisation cliquables :
+                    </span>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      {[
+                        { code: '{firstName}', label: 'Prénom' },
+                        { code: '{lastName}', label: 'Nom' },
+                        { code: '{city}', label: 'Ville' },
+                        { code: '{email}', label: 'E-mail' },
+                        { code: '{phone}', label: 'Téléphone' }
+                      ].map(v => (
+                        <button
+                          key={v.code}
+                          type="button"
+                          onClick={() => insertVariable(v.code)}
+                          style={{
+                            padding: '3px 8px', fontSize: '0.72rem', borderRadius: '4px',
+                            border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer',
+                            fontWeight: 600, color: '#0f172a'
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'white')}
+                        >
+                          {v.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
               {editingTemplate && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.5rem' }}>
                   <input
                     type="checkbox"
                     id="tmplActive"
@@ -338,7 +474,7 @@ export default function TemplatesClient({ initialTemplates }: Props) {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}

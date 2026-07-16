@@ -2,10 +2,12 @@ import type { NextConfig } from "next";
 
 const cspHeader = `
   default-src 'self';
-  script-src 'self' 'unsafe-eval' 'unsafe-inline';
-  style-src 'self' 'unsafe-inline';
-  img-src 'self' blob: data:;
-  font-src 'self';
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://editor.unlayer.com;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  frame-src 'self' https://editor.unlayer.com;
+  img-src * blob: data:;
+  font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com;
+  connect-src 'self' https://*.unlayer.com https://api.unlayer.com;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
