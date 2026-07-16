@@ -49,6 +49,7 @@ export default function CommunicationClient({
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
   const [signature, setSignature] = useState('')
   const [isSendingTest, setIsSendingTest] = useState(false)
+  const [unlayerLoaded, setUnlayerLoaded] = useState(false)
 
   // Fetch signature on mount
   useEffect(() => {
@@ -133,7 +134,7 @@ export default function CommunicationClient({
 
       return () => clearTimeout(timer)
     }
-  }, [channel])
+  }, [channel, unlayerLoaded])
 
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value
@@ -318,6 +319,7 @@ export default function CommunicationClient({
       <Script 
         src="https://editor.unlayer.com/embed.js" 
         strategy="afterInteractive" 
+        onLoad={() => setUnlayerLoaded(true)}
       />
 
       {/* Back link */}

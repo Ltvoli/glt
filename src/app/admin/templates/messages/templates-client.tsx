@@ -101,7 +101,7 @@ export default function TemplatesClient({ initialTemplates }: Props) {
 
       return () => clearTimeout(timer)
     }
-  }, [isOpen, channel, editingTemplate])
+  }, [isOpen, channel, editingTemplate, unlayerLoaded])
 
   const resetForm = () => {
     setName('')
