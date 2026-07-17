@@ -22,6 +22,18 @@ export default async function ValidationExpressPage() {
         select: {
           name: true
         }
+      },
+      versions: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        include: {
+          editedBy: {
+            select: {
+              firstName: true,
+              lastName: true
+            }
+          }
+        }
       }
     },
     orderBy: [

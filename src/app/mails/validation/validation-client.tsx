@@ -1,10 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, CheckCircle, XCircle, ArrowLeft, Clock, User, FileText, Send } from 'lucide-react'
+import { AlertCircle, CheckCircle, XCircle, ArrowLeft, Clock, User, FileText, Send, HelpCircle } from 'lucide-react'
 import { validateMail, rejectMail } from '../actions'
 import { toast } from 'sonner'
+import { diffWords, DiffChange } from '@/lib/diff'
+
+type Version = {
+  id: string
+  content: string | null
+  createdAt: string | Date
+  editedBy: { firstName: string; lastName: string }
+}
 
 type Mail = {
   id: string
@@ -18,6 +26,7 @@ type Mail = {
   urgency: string
   createdAt: string | Date
   assignee: { name: string } | null
+  versions?: Version[]
 }
 
 type ValidationClientProps = {
@@ -31,6 +40,7 @@ export default function MailValidationExpressClient({ initialMails, isAdmin }: V
   const [isPending, setIsPending] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
   const [showRejectForm, setShowRejectForm] = useState(false)
+  const [showDiff, setShowDiff] = useState(false)
 
   const activeMail = mails[selectedIdx] || null
 
@@ -76,6 +86,7 @@ export default function MailValidationExpressClient({ initialMails, isAdmin }: V
   const removeActiveMail = () => {
     const updated = mails.filter((_, idx) => idx !== selectedIdx)
     setMails(updated)
+    setShowDiff(false)
     // Adjust index if necessary
     if (selectedIdx >= updated.length && updated.length > 0) {
       setSelectedIdx(updated.length - 1)
@@ -89,6 +100,44 @@ export default function MailValidationExpressClient({ initialMails, isAdmin }: V
     year: 'numeric'
   })
 
+  // Render text Diff
+  const renderDiff = (oldText: string, newText: string) => {
+    const diff = diffWords(oldText, newText)
+    return (
+      <div 
+        style={{ 
+          backgroundColor: '#ffffff', 
+          padding: '1.25rem', 
+          borderRadius: '8px', 
+          border: '1px solid #cbd5e1', 
+          fontSize: '0.925rem', 
+          lineHeight: '1.6',
+          whiteSpace: 'pre-wrap',
+          fontFamily: 'Georgia, serif',
+          textAlign: 'justify'
+        }}
+      >
+        {diff.map((change: DiffChange, idx: number) => {
+          if (change.type === 'added') {
+            return (
+              <span key={idx} style={{ backgroundColor: '#dcfce7', color: '#166534', padding: '0.1rem 0.2rem', borderRadius: '2px', fontWeight: 600 }}>
+                {change.value}
+              </span>
+            )
+          }
+          if (change.type === 'removed') {
+            return (
+              <span key={idx} style={{ backgroundColor: '#fee2e2', color: '#991b1b', textDecoration: 'line-through', padding: '0.1rem 0.2rem', borderRadius: '2px' }}>
+                {change.value}
+              </span>
+            )
+          }
+          return <span key={idx}>{change.value}</span>
+        })}
+      </div>
+    )
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
@@ -100,7 +149,7 @@ export default function MailValidationExpressClient({ initialMails, isAdmin }: V
             <FileText size={28} color="var(--primary)" /> Validation Express
           </h1>
         </div>
-        <div style={{ padding: '0.5rem 1rem', backgroundColor: 'var(--primary-light, #eff6ff)', borderRadius: '9999px', fontSize: '0.875rem', color: 'var(--primary)', fontWeight: 600 }}>
+        <div style={{ padding: '0.5rem 1rem', backgroundColor: '#eff6ff', borderRadius: '9999px', fontSize: '0.875rem', color: 'var(--primary)', fontWeight: 600 }}>
           {mails.length} courrier{mails.length > 1 ? 's' : ''} à valider
         </div>
       </div>
@@ -147,6 +196,7 @@ export default function MailValidationExpressClient({ initialMails, isAdmin }: V
                 onClick={() => {
                   setSelectedIdx(idx)
                   setShowRejectForm(false)
+                  setShowDiff(false)
                 }}
                 className="card"
                 style={{
@@ -234,12 +284,35 @@ export default function MailValidationExpressClient({ initialMails, isAdmin }: V
                     Objet : <span style={{ fontWeight: 500 }}>{activeMail.subject}</span>
                   </div>
 
-                  {/* Content */}
-                  <div style={{ fontSize: '0.95rem', whiteSpace: 'pre-wrap', minHeight: '180px', color: '#334155', textAlign: 'justify' }}>
-                    {activeMail.content || 'Aucun contenu de texte saisi.'}
-                  </div>
+                  {/* Diff Toolbar */}
+                  {activeMail.versions && activeMail.versions.length > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }} className="no-print">
+                      <button 
+                        type="button" 
+                        onClick={() => setShowDiff(!showDiff)} 
+                        className="button outline"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontWeight: 600 }}
+                      >
+                        {showDiff ? 'Masquer modifications' : 'Voir modifications'}
+                      </button>
+                    </div>
+                  )}
 
-                  {/* Signature */}
+                  {/* Content (Diff or Normal) */}
+                  {showDiff && activeMail.versions && activeMail.versions[0] ? (
+                    <div>
+                      <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.5rem', fontFamily: 'system-ui, sans-serif' }} className="no-print">
+                        Modifications par rapport à la version rédigée par {activeMail.versions[0].editedBy.firstName} :
+                      </p>
+                      {renderDiff(activeMail.versions[0].content || '', activeMail.content || '')}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.95rem', whiteSpace: 'pre-wrap', minHeight: '180px', color: '#334155', textAlign: 'justify' }}>
+                      {activeMail.content || 'Aucun contenu de texte saisi.'}
+                    </div>
+                  )}
+
+                  {/* Signature block placeholder */}
                   <div style={{ marginLeft: 'auto', width: '45%', marginTop: '3rem', textAlign: 'center', fontFamily: 'system-ui, sans-serif' }}>
                     <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem' }}>
                       Lionel TIVOLI

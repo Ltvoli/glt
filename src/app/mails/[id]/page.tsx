@@ -2,7 +2,7 @@ import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Package, Mail, AlertCircle, Clock, Printer } from 'lucide-react'
+import { ArrowLeft, Package, Mail, AlertCircle, Clock, Printer, FileText } from 'lucide-react'
 import MailStatusForm from './mail-status-form'
 import MailAttachments from './mail-attachments'
 import PrintButton from '@/components/PrintButton'
@@ -186,7 +186,10 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
         
-        <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', alignItems: 'center' }}>
+          <Link href={`/mails/${mail.id}/preview`} className="button outline" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontWeight: 600 }}>
+            <FileText size={16} /> Aperçu en ligne & PDF
+          </Link>
           {mail.validationStatus !== 'REJETE' && (
             <GenerateLetterButton entityId={mail.id} entityType="MAIL" templates={templates} />
           )}

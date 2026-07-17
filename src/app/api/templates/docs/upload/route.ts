@@ -12,12 +12,32 @@ export async function POST(req: NextRequest) {
     }
 
     const formData = await req.formData()
-    const file = formData.get('file') as File | null
     const name = formData.get('name') as string
     const description = formData.get('description') as string || ''
     const entityType = formData.get('entityType') as string || 'MAIL'
+    const htmlContent = formData.get('htmlContent') as string | null
 
-    if (!file || !name) return NextResponse.json({ error: 'Fichier ou nom manquant' }, { status: 400 })
+    if (!name) return NextResponse.json({ error: 'Nom du modèle manquant' }, { status: 400 })
+
+    // Si c'est un modèle en ligne
+    if (htmlContent !== null) {
+      const template = await prisma.documentTemplate.create({
+        data: {
+          name,
+          description,
+          entityType,
+          originalName: 'Modèle en Ligne',
+          storageName: '',
+          storagePath: '',
+          htmlContent
+        }
+      })
+      return NextResponse.json({ success: true, template })
+    }
+
+    // Sinon, c'est un modèle Word (DOCX)
+    const file = formData.get('file') as File | null
+    if (!file) return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 })
 
     if (file.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       return NextResponse.json({ error: 'Seuls les fichiers .docx sont acceptés' }, { status: 400 })
@@ -26,8 +46,7 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer())
     const storageName = uuidv4() + '.docx'
     
-    // Upload vers Supabase Storage dans un bucket 'crm-templates'
-    // Ensure bucket exists or fallback to 'crm-attachments'
+    // Upload vers Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase
       .storage
       .from('crm-attachments')
@@ -54,7 +73,7 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json({ success: true, template })
     } catch (prismaError) {
-      // Rollback Supabase upload on DB error
+      // Rollback Supabase upload
       await supabase.storage.from('crm-attachments').remove([`templates/${storageName}`])
       throw prismaError
     }

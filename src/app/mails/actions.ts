@@ -487,6 +487,34 @@ export async function submitMailForValidation(mailId: string, validatorUserId: s
     }
   })
 
+  // Envoyer un e-mail automatique d'alerte au validateur via Brevo
+  const validator = await prisma.user.findUnique({
+    where: { id: validatorUserId }
+  })
+  if (validator?.email) {
+    const { sendBrevoEmail } = await import('@/lib/brevo')
+    const emailSubject = `📥 Courrier à valider : ${mail.subject}`
+    const hostUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    const emailHtml = `
+      <div style="font-family: sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #2563eb; margin-top: 0;">Nouveau courrier en attente de validation</h2>
+        <p>Bonjour <strong>${validator.firstName}</strong>,</p>
+        <p>Un projet de courrier de réponse pour <strong>"${mail.subject}"</strong> (Réf: ${mail.reference}) a été soumis pour validation et vous a été attribué.</p>
+        <p>Vous pouvez accéder directement à la fiche du courrier pour le relire, comparer les versions et le valider :</p>
+        <div style="margin: 20px 0; text-align: center;">
+          <a href="${hostUrl}/mails/${mail.id}" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Voir le courrier</a>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+        <p style="font-size: 0.85em; color: #64748b; margin-bottom: 0;">Secrétariat du Député Lionel TIVOLI</p>
+      </div>
+    `
+    try {
+      await sendBrevoEmail(validator.email, `${validator.firstName} ${validator.lastName}`, emailSubject, emailHtml)
+    } catch (err) {
+      console.error("[VALIDATION] Échec de l'envoi d'e-mail de validation :", err)
+    }
+  }
+
   revalidatePath('/mails')
   revalidatePath('/mails/' + mailId)
   return { success: true }
@@ -996,5 +1024,160 @@ export async function deleteMailAction(formData: FormData) {
 
   revalidatePath('/mails')
   redirect('/mails')
+}
+
+export async function archiveMailPdfAction(mailId: string, pdfBase64: string, filename: string) {
+  const session = await requireWriteAccess()
+  const { v4: uuidv4 } = await import('uuid')
+  const buffer = Buffer.from(pdfBase64, 'base64')
+  const storageName = uuidv4() + '.pdf'
+  let storagePath = ''
+  let isLocal = true
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+  const useSupabase = supabaseUrl && 
+                      supabaseUrl !== 'https://dummy.supabase.co' &&
+                      process.env.SUPABASE_SERVICE_ROLE_KEY &&
+                      process.env.SUPABASE_SERVICE_ROLE_KEY !== 'dummy'
+
+  if (useSupabase) {
+    try {
+      const { data: uploadData, error: uploadError } = await supabase
+        .storage
+        .from('crm-attachments')
+        .upload(`documents/${storageName}`, buffer, {
+          contentType: 'application/pdf',
+          upsert: false
+        })
+      if (!uploadError) {
+        isLocal = false
+        storagePath = uploadData.path
+      }
+    } catch (err) {
+      console.error('Supabase upload error:', err)
+    }
+  }
+
+  if (isLocal) {
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+    try {
+      await fs.mkdir(uploadDir, { recursive: true })
+    } catch (e) {}
+    await fs.writeFile(path.join(uploadDir, storageName), buffer)
+    storagePath = `/uploads/${storageName}`
+  }
+
+  await prisma.document.create({
+    data: {
+      title: filename.replace('.pdf', ''),
+      documentType: 'COURRIER',
+      confidentiality: 'INTERNE',
+      originalName: filename,
+      storageName,
+      extension: '.pdf',
+      mimeType: 'application/pdf',
+      size: buffer.length,
+      storagePath,
+      uploadedById: session.userId,
+      mailCaseId: mailId
+    }
+  })
+
+  revalidatePath(`/mails/${mailId}`)
+  return { success: true }
+}
+
+export async function sendMailPdfByEmailAction(
+  mailId: string,
+  pdfBase64: string,
+  filename: string,
+  recipientEmail: string,
+  recipientName: string
+) {
+  await requireWriteAccess()
+  const { sendBrevoEmailWithAttachment } = await import('@/lib/brevo')
+
+  const subject = `Votre courrier : Réponse du Cabinet de Lionel TIVOLI`
+  const htmlContent = `
+    <div style="font-family: sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+      <p>Bonjour ${recipientName},</p>
+      <p>Veuillez trouver ci-joint la réponse officielle de Monsieur le Député Lionel TIVOLI concernant votre courrier.</p>
+      <p>Restant à votre entière disposition.</p>
+      <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+      <p style="font-size: 0.85em; color: #64748b; margin-bottom: 0;">Secrétariat du Député Lionel TIVOLI • Circonscription des Alpes-Maritimes</p>
+    </div>
+  `
+
+  await sendBrevoEmailWithAttachment(
+    recipientEmail,
+    recipientName,
+    subject,
+    htmlContent,
+    pdfBase64,
+    filename
+  )
+
+  return { success: true }
+}
+
+export async function archiveMailHtmlAction(mailId: string, htmlContent: string, filename: string) {
+  const session = await requireWriteAccess()
+  const { v4: uuidv4 } = await import('uuid')
+  const buffer = Buffer.from(htmlContent, 'utf-8')
+  const storageName = uuidv4() + '.html'
+  let storagePath = ''
+  let isLocal = true
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+  const useSupabase = supabaseUrl && 
+                      supabaseUrl !== 'https://dummy.supabase.co' &&
+                      process.env.SUPABASE_SERVICE_ROLE_KEY &&
+                      process.env.SUPABASE_SERVICE_ROLE_KEY !== 'dummy'
+
+  if (useSupabase) {
+    try {
+      const { data: uploadData, error: uploadError } = await supabase
+        .storage
+        .from('crm-attachments')
+        .upload(`documents/${storageName}`, buffer, {
+          contentType: 'text/html',
+          upsert: false
+        })
+      if (!uploadError) {
+        isLocal = false
+        storagePath = uploadData.path
+      }
+    } catch (err) {
+      console.error('Supabase upload error:', err)
+    }
+  }
+
+  if (isLocal) {
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+    try {
+      await fs.mkdir(uploadDir, { recursive: true })
+    } catch (e) {}
+    await fs.writeFile(path.join(uploadDir, storageName), buffer)
+    storagePath = `/uploads/${storageName}`
+  }
+
+  await prisma.document.create({
+    data: {
+      title: filename.replace('.html', ''),
+      documentType: 'COURRIER',
+      confidentiality: 'INTERNE',
+      originalName: filename,
+      storageName,
+      extension: '.html',
+      mimeType: 'text/html',
+      size: buffer.length,
+      storagePath,
+      uploadedById: session.userId,
+      mailCaseId: mailId
+    }
+  })
+
+  revalidatePath(`/mails/${mailId}`)
+  return { success: true }
 }
 

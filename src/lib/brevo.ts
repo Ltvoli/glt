@@ -234,3 +234,53 @@ export async function sendBrevoSms(toMobile: string, content: string) {
   }
 }
 
+export async function sendBrevoEmailWithAttachment(
+  toEmail: string,
+  toName: string,
+  subject: string,
+  htmlContent: string,
+  attachmentBase64: string,
+  attachmentName: string
+) {
+  const { apiKey, senderEmail, senderName } = await getBrevoConfig()
+  if (!apiKey) {
+    console.log(`[BREVO SIMULATION] API Key non configurée. Envoi d'email simulé avec pièce jointe à ${toEmail}`)
+    return { simulated: true }
+  }
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': apiKey,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: { name: senderName, email: senderEmail },
+        to: [{ email: toEmail, name: toName }],
+        subject,
+        htmlContent,
+        attachment: [
+          {
+            content: attachmentBase64,
+            name: attachmentName
+          }
+        ]
+      })
+    })
+
+    if (!res.ok) {
+      const errorText = await res.text()
+      throw new Error(`Erreur Brevo API (${res.status}): ${errorText}`)
+    }
+
+    const data = await res.json()
+    console.log(`[BREVO] E-mail avec pièce jointe envoyé à ${toEmail}. Message ID:`, data.messageId)
+    return { success: true, messageId: data.messageId }
+  } catch (err) {
+    console.error('[BREVO] Échec de l\'envoi de l\'e-mail avec pièce jointe :', err)
+    throw err
+  }
+}
+
