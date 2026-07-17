@@ -22,7 +22,7 @@ export default function TaskForm({ users, contactId, allTags = [], dictionary = 
     .sort((a: any, b: any) => a.order - b.order)
 
   return (
-    <form action={formAction}>
+    <form action={formAction} encType="multipart/form-data">
       {contactId && <input type="hidden" name="contactId" value={contactId} />}
       
       {infoFields.length > 0 && (
@@ -58,6 +58,21 @@ export default function TaskForm({ users, contactId, allTags = [], dictionary = 
           {renderTaskField('recurrenceInterval', 'Répéter tous les X (jours/semaines/mois)', {}, users, dictionary, allTags)}
           {renderTaskField('startDate', 'Date de première occurrence', {}, users, dictionary, allTags)}
         </div>
+      </div>
+
+      <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Pièces jointes</h3>
+      <div className="form-group" style={{ marginBottom: '2rem' }}>
+        <label htmlFor="attachments" style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+          Ajouter des fichiers (.pdf, .doc, .docx, .xls, .xlsx, .jpg, .png)
+        </label>
+        <input 
+          type="file" 
+          id="attachments" 
+          name="attachments" 
+          multiple 
+          className="form-control" 
+          style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+        />
       </div>
 
       {state.error && (

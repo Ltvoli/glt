@@ -94,6 +94,133 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
       })
     }
 
+    // Process attachments
+    const files = formData.getAll('attachments') as File[]
+    if (files && files.length > 0) {
+      const path = await import('path')
+      const { v4: uuidv4 } = await import('uuid')
+      const fs = await import('fs/promises')
+      const { supabase } = await import('@/lib/supabase')
+
+      const ALLOWED_MIME_TYPES = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/csv',
+        'text/plain',
+        'image/jpeg',
+        'image/png'
+      ]
+
+      for (const file of files) {
+        if (!file || file.size === 0 || !file.name) continue
+
+        if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+          console.warn(`File type not allowed: ${file.type} for file ${file.name}`)
+          continue
+        }
+
+        const buffer = Buffer.from(await file.arrayBuffer())
+        const storageName = uuidv4()
+        const extension = path.extname(file.name) || ('.' + file.name.split('.').pop())
+        const fileName = `${storageName}${extension}`
+        
+        let isLocal = true
+        let storagePath = ''
+        
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+        const useSupabase = supabaseUrl && 
+                            supabaseUrl !== 'https://dummy.supabase.co' &&
+                            process.env.SUPABASE_SERVICE_ROLE_KEY &&
+                            process.env.SUPABASE_SERVICE_ROLE_KEY !== 'dummy'
+
+        if (useSupabase) {
+          try {
+            const { data: uploadData, error: uploadError } = await supabase
+              .storage
+              .from('crm-attachments')
+              .upload(`documents/${fileName}`, buffer, {
+                contentType: file.type,
+                upsert: false
+              })
+            
+            if (!uploadError) {
+              isLocal = false
+              storagePath = uploadData.path
+            } else {
+              console.error('Supabase upload error, falling back to local:', uploadError)
+            }
+          } catch (err) {
+            console.error('Supabase upload exception, falling back to local:', err)
+          }
+        }
+
+        if (isLocal) {
+          const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+          try {
+            await fs.mkdir(uploadDir, { recursive: true })
+          } catch(e) {}
+          
+          const filePath = path.join(uploadDir, fileName)
+          try {
+            await fs.writeFile(filePath, buffer)
+            storagePath = filePath
+          } catch (fsError) {
+            console.error('Local upload error:', fsError)
+            continue
+          }
+        }
+
+        let extractedText = ''
+        try {
+          if (file.type === 'application/pdf') {
+            try {
+              const pdfParseLib = await import('pdf-parse')
+              const pdfParseFn = (pdfParseLib as any).default ?? pdfParseLib
+              const pdfData = await pdfParseFn(buffer)
+              extractedText = pdfData.text
+            } catch (e) {
+              console.error('Erreur de parsing PDF:', e)
+            }
+          } else if (
+            file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            file.name.endsWith('.docx')
+          ) {
+            try {
+              const { extractTextFromDocx } = await import('@/lib/document-parser')
+              extractedText = extractTextFromDocx(buffer)
+            } catch (e) {
+              console.error('Erreur de parsing DOCX:', e)
+            }
+          }
+        } catch (ocrError) {
+          console.error('OCR/Parse error:', ocrError)
+        }
+
+        await prisma.document.create({
+          data: {
+            title: file.name,
+            documentType: 'AUTRE',
+            originalName: file.name,
+            storageName: fileName,
+            extension,
+            mimeType: file.type,
+            size: file.size,
+            storagePath,
+            confidentiality: 'INTERNE',
+            status: 'VALIDATED',
+            uploadedById: session.userId,
+            extractedText: extractedText.trim() || null,
+            taskId: task.id
+          }
+        })
+      }
+    }
+
     if (!isRecurring && assigneeId && assigneeId !== session.userId) {
       await prisma.notification.create({
         data: {
