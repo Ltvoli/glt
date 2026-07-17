@@ -19,7 +19,8 @@ async function requireUserSession() {
 export async function updateProfileAction(
   firstName: string,
   lastName: string,
-  email: string
+  email: string,
+  mobilePhone?: string
 ): Promise<ActionResult> {
   try {
     const session = await requireUserSession()
@@ -49,7 +50,8 @@ export async function updateProfileAction(
       data: {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        email: email.trim()
+        email: email.trim(),
+        mobilePhone: mobilePhone ? mobilePhone.trim() : null
       }
     })
 
@@ -59,8 +61,8 @@ export async function updateProfileAction(
       session.userId,
       session.userId,
       {
-        newValues: { firstName: updated.firstName, lastName: updated.lastName, email: updated.email },
-        oldValues: { firstName: oldUser.firstName, lastName: oldUser.lastName, email: oldUser.email }
+        newValues: { firstName: updated.firstName, lastName: updated.lastName, email: updated.email, mobilePhone: updated.mobilePhone },
+        oldValues: { firstName: oldUser.firstName, lastName: oldUser.lastName, email: oldUser.email, mobilePhone: oldUser.mobilePhone }
       }
     )
 

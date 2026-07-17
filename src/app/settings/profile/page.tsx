@@ -15,7 +15,8 @@ export default async function SettingsProfilePage() {
       firstName: true,
       lastName: true,
       email: true,
-      role: true
+      role: true,
+      mobilePhone: true
     }
   })
 

@@ -10,6 +10,7 @@ type ProfileClientProps = {
     lastName: string
     email: string
     role: string
+    mobilePhone?: string | null
   }
 }
 
@@ -17,6 +18,7 @@ export default function ProfileClient({ user }: ProfileClientProps) {
   const [firstName, setFirstName] = useState(user.firstName)
   const [lastName, setLastName] = useState(user.lastName)
   const [email, setEmail] = useState(user.email)
+  const [mobilePhone, setMobilePhone] = useState(user.mobilePhone || '')
 
   const [isPending, startTransition] = useTransition()
   const [successBanner, setSuccessBanner] = useState('')
@@ -28,12 +30,12 @@ export default function ProfileClient({ user }: ProfileClientProps) {
     setSuccessBanner('')
 
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      setErrorBanner('Tous les champs sont obligatoires.')
+      setErrorBanner('Le prénom, le nom et l\'adresse e-mail sont obligatoires.')
       return
     }
 
     startTransition(async () => {
-      const res = await updateProfileAction(firstName, lastName, email)
+      const res = await updateProfileAction(firstName, lastName, email, mobilePhone)
       if (res.success) {
         setSuccessBanner('Profil mis à jour avec succès.')
       } else {
@@ -103,6 +105,22 @@ export default function ProfileClient({ user }: ProfileClientProps) {
               value={email}
               onChange={e => setEmail(e.target.value)}
             />
+          </div>
+
+          <div className="form-group">
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.25rem' }}>
+              Téléphone mobile (pour relances SMS)
+            </label>
+            <input
+              type="tel"
+              className="form-control"
+              placeholder="ex : 0612345678"
+              value={mobilePhone}
+              onChange={e => setMobilePhone(e.target.value)}
+            />
+            <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>
+              Ce numéro sera utilisé pour vous envoyer des relances automatiques par SMS à l'approche des échéances de vos tâches.
+            </span>
           </div>
 
           <div className="form-group">

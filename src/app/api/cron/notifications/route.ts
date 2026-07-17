@@ -107,6 +107,17 @@ export async function GET() {
             console.error(`[CRON] Échec de l'envoi d'e-mail pour la tâche ${task.id} :`, emailErr)
           }
         }
+
+        // Envoyez un SMS automatique de rappel au responsable via Brevo s'il a configuré son mobile
+        if (task.assignee?.mobilePhone) {
+          const { sendBrevoSms } = await import('@/lib/brevo')
+          const smsText = `Cabinet : Votre tache "${task.title.substring(0, 50)}" arrive a echeance demain.`
+          try {
+            await sendBrevoSms(task.assignee.mobilePhone, smsText)
+          } catch (smsErr) {
+            console.error(`[CRON] Échec de l'envoi de SMS pour la tâche ${task.id} :`, smsErr)
+          }
+        }
       }
     }
 
