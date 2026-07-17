@@ -17,6 +17,7 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
   // Nouveaux états pour le modèle en ligne
   const [templateType, setTemplateType] = useState<'FILE' | 'ONLINE'>('ONLINE')
   const [htmlContent, setHtmlContent] = useState('')
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null)
 
   const router = useRouter()
   const [isProcessingAi, setIsProcessingAi] = useState(false)
@@ -111,6 +112,33 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
     }, 0)
   }
 
+  const handleCancelEdit = () => {
+    setEditingTemplateId(null)
+    setFile(null)
+    setName('')
+    setDescription('')
+    setHtmlContent('')
+    setTemplateType('ONLINE')
+    setEntityType('MAIL')
+  }
+
+  const handleSelectTemplate = (t: any) => {
+    setEditingTemplateId(t.id)
+    setName(t.name)
+    setDescription(t.description || '')
+    setEntityType(t.entityType)
+    if (t.htmlContent !== null) {
+      setTemplateType('ONLINE')
+      setHtmlContent(t.htmlContent)
+      setFile(null)
+    } else {
+      setTemplateType('FILE')
+      setHtmlContent('')
+      setFile(null)
+    }
+    toast.info(`Édition du modèle "${t.name}"`)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name) {
@@ -118,7 +146,7 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
       return
     }
 
-    if (templateType === 'FILE' && !file) {
+    if (!editingTemplateId && templateType === 'FILE' && !file) {
       toast.error('Veuillez sélectionner un fichier DOCX')
       return
     }
@@ -131,30 +159,39 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
     setIsSaving(true)
     const formData = new FormData()
     formData.append('name', name)
-    formData.append('description', description)
+    formData.append('description', description || '')
     formData.append('entityType', entityType)
 
-    if (templateType === 'FILE' && file) {
-      formData.append('file', file)
+    if (editingTemplateId) {
+      formData.append('id', editingTemplateId)
+    }
+
+    if (templateType === 'FILE') {
+      if (file) formData.append('file', file)
     } else {
       formData.append('htmlContent', htmlContent)
     }
 
     try {
-      const res = await fetch('/api/templates/docs/upload', {
-        method: 'POST',
+      const url = '/api/templates/docs/upload'
+      const method = editingTemplateId ? 'PUT' : 'POST'
+      const res = await fetch(url, {
+        method,
         body: formData
       })
       
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erreur inconnue')
 
-      toast.success(templateType === 'FILE' ? 'Modèle Word uploadé avec succès' : 'Modèle en Ligne créé avec succès')
-      setTemplates([data.template, ...templates])
-      setFile(null)
-      setName('')
-      setDescription('')
-      setHtmlContent('')
+      toast.success(editingTemplateId ? 'Modèle mis à jour avec succès' : (templateType === 'FILE' ? 'Modèle Word uploadé avec succès' : 'Modèle en Ligne créé avec succès'))
+      
+      if (editingTemplateId) {
+        setTemplates(templates.map(t => t.id === editingTemplateId ? data.template : t))
+      } else {
+        setTemplates([data.template, ...templates])
+      }
+      
+      handleCancelEdit()
       router.refresh()
     } catch (err: any) {
       toast.error(err.message)
@@ -181,10 +218,10 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '2rem' }}>
         
-        {/* Formulaire de création */}
+        {/* Formulaire de création / édition */}
         <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
           <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem', fontWeight: 600 }}>
-            <Layout size={18} style={{ color: 'var(--primary)' }} /> Nouveau Modèle
+            <Layout size={18} style={{ color: 'var(--primary)' }} /> {editingTemplateId ? 'Modifier le Modèle' : 'Nouveau Modèle'}
           </h3>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -222,9 +259,15 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
             {templateType === 'FILE' ? (
               <div>
                 <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>Fichier Modèle (.docx)</label>
-                <input type="file" accept=".docx" onChange={e => setFile(e.target.files?.[0] || null)} className="form-control" required />
+                <input 
+                  type="file" 
+                  accept=".docx" 
+                  onChange={e => setFile(e.target.files?.[0] || null)} 
+                  className="form-control" 
+                  required={!editingTemplateId} 
+                />
                 <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-                  Variables autorisées : {`{prenom}`}, {`{nom}`}, {`{adresse}`}, {`{objet}`}, {`{reference}`}, {`{date}`}
+                  {editingTemplateId ? 'Optionnel : déposez un nouveau fichier pour remplacer le fichier Word existant.' : 'Obligatoire : fichier de base Word.'}
                 </p>
               </div>
             ) : (
@@ -295,9 +338,16 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
               </div>
             )}
 
-            <button type="submit" className="button primary" disabled={isSaving} style={{ marginTop: '0.5rem' }}>
-              {isSaving ? 'Enregistrement...' : 'Créer le modèle'}
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <button type="submit" className="button primary" disabled={isSaving} style={{ flex: 1 }}>
+                {isSaving ? 'Enregistrement...' : (editingTemplateId ? 'Enregistrer les modifications' : 'Créer le modèle')}
+              </button>
+              {editingTemplateId && (
+                <button type="button" onClick={handleCancelEdit} className="button outline" disabled={isSaving}>
+                  Annuler
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
@@ -307,13 +357,29 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
             {templates.length === 0 && <p className="text-muted">Aucun modèle pour le moment.</p>}
             {templates.map(t => (
-              <div key={t.id} style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div 
+                key={t.id} 
+                style={{ 
+                  padding: '1rem', 
+                  border: editingTemplateId === t.id ? '2px solid var(--primary)' : '1px solid #e2e8f0', 
+                  borderRadius: '8px', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  background: editingTemplateId === t.id ? '#f8fafc' : '#fff',
+                  boxShadow: editingTemplateId === t.id ? '0 0 0 2px rgba(59, 130, 246, 0.1)' : ''
+                }}
+              >
+                <div 
+                  onClick={() => handleSelectTemplate(t)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', flex: 1 }}
+                  title="Cliquer pour modifier ce modèle"
+                >
                   <div style={{ padding: '0.75rem', background: t.htmlContent ? '#f0fdf4' : '#eff6ff', color: t.htmlContent ? '#16a34a' : '#3b82f6', borderRadius: '8px' }}>
                     <FileText size={20} />
                   </div>
                   <div>
-                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>{t.name}</h4>
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, textDecoration: 'underline', color: 'var(--primary)' }}>{t.name}</h4>
                     <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
                       Lié à : {t.entityType} | Type : {t.htmlContent ? 'Modèle en ligne (HTML)' : `Fichier Word (${t.originalName || 'Word'})`}
                     </span>
