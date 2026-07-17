@@ -9,10 +9,10 @@ export default function TaskTableClient({ tasks }: { tasks: any[] }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isPending, setIsPending] = useState(false)
 
-  const priorityColors: Record<string, string> = {
-    HAUTE: 'var(--danger)',
-    NORMALE: 'var(--primary)',
-    BASSE: 'var(--text-muted)'
+  const priorityBadges: Record<string, { bg: string, color: string, label: string }> = {
+    HAUTE: { bg: '#fee2e2', color: '#991b1b', label: 'Haute' },
+    NORMALE: { bg: '#dbeafe', color: '#1e40af', label: 'Normale' },
+    BASSE: { bg: '#f1f5f9', color: '#475569', label: 'Basse' }
   }
 
   const statusLabels: Record<string, string> = {
@@ -55,6 +55,17 @@ export default function TaskTableClient({ tasks }: { tasks: any[] }) {
 
   return (
     <>
+      <style>{`
+        @keyframes overdue-blink {
+          0% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.8); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        .overdue-pulse {
+          animation: overdue-blink 1.5s infinite ease-in-out;
+        }
+      `}</style>
+
       <div className="card" style={{ overflowX: 'auto' }}>
         <table className="table">
           <thead>
@@ -83,6 +94,11 @@ export default function TaskTableClient({ tasks }: { tasks: any[] }) {
               </tr>
             ) : (
               tasks.map(task => {
+                const isOverdue = task.dueDate && 
+                                  new Date(task.dueDate) < new Date() && 
+                                  task.status !== 'TERMINEE' && 
+                                  task.status !== 'ANNULEE'
+
                 return (
                   <tr key={task.id}>
                     <td>
@@ -128,12 +144,28 @@ export default function TaskTableClient({ tasks }: { tasks: any[] }) {
                       </span>
                     </td>
                     <td>
-                      <span style={{ color: priorityColors[task.priority] || 'var(--text-muted)', fontWeight: 500, fontSize: '0.875rem' }}>
-                        {task.priority}
+                      <span style={{ 
+                        fontSize: '0.75rem', 
+                        fontWeight: 700, 
+                        padding: '0.25rem 0.6rem', 
+                        borderRadius: '9999px',
+                        textTransform: 'uppercase',
+                        backgroundColor: priorityBadges[task.priority]?.bg || '#f1f5f9',
+                        color: priorityBadges[task.priority]?.color || '#475569',
+                        display: 'inline-block'
+                      }}>
+                        {priorityBadges[task.priority]?.label || task.priority}
                       </span>
                     </td>
-                    <td>
-                      {task.dueDate ? new Date(task.dueDate).toLocaleDateString('fr-FR') : '-'}
+                    <td style={{ color: isOverdue ? 'var(--danger)' : 'inherit', fontWeight: isOverdue ? 600 : 'normal' }}>
+                      {task.dueDate ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                          {new Date(task.dueDate).toLocaleDateString('fr-FR')}
+                          {isOverdue && (
+                            <span className="overdue-pulse" title="Date d'échéance dépassée" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--danger)' }}></span>
+                          )}
+                        </span>
+                      ) : '-'}
                     </td>
                     <td>{task.assignee?.name || 'Non assigné'}</td>
                   </tr>

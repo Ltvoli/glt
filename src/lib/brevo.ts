@@ -187,3 +187,50 @@ export async function syncListToBrevoBatch(contacts: any[], listIds: number[]) {
   }
 }
 
+export async function sendBrevoSms(toMobile: string, content: string) {
+  const { apiKey } = await getBrevoConfig()
+  if (!apiKey) {
+    console.log(`[BREVO SIMULATION] API Key non configurée. Envoi SMS simulé à ${toMobile} : ${content}`)
+    return { simulated: true }
+  }
+
+  let recipient = toMobile.trim()
+  if (recipient.startsWith('0')) {
+    recipient = '33' + recipient.substring(1)
+  }
+  recipient = recipient.replace(/[^0-9]/g, '')
+
+  if (!recipient) {
+    throw new Error('Numéro de téléphone invalide')
+  }
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': apiKey,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: 'BPTivoli',
+        recipient,
+        content,
+        type: 'transactional'
+      })
+    })
+
+    if (!res.ok) {
+      const errorText = await res.text()
+      throw new Error(`Erreur Brevo SMS API (${res.status}): ${errorText}`)
+    }
+
+    const data = await res.json()
+    console.log(`[BREVO] SMS envoyé avec succès à ${recipient}. Message ID:`, data.messageId)
+    return { success: true, messageId: data.messageId }
+  } catch (err) {
+    console.error('[BREVO] Échec de l\'envoi du SMS :', err)
+    throw err
+  }
+}
+

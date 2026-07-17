@@ -53,6 +53,9 @@ export async function GET() {
         dueDate: { gte: tomorrow, lt: in48h },
         status: { notIn: ['TERMINEE', 'ANNULEE'] },
         assigneeId: { not: null }
+      },
+      include: {
+        assignee: true
       }
     })
 
@@ -78,6 +81,32 @@ export async function GET() {
             severity: 'WARNING'
           }
         })
+
+        // Envoyez un e-mail automatique de rappel au responsable via Brevo
+        if (task.assignee?.email) {
+          const { sendBrevoEmail } = await import('@/lib/brevo')
+          const emailSubject = `⚠️ Échéance demain : ${task.title}`
+          const emailHtml = `
+            <div style="font-family: sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <h2 style="color: #b91c1c; margin-top: 0;">Rappel d'échéance de tâche</h2>
+              <p>Bonjour <strong>${task.assignee.firstName}</strong>,</p>
+              <p>La tâche suivante arrive à échéance demain (le ${new Date(task.dueDate!).toLocaleDateString('fr-FR')}) :</p>
+              <div style="background-color: #f8fafc; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                <strong style="font-size: 1.1em; color: #1e293b;">${task.title}</strong>
+                ${task.description ? `<p style="margin: 8px 0 0 0; color: #475569; font-size: 0.95em;">${task.description}</p>` : ''}
+                <p style="margin: 8px 0 0 0; color: #64748b; font-size: 0.85em;">Priorité : ${task.priority}</p>
+              </div>
+              <p>Merci de faire le nécessaire pour la finaliser ou de mettre à jour son statut dans l'application.</p>
+              <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 0.85em; color: #64748b; margin-bottom: 0;">Ceci est un e-mail automatique envoyé par votre CRM Cabinet.</p>
+            </div>
+          `
+          try {
+            await sendBrevoEmail(task.assignee.email, `${task.assignee.firstName} ${task.assignee.lastName}`, emailSubject, emailHtml)
+          } catch (emailErr) {
+            console.error(`[CRON] Échec de l'envoi d'e-mail pour la tâche ${task.id} :`, emailErr)
+          }
+        }
       }
     }
 

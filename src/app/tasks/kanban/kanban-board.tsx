@@ -15,6 +15,12 @@ const COLUMNS_CONFIG = [
   { id: 'ANNULEE', label: 'Annulée', color: '#64748b', bg: '#f1f5f9' },
 ]
 
+const priorityBadges: Record<string, { bg: string, color: string, label: string }> = {
+  HAUTE: { bg: '#fee2e2', color: '#991b1b', label: 'Haute' },
+  NORMALE: { bg: '#dbeafe', color: '#1e40af', label: 'Normale' },
+  BASSE: { bg: '#f1f5f9', color: '#475569', label: 'Basse' }
+}
+
 function SortableTask({ task }: { task: any }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
   
@@ -31,11 +37,24 @@ function SortableTask({ task }: { task: any }) {
       <div {...attributes} {...listeners} style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', cursor: 'grab', color: '#cbd5e1' }}>
         <GripVertical size={16} />
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', paddingRight: '1rem' }}>
-        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: task.priority === 'HAUTE' ? 'var(--danger)' : 'var(--text-muted)' }}>
-          {task.priority}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', paddingRight: '1rem' }}>
+        <span style={{ 
+          fontSize: '0.65rem', 
+          fontWeight: 700, 
+          padding: '0.125rem 0.5rem', 
+          borderRadius: '9999px',
+          textTransform: 'uppercase',
+          backgroundColor: priorityBadges[task.priority]?.bg || '#f1f5f9',
+          color: priorityBadges[task.priority]?.color || '#475569',
+          display: 'inline-block'
+        }}>
+          {priorityBadges[task.priority]?.label || task.priority}
         </span>
-        {isOverdue && <AlertCircle size={14} color="var(--danger)" />}
+        {isOverdue && (
+          <span className="overdue-pulse" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.125rem 0.375rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 600 }}>
+            ⚠️ Retard
+          </span>
+        )}
       </div>
       
       <div style={{ fontWeight: 'bold', fontSize: '0.875rem', marginBottom: '0.5rem', lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -60,7 +79,7 @@ function SortableTask({ task }: { task: any }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
         <span>{task.assignee?.name || 'Non assigné'}</span>
         {task.dueDate && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: isOverdue ? 'var(--danger)' : 'inherit' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: isOverdue ? 'var(--danger)' : 'inherit', fontWeight: isOverdue ? 600 : 'normal' }}>
             <CalendarDays size={12} />
             {new Date(task.dueDate).toLocaleDateString('fr-FR')}
           </span>
@@ -71,7 +90,6 @@ function SortableTask({ task }: { task: any }) {
 }
 
 function DroppableColumn({ id, title, color, tasks }: { id: string, title: string, color: string, tasks: any[] }) {
-  // Instead of sortable column, we use useSortable for the column itself so it can act as a drop target when empty
   const { setNodeRef } = useSortable({ id, data: { type: 'Column' } })
   
   return (
@@ -107,7 +125,6 @@ export default function KanbanBoard({ initialColumns }: { initialColumns: Record
   const handleDragStart = (event: any) => {
     const { active } = event
     const id = active.id
-    // Find active task
     for (const col of Object.values(columns)) {
       const task = col.find(t => t.id === id)
       if (task) {
@@ -126,7 +143,6 @@ export default function KanbanBoard({ initialColumns }: { initialColumns: Record
     const activeId = active.id
     const overId = over.id
 
-    // Find source and dest columns
     let sourceColId = ''
     let destColId = ''
 
@@ -137,7 +153,6 @@ export default function KanbanBoard({ initialColumns }: { initialColumns: Record
 
     if (!sourceColId || !destColId || sourceColId === destColId) return
 
-    // Optimistic update
     const taskIndex = columns[sourceColId].findIndex(t => t.id === activeId)
     const task = columns[sourceColId][taskIndex]
 
@@ -155,6 +170,17 @@ export default function KanbanBoard({ initialColumns }: { initialColumns: Record
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <style>{`
+        @keyframes overdue-blink {
+          0% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.9); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        .overdue-pulse {
+          animation: overdue-blink 1.5s infinite ease-in-out;
+        }
+      `}</style>
+
       <div style={{ display: 'flex', gap: '1rem', height: '100%', overflowX: 'auto', paddingBottom: '1rem' }}>
         {COLUMNS_CONFIG.map(col => (
           <DroppableColumn key={col.id} id={col.id} title={col.label} color={col.color} tasks={columns[col.id] || []} />
