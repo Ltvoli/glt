@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react'
 import { toast } from 'sonner'
-import { Upload, FileText, Layout, Info } from 'lucide-react'
+import { Upload, FileText, Layout, Info, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { convertDocxToTemplateAction } from './actions'
 
 export default function TemplatesClient({ initialTemplates }: { initialTemplates: any[] }) {
   const [templates, setTemplates] = useState(initialTemplates)
@@ -18,6 +19,60 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
   const [htmlContent, setHtmlContent] = useState('')
 
   const router = useRouter()
+  const [isProcessingAi, setIsProcessingAi] = useState(false)
+
+  const handleAiImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const file = files[0]
+    if (file.name.split('.').pop()?.toLowerCase() !== 'docx') {
+      toast.error('Seuls les fichiers .docx sont acceptés pour la conversion')
+      return
+    }
+
+    setIsProcessingAi(true)
+    const toastId = toast.loading('Extraction et conversion par IA en cours...')
+
+    try {
+      const reader = new FileReader()
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const arrayBuffer = reader.result as ArrayBuffer
+          const bytes = new Uint8Array(arrayBuffer)
+          let binary = ''
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i])
+          }
+          resolve(window.btoa(binary))
+        }
+        reader.onerror = reject
+        reader.readAsArrayBuffer(file)
+      })
+
+      const base64Data = await base64Promise
+      const result = await convertDocxToTemplateAction(base64Data)
+
+      if (!result.success) {
+        throw new Error(result.error || 'Erreur lors de la conversion')
+      }
+
+      if (result.htmlContent) {
+        setHtmlContent(result.htmlContent)
+        toast.success('Modèle Word converti avec succès en HTML !')
+      }
+      if (result.templateName) {
+        setName(result.templateName)
+      }
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || 'Erreur lors de la conversion')
+    } finally {
+      setIsProcessingAi(false)
+      toast.dismiss(toastId)
+      e.target.value = ''
+    }
+  }
 
   const insertVariable = (variable: string) => {
     const textarea = document.getElementById('htmlContent') as HTMLTextAreaElement
@@ -155,7 +210,38 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
               </div>
             ) : (
               <div>
-                <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>Corps du modèle (HTML/Texte)</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem', margin: 0 }}>Corps du modèle (HTML/Texte)</label>
+                  <div>
+                    <label 
+                      htmlFor="ai-docx-upload" 
+                      style={{ 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        gap: '0.25rem', 
+                        fontSize: '0.75rem', 
+                        color: 'var(--primary)', 
+                        background: '#e0f2fe', 
+                        padding: '0.25rem 0.5rem', 
+                        borderRadius: '4px', 
+                        cursor: isProcessingAi ? 'not-allowed' : 'pointer',
+                        fontWeight: 600,
+                        border: '1px dashed var(--primary)'
+                      }}
+                    >
+                      <Sparkles size={12} />
+                      {isProcessingAi ? 'Conversion...' : 'Importer un fichier Word par IA'}
+                    </label>
+                    <input 
+                      id="ai-docx-upload" 
+                      type="file" 
+                      accept=".docx" 
+                      onChange={handleAiImport} 
+                      style={{ display: 'none' }} 
+                      disabled={isProcessingAi}
+                    />
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginTop: '0.5rem' }}>
                   <div>
                     <textarea 

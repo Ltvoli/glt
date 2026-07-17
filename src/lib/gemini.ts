@@ -434,3 +434,52 @@ Renvoie un objet JSON associant le champ cible au nom exact de la colonne dans l
     return {}
   }
 }
+
+const TEMPLATE_CONVERSION_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    htmlContent: {
+      type: "STRING",
+      description: "Le code HTML propre, stylisé et responsive représentant le modèle de courrier avec les balises de fusion CRM adaptées."
+    },
+    templateName: {
+      type: "STRING",
+      description: "Un nom suggéré pour ce modèle de document (ex: Courrier d'intervention, Accusé de réception, etc.) basé sur le contenu."
+    }
+  },
+  required: ["htmlContent", "templateName"]
+}
+
+export async function convertDocxTextToHtmlTemplate(docxText: string): Promise<{ htmlContent: string, templateName: string }> {
+  const systemInstruction = `
+Tu es un expert en conception de modèles de courriers et en intégration HTML/CSS.
+Ton but est de convertir le texte brut extrait d'un document Word (.docx) en un modèle HTML de courrier propre, responsive, moderne et stylisé avec les balises de fusion CRM appropriées.
+
+CONSIGNES DE CONVERSION :
+1. Analyse la structure du courrier d'origine.
+2. Remplace les informations dynamiques détectées par les balises du CRM adaptées :
+   - L'en-tête de l'élu (ex: "Lionel Tivoli, Député...", "Assemblée Nationale...") par la balise unique : {en_tete_officielle}
+   - Les coordonnées du destinataire (nom, adresse de l'administré/administration...) par : {expediteur_adresse}
+   - La formule d'appel (ex: "Monsieur le Maire,", "Madame, Monsieur,") par : {civilite_expediteur}
+   - L'objet (ex: "Objet : Demande de logement") par : Objet : {objet}
+   - La référence (ex: "Réf : LT/AB/2026-042") par : Réf : {reference}
+   - La date (ex: "Fait à Nice, le 15 avril 2026", "Le 12/04/2026") par : {date_courrier}
+   - Le corps de réponse type ou le message principal par : {corps_reponse}
+   - Le bloc de signature de l'élu en bas (nom, qualité, image de signature...) par : {signature_elu}
+3. Produis un code HTML propre, stylisé et responsive représentant le modèle de courrier.
+   - Utilise du CSS en ligne (inline styles) propre pour garantir la compatibilité lors de la génération de PDF ou de l'envoi d'e-mails.
+   - Choisis une typographie moderne, des marges aérées (par exemple, 1.5cm ou 2cm sur les côtés pour faire "papier à en-tête officiel"), et un style professionnel.
+   - Assure-toi que les balises de fusion CRM sont placées exactement aux bons endroits structurels dans le HTML (par exemple, {en_tete_officielle} tout en haut, {date_courrier} en haut à droite, {expediteur_adresse} en haut à gauche/droite sous la date, Objet et Réf bien alignés, le corps {corps_reponse} au centre, et {signature_elu} en bas à droite).
+4. Suggère également un nom court et pertinent pour le modèle (par exemple: "Courrier de saisine Préfet", "Accusé de réception standard", "Lettre d'appui logement").
+
+RÈGLES D'OR :
+- Conserve les éléments statiques importants s'il y en a (comme des mentions légales ou des structures fixes) mais remplace tout le contenu dynamique par les balises CRM indiquées.
+- Le HTML généré doit être complet et valide (avec des balises structurantes ou des conteneurs <div> bien agencés), et ne contenir aucun texte brut qui devrait être dynamique.
+`
+
+  const userMessage = `Voici le texte brut extrait du document Word :\n\n---\n${docxText}\n---`
+  const parts = [{ text: userMessage }]
+
+  return await callGemini(systemInstruction, parts, TEMPLATE_CONVERSION_SCHEMA)
+}
+
