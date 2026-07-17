@@ -94,6 +94,26 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
       })
     }
 
+    const mailCaseId = formData.get('mailCaseId') as string
+    if (mailCaseId) {
+      await prisma.globalLink.create({
+        data: {
+          taskId: task.id,
+          mailCaseId: mailCaseId
+        }
+      })
+    }
+
+    const questionId = formData.get('questionId') as string
+    if (questionId) {
+      await prisma.globalLink.create({
+        data: {
+          taskId: task.id,
+          questionId: questionId
+        }
+      })
+    }
+
     // Process attachments
     const files = formData.getAll('attachments') as File[]
     if (files && files.length > 0) {

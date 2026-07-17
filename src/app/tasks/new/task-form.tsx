@@ -8,7 +8,27 @@ const initialState = {
   error: ''
 }
 
-export default function TaskForm({ users, contactId, allTags = [], dictionary = [], fieldConfig = {} }: { users: any[], contactId?: string, allTags?: any[], dictionary?: any[], fieldConfig?: Record<string, any> }) {
+export default function TaskForm({
+  users,
+  contactId,
+  mailCaseId,
+  questionId,
+  mails = [],
+  qes = [],
+  allTags = [],
+  dictionary = [],
+  fieldConfig = {}
+}: {
+  users: any[],
+  contactId?: string,
+  mailCaseId?: string,
+  questionId?: string,
+  mails?: any[],
+  qes?: any[],
+  allTags?: any[],
+  dictionary?: any[],
+  fieldConfig?: Record<string, any>
+}) {
   const [state, formAction, isPending] = useActionState(createTask, initialState)
 
   const infoFields = Object.entries(fieldConfig || {})
@@ -24,6 +44,8 @@ export default function TaskForm({ users, contactId, allTags = [], dictionary = 
   return (
     <form action={formAction} encType="multipart/form-data">
       {contactId && <input type="hidden" name="contactId" value={contactId} />}
+      {mailCaseId && <input type="hidden" name="mailCaseId" value={mailCaseId} />}
+      {questionId && <input type="hidden" name="questionId" value={questionId} />}
       
       {infoFields.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
@@ -36,6 +58,41 @@ export default function TaskForm({ users, contactId, allTags = [], dictionary = 
           <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Planification</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
             {planFields.map((f: any) => renderTaskField(f.key, f.label, {}, users, dictionary, allTags))}
+          </div>
+        </>
+      )}
+
+      {(!mailCaseId || !questionId) && (
+        <>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Dossiers associés</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            {!mailCaseId && (
+              <div className="form-group">
+                <label htmlFor="mailCaseId">Courrier associé</label>
+                <select name="mailCaseId" id="mailCaseId" className="form-control">
+                  <option value="">-- Aucun --</option>
+                  {mails.map((m: any) => (
+                    <option key={m.id} value={m.id}>
+                      {m.reference ? `[${m.reference}] ` : ''}{m.subject || m.title || m.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            {!questionId && (
+              <div className="form-group">
+                <label htmlFor="questionId">Question Écrite (QE) associée</label>
+                <select name="questionId" id="questionId" className="form-control">
+                  <option value="">-- Aucun --</option>
+                  {qes.map((q: any) => (
+                    <option key={q.id} value={q.id}>
+                      {q.anNumber ? `N° ${q.anNumber} : ` : ''}{q.title || q.subject || q.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </>
       )}

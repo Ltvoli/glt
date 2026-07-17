@@ -360,7 +360,12 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
           </div>
 
           <div className="card">
-            <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>Tâches liées</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0 }}>Tâches liées</h3>
+              <Link href={`/tasks/new?mailCaseId=${mail.id}&title=${encodeURIComponent('Suivi Courrier : ' + (mail.subject || mail.reference || ''))}`} className="button outline no-print" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
+                Créer
+              </Link>
+            </div>
             {linkedTasks.length > 0 ? (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {linkedTasks.map((task: any) => (

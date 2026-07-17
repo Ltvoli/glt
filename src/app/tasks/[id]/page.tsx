@@ -65,13 +65,14 @@ export default async function TaskDetailPage({
 }) {
   const { id } = await params
   
-  const [task, auditLogs] = await Promise.all([
+  const [task, auditLogs, activeMails, activeQes] = await Promise.all([
     prisma.task.findUnique({
       where: { id },
       include: { 
         assignee: true,
         subtasks: true,
         documents: true,
+        links: true,
         comments: { 
           orderBy: { createdAt: 'desc' },
           include: { author: true }
@@ -83,6 +84,17 @@ export default async function TaskDetailPage({
       where: { entity: 'Task', entityId: id },
       orderBy: { createdAt: 'desc' },
       include: { user: { select: { firstName: true, lastName: true } } }
+    }),
+    prisma.mailCase.findMany({
+      select: { id: true, reference: true, subject: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    }),
+    prisma.writtenQuestion.findMany({
+      where: { archivedAt: null },
+      select: { id: true, anNumber: true, title: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100
     })
   ])
 
@@ -127,7 +139,16 @@ export default async function TaskDetailPage({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div className="card">
             <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Détails de la tâche</h2>
-            <EditTaskForm task={JSON.parse(JSON.stringify(task))} users={JSON.parse(JSON.stringify(users))} allTags={allTags} dictionary={dictionary} fieldConfig={fieldConfig} canDelete={!!canDelete} />
+            <EditTaskForm 
+              task={JSON.parse(JSON.stringify(task))} 
+              users={JSON.parse(JSON.stringify(users))} 
+              mails={JSON.parse(JSON.stringify(activeMails))}
+              qes={JSON.parse(JSON.stringify(activeQes))}
+              allTags={allTags} 
+              dictionary={dictionary} 
+              fieldConfig={fieldConfig} 
+              canDelete={!!canDelete} 
+            />
           </div>
 
           <div className="card">

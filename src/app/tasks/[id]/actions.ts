@@ -19,6 +19,8 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
   const dueDateStr = formData.get('dueDate') as string
   const expectedDeliverable = formData.get('expectedDeliverable') as string
   const tagsStr = formData.get('tags') as string
+  const mailCaseId = formData.get('mailCaseId') as string
+  const questionId = formData.get('questionId') as string
 
   // Recurrence fields
   const isRecurring = formData.get('isRecurring') === 'on' || formData.get('isRecurring') === 'true'
@@ -93,6 +95,35 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
           relatedType: 'Task',
           relatedId: task.id,
           severity: 'INFO'
+        }
+      })
+    }
+
+    // Update linkages for mail cases and written questions
+    await prisma.globalLink.deleteMany({
+      where: {
+        taskId: id,
+        OR: [
+          { mailCaseId: { not: null } },
+          { questionId: { not: null } }
+        ]
+      }
+    })
+
+    if (mailCaseId) {
+      await prisma.globalLink.create({
+        data: {
+          taskId: id,
+          mailCaseId: mailCaseId
+        }
+      })
+    }
+
+    if (questionId) {
+      await prisma.globalLink.create({
+        data: {
+          taskId: id,
+          questionId: questionId
         }
       })
     }

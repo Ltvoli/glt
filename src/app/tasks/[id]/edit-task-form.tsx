@@ -9,7 +9,25 @@ const initialState = {
   success: false
 }
 
-export default function EditTaskForm({ task, users, allTags = [], dictionary = [], fieldConfig = {}, canDelete = false }: { task: any, users: any[], allTags?: any[], dictionary?: any[], fieldConfig?: Record<string, any>, canDelete?: boolean }) {
+export default function EditTaskForm({
+  task,
+  users,
+  mails = [],
+  qes = [],
+  allTags = [],
+  dictionary = [],
+  fieldConfig = {},
+  canDelete = false
+}: {
+  task: any,
+  users: any[],
+  mails?: any[],
+  qes?: any[],
+  allTags?: any[],
+  dictionary?: any[],
+  fieldConfig?: Record<string, any>,
+  canDelete?: boolean
+}) {
   const [state, formAction, isPending] = useActionState(updateTask, initialState)
 
   const infoFields = Object.entries(fieldConfig || {})
@@ -21,6 +39,9 @@ export default function EditTaskForm({ task, users, allTags = [], dictionary = [
     .map(([key, f]) => ({ key, ...(f as any) }))
     .filter((f: any) => f.section === 'Planification' && f.isVisible)
     .sort((a: any, b: any) => a.order - b.order)
+
+  const linkedMailId = task.links?.find((l: any) => l.mailCaseId)?.mailCaseId || ''
+  const linkedQeId = task.links?.find((l: any) => l.questionId)?.questionId || ''
 
   return (
     <form action={formAction}>
@@ -40,6 +61,33 @@ export default function EditTaskForm({ task, users, allTags = [], dictionary = [
           </div>
         </>
       )}
+
+      <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Dossiers associés</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div className="form-group">
+          <label htmlFor="mailCaseId">Courrier associé</label>
+          <select name="mailCaseId" id="mailCaseId" className="form-control" defaultValue={linkedMailId}>
+            <option value="">-- Aucun --</option>
+            {mails.map((m: any) => (
+              <option key={m.id} value={m.id}>
+                {m.reference ? `[${m.reference}] ` : ''}{m.subject || m.title || m.id}
+              </option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="form-group">
+          <label htmlFor="questionId">Question Écrite (QE) associée</label>
+          <select name="questionId" id="questionId" className="form-control" defaultValue={linkedQeId}>
+            <option value="">-- Aucun --</option>
+            {qes.map((q: any) => (
+              <option key={q.id} value={q.id}>
+                {q.anNumber ? `N° ${q.anNumber} : ` : ''}{q.title || q.subject || q.id}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Récurrence</h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
