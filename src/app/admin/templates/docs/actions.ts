@@ -46,3 +46,35 @@ export async function convertDocxToTemplateAction(base64Docx: string) {
     }
   }
 }
+
+export async function deleteTemplateAction(templateId: string) {
+  try {
+    await requireAdminSession()
+    const prisma = (await import('@/lib/prisma')).default
+
+    // Find template to delete storage file if any
+    const template = await prisma.documentTemplate.findUnique({
+      where: { id: templateId }
+    })
+
+    if (!template) {
+      throw new Error('Modèle introuvable')
+    }
+
+    // Supprimer le modèle
+    await prisma.documentTemplate.delete({
+      where: { id: templateId }
+    })
+
+    const { revalidatePath } = await import('next/cache')
+    revalidatePath('/admin/templates/docs')
+
+    return { success: true }
+  } catch (error: any) {
+    console.error('[deleteTemplateAction] Error:', error)
+    return {
+      success: false,
+      error: error.message || 'Une erreur inconnue est survenue'
+    }
+  }
+}

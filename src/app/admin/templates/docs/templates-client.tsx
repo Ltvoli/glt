@@ -2,9 +2,9 @@
 
 import React, { useState } from 'react'
 import { toast } from 'sonner'
-import { Upload, FileText, Layout, Info, Sparkles } from 'lucide-react'
+import { Upload, FileText, Layout, Info, Sparkles, Trash2, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { convertDocxToTemplateAction } from './actions'
+import { convertDocxToTemplateAction, deleteTemplateAction } from './actions'
 
 export default function TemplatesClient({ initialTemplates }: { initialTemplates: any[] }) {
   const [templates, setTemplates] = useState(initialTemplates)
@@ -20,6 +20,25 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
 
   const router = useRouter()
   const [isProcessingAi, setIsProcessingAi] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce modèle ?')) return
+    setDeletingId(id)
+    try {
+      const res = await deleteTemplateAction(id)
+      if (res.success) {
+        setTemplates(templates.filter(t => t.id !== id))
+        toast.success('Modèle supprimé avec succès !')
+      } else {
+        toast.error(res.error || 'Erreur lors de la suppression')
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de la suppression')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const handleAiImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -296,10 +315,31 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
                   <div>
                     <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>{t.name}</h4>
                     <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                      Lié à : {t.entityType} | Type : {t.htmlContent ? 'Modèle en ligne (HTML)' : `Fichier Word (${t.originalName})`}
+                      Lié à : {t.entityType} | Type : {t.htmlContent ? 'Modèle en ligne (HTML)' : `Fichier Word (${t.originalName || 'Word'})`}
                     </span>
                   </div>
                 </div>
+
+                <button 
+                  type="button" 
+                  onClick={() => handleDelete(t.id)} 
+                  disabled={deletingId !== null}
+                  style={{ 
+                    background: 'none', 
+                    border: 'none', 
+                    color: 'var(--danger, #ef4444)', 
+                    cursor: 'pointer',
+                    padding: '0.5rem',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background-color 0.2s'
+                  }}
+                  title="Supprimer ce modèle"
+                >
+                  {deletingId === t.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                </button>
               </div>
             ))}
           </div>
