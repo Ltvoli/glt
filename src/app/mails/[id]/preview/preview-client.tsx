@@ -23,6 +23,11 @@ export default function PreviewClient({ mail, templates, variablesMap, primaryCo
 
   // Fusionner les variables dans le template HTML
   const getMergedHtml = () => {
+    // Si le contenu est déjà au format HTML (modèle déjà fusionné et appliqué)
+    if (mail.content && mail.content.includes('<') && mail.content.includes('>')) {
+      return mail.content
+    }
+
     if (!activeTemplate || !activeTemplate.htmlContent) return ''
     let content = activeTemplate.htmlContent
 
@@ -147,16 +152,22 @@ export default function PreviewClient({ mail, templates, variablesMap, primaryCo
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div>
               <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>Sélectionner un modèle</label>
-              <select 
-                className="form-control" 
-                value={selectedTemplateId} 
-                onChange={e => setSelectedTemplateId(e.target.value)}
-                style={{ marginTop: '0.25rem' }}
-              >
-                {templates.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+              {mail.content && mail.content.includes('<') && mail.content.includes('>') ? (
+                <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', fontSize: '0.8rem', color: '#166534', fontWeight: 500 }}>
+                  ✓ Modèle HTML appliqué et enregistré sur la fiche courrier.
+                </div>
+              ) : (
+                <select 
+                  className="form-control" 
+                  value={selectedTemplateId} 
+                  onChange={e => setSelectedTemplateId(e.target.value)}
+                  style={{ marginTop: '0.25rem' }}
+                >
+                  {templates.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <hr style={{ border: 0, borderTop: '1px solid var(--border)', margin: 0 }} />
@@ -204,11 +215,7 @@ export default function PreviewClient({ mail, templates, variablesMap, primaryCo
 
         {/* Page A4 visualisée */}
         <div style={{ textAlign: 'center' }}>
-          {templates.length === 0 ? (
-            <div className="card" style={{ padding: '2rem', color: 'var(--text-muted)' }}>
-              Aucun modèle en ligne (HTML) configuré dans l'administration.
-            </div>
-          ) : activeTemplate ? (
+          {mergedHtml ? (
             <div className="a4-page" id="letter-page" dangerouslySetInnerHTML={{ __html: mergedHtml }} />
           ) : (
             <div className="card" style={{ padding: '2rem', color: 'var(--text-muted)' }}>
