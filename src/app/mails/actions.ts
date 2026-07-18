@@ -1305,3 +1305,105 @@ export async function applyHtmlTemplateToMailAction(mailId: string, templateId: 
   }
 }
 
+export async function updateMailContentAction(
+  mailId: string,
+  content: string
+): Promise<{ success: boolean; error?: string }> {
+  let session
+  try {
+    session = await requireWriteAccess()
+    requirePermission(session.role, 'MANAGE_MAILS')
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+
+  try {
+    const existing = await prisma.mailCase.findUnique({ where: { id: mailId } })
+    if (!existing) return { success: false, error: 'Courrier introuvable.' }
+
+    if (existing.content !== content) {
+      const lastVersion = await prisma.mailVersion.findFirst({
+        where: { mailCaseId: mailId },
+        orderBy: { createdAt: 'desc' }
+      })
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000)
+      if (!lastVersion || lastVersion.createdAt < twoMinutesAgo || lastVersion.editedById !== session.userId) {
+        await prisma.mailVersion.create({
+          data: {
+            mailCaseId: mailId,
+            subject: existing.subject,
+            content: existing.content || '',
+            editedById: session.userId
+          }
+        })
+      }
+    }
+
+    await prisma.mailCase.update({
+      where: { id: mailId },
+      data: {
+        content: content
+      }
+    })
+
+    await logAudit('UPDATE_CONTENT', 'MailCase', mailId, session.userId, { length: content.length })
+
+    revalidatePath(`/mails/${mailId}`)
+    revalidatePath('/mails')
+    return { success: true }
+  } catch (err: any) {
+    console.error('[updateMailContentAction] error:', err)
+    return { success: false, error: err.message || 'Erreur lors de la mise à jour du contenu.' }
+  }
+}
+
+export async function generateAiResponseAction(
+  mailId: string,
+  instruction: string
+): Promise<{ success: boolean; text?: string; error?: string }> {
+  let session
+  try {
+    session = await requireWriteAccess()
+    requirePermission(session.role, 'MANAGE_MAILS')
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+
+  const mailEnabledSetting = await prisma.setting.findUnique({ where: { key: 'ai.mail_enabled' } })
+  if (mailEnabledSetting?.value !== 'true') {
+    return { success: false, error: 'L\'assistant IA est désactivé globalement.' }
+  }
+
+  try {
+    const mail = await prisma.mailCase.findUnique({
+      where: { id: mailId },
+      include: { parentMailCase: true }
+    })
+    if (!mail) {
+      return { success: false, error: 'Courrier introuvable.' }
+    }
+
+    let incomingContent = ''
+    if (mail.type === 'ENTRANT') {
+      incomingContent = mail.content || mail.subject || ''
+    } else if (mail.parentMailCase) {
+      incomingContent = mail.parentMailCase.content || mail.parentMailCase.subject || ''
+    } else {
+      incomingContent = mail.content || mail.subject || ''
+    }
+
+    if (!incomingContent) {
+      return { success: false, error: "Aucun contenu de courrier entrant trouvé pour servir de contexte." }
+    }
+
+    const { generateSingleResponse } = await import('@/lib/gemini')
+    const aiResponse = await generateSingleResponse(incomingContent, instruction)
+
+    return { success: true, text: aiResponse.text }
+  } catch (err: any) {
+    console.error('[generateAiResponseAction] error:', err)
+    return { success: false, error: err.message || "Erreur de génération avec Gemini." }
+  }
+}
+
+

@@ -483,3 +483,50 @@ RÈGLES D'OR :
   return await callGemini(systemInstruction, parts, TEMPLATE_CONVERSION_SCHEMA)
 }
 
+const SINGLE_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    text: {
+      type: "STRING",
+      description: "Le corps de la réponse rédigé en français, structuré avec des balises HTML de base (<p>, <br>, <strong>) pour la mise en forme. Sans en-tête ni signature officielle."
+    }
+  },
+  required: ["text"]
+}
+
+export async function generateSingleResponse(
+  incomingMailContent: string,
+  instruction: string
+): Promise<{ text: string }> {
+  const deputyName = process.env.DEPUTE_NOM || "Lionel Tivoli"
+  const deputyCirco = process.env.DEPUTE_CIRCO || "2e circonscription des Alpes-Maritimes"
+  const deputyGroup = process.env.DEPUTE_GROUPE || "Rassemblement National"
+  const deputyCommission = process.env.DEPUTE_COMMISSION || "Commission de la Défense nationale et des Forces armées"
+
+  const systemInstruction = `
+Tu es un attaché parlementaire expérimenté chargé de rédiger, au nom du député ${deputyName} (député de la ${deputyCirco}, groupe politique ${deputyGroup}, commission permanente ${deputyCommission}), une réponse au courrier reçu en fonction de la consigne donnée par l'utilisateur.
+
+RÈGLES DE RÉDACTION
+- Rédige un projet de réponse poli et fluide.
+- Le texte rédigé doit être sous format HTML simple (ex: avec des balises <p>, <br>, <strong>). N'inclus pas d'en-tête ni de signature (elles sont gérées par ailleurs dans l'application).
+- N'invente aucun fait ni chiffre. Les informations manquantes sont balisées ainsi: [À COMPLÉTER : ...].
+- Aucune promesse de résultat ni injonction contraire à la séparation des pouvoirs.
+`
+
+  const userMessage = `
+COURRIER REÇU :
+--- DÉBUT ---
+${incomingMailContent}
+--- FIN ---
+
+CONSIGNE DE RÉDACTION :
+${instruction}
+
+Rédige le projet de réponse correspondant.
+`
+
+  const parts = [{ text: userMessage }]
+  return await callGemini(systemInstruction, parts, SINGLE_RESPONSE_SCHEMA)
+}
+
+
