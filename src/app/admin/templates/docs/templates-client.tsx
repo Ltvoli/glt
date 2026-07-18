@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
 import { Upload, FileText, Layout, Info, Sparkles, Trash2, Loader2, X, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import Script from 'next/script'
 import { convertDocxToTemplateAction, deleteTemplateAction } from './actions'
 
 export default function TemplatesClient({ initialTemplates }: { initialTemplates: any[] }) {
@@ -22,7 +21,6 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
 
   // États pour la modale et Quill
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [quillLoaded, setQuillLoaded] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
   const quillInstanceRef = useRef<any>(null)
 
@@ -30,54 +28,101 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
   const [isProcessingAi, setIsProcessingAi] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // Initialisation de Quill lors de l'ouverture de la modale en mode ONLINE
+  // Initialisation et chargement de Quill de manière robuste
   useEffect(() => {
-    if (
-      isModalOpen &&
-      templateType === 'ONLINE' &&
-      typeof window !== 'undefined' &&
-      (window as any).Quill &&
-      editorRef.current &&
-      !quillInstanceRef.current
-    ) {
+    if (!isModalOpen || templateType !== 'ONLINE') {
+      quillInstanceRef.current = null;
+      return;
+    }
+
+    let active = true;
+
+    const initQuill = () => {
+      if (!active) return;
       const Quill = (window as any).Quill;
-      
-      const quill = new Quill(editorRef.current, {
-        theme: 'snow',
-        modules: {
-          toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'align': [] }],
-            ['clean']
-          ]
-        },
-        placeholder: 'Rédigez le squelette HTML de la lettre...'
-      });
+      if (Quill && editorRef.current && !quillInstanceRef.current) {
+        const quill = new Quill(editorRef.current, {
+          theme: 'snow',
+          modules: {
+            toolbar: [
+              [{ 'header': [1, 2, 3, false] }],
+              ['bold', 'italic', 'underline', 'strike'],
+              [{ 'color': [] }, { 'background': [] }],
+              [{ 'align': [] }],
+              ['clean']
+            ]
+          },
+          placeholder: 'Rédigez le squelette HTML de la lettre...'
+        });
 
-      quillInstanceRef.current = quill;
+        quillInstanceRef.current = quill;
 
-      // Charger le contenu initial
-      if (htmlContent) {
-        quill.clipboard.dangerouslyPasteHTML(htmlContent);
+        // Charger le contenu initial s'il y en a un
+        if (htmlContent) {
+          quill.clipboard.dangerouslyPasteHTML(htmlContent);
+        }
+
+        // Écouter les changements pour mettre à jour l'état
+        quill.on('text-change', () => {
+          setHtmlContent(quill.root.innerHTML);
+        });
+      }
+    };
+
+    if ((window as any).Quill) {
+      initQuill();
+    } else {
+      // Charger le CSS
+      if (!document.getElementById('quill-css')) {
+        const link = document.createElement('link');
+        link.id = 'quill-css';
+        link.rel = 'stylesheet';
+        link.href = 'https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css';
+        document.head.appendChild(link);
       }
 
-      // Mettre à jour l'état lors de la saisie
-      quill.on('text-change', () => {
-        setHtmlContent(quill.root.innerHTML);
-      });
-    }
+      // Charger le JS
+      const scriptId = 'quill-js';
+      let script = document.getElementById(scriptId) as HTMLScriptElement;
+      if (!script) {
+        script = document.createElement('script');
+        script.id = scriptId;
+        script.src = 'https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js';
+        script.async = true;
+        document.body.appendChild(script);
+      }
 
-    // Réinitialiser le ref si la modale se ferme ou si le type change
-    return () => {
-      if (!isModalOpen || templateType !== 'ONLINE') {
+      const handleLoad = () => {
+        initQuill();
+      };
+
+      script.addEventListener('load', handleLoad);
+
+      // Intervalle de sécurité au cas où le script est déjà en cache
+      const interval = setInterval(() => {
+        if ((window as any).Quill) {
+          clearInterval(interval);
+          initQuill();
+        }
+      }, 100);
+
+      return () => {
+        active = false;
+        clearInterval(interval);
+        if (script) {
+          script.removeEventListener('load', handleLoad);
+        }
         quillInstanceRef.current = null;
-      }
+      };
     }
-  }, [isModalOpen, templateType, quillLoaded]);
 
-  // Synchronisation bidirectionnelle pour les mises à jour externes (ex: Import IA)
+    return () => {
+      active = false;
+      quillInstanceRef.current = null;
+    };
+  }, [isModalOpen, templateType]);
+
+  // Synchronisation du contenu HTML externe (ex: Import Word par IA) vers l'éditeur Quill
   useEffect(() => {
     if (quillInstanceRef.current) {
       const currentQuillContent = quillInstanceRef.current.root.innerHTML;
@@ -292,13 +337,6 @@ export default function TemplatesClient({ initialTemplates }: { initialTemplates
 
   return (
     <div>
-      {/* Chargement dynamique de Quill */}
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" />
-      <Script 
-        src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js" 
-        strategy="afterInteractive"
-        onLoad={() => setQuillLoaded(true)}
-      />
 
       {/* Barre d'action avec bouton pour ouvrir la modale */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
