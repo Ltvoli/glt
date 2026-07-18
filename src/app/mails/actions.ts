@@ -1181,3 +1181,127 @@ export async function archiveMailHtmlAction(mailId: string, htmlContent: string,
   return { success: true }
 }
 
+export async function applyHtmlTemplateToMailAction(mailId: string, templateId: string): Promise<{ success: boolean, error?: string }> {
+  let session
+  try {
+    session = await requireWriteAccess()
+    requirePermission(session.role, 'MANAGE_MAILS')
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+
+  try {
+    const template = await prisma.documentTemplate.findUnique({
+      where: { id: templateId }
+    })
+    if (!template) {
+      return { success: false, error: 'Modèle introuvable.' }
+    }
+    if (!template.htmlContent) {
+      return { success: false, error: "Ce modèle n'est pas un modèle HTML." }
+    }
+
+    const mail = await prisma.mailCase.findUnique({
+      where: { id: mailId },
+      include: {
+        assignee: { select: { name: true } },
+        links: {
+          include: {
+            contact: true
+          }
+        }
+      }
+    })
+
+    if (!mail) {
+      return { success: false, error: 'Courrier introuvable.' }
+    }
+
+    // Récupérer le contact principal
+    const primaryContact = mail.links.find(l => l.contact)?.contact || ({} as any)
+    const civilite = primaryContact.gender === 'M' || primaryContact.gender === 'H' ? 'Monsieur' : primaryContact.gender === 'F' ? 'Madame' : 'Monsieur/Madame'
+    const fullAddress = primaryContact.city
+      ? `${primaryContact.streetNumber || ''} ${primaryContact.streetName || ''}\n${primaryContact.postalCode || ''} ${primaryContact.city}`
+      : (mail.city || '')
+
+    const dateStr = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+
+    const enTete = `
+      <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #ef4444; padding-bottom: 0.75rem; margin-bottom: 2.5rem; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+        <div style="display: flex; align-items: center; gap: 0.35rem;">
+          <div style="width: 4px; height: 35px; background-color: #1e3a8a; display: inline-block;"></div>
+          <div style="width: 4px; height: 35px; background-color: #ffffff; border: 1px solid #cbd5e1; display: inline-block;"></div>
+          <div style="width: 4px; height: 35px; background-color: #b91c1c; display: inline-block;"></div>
+          <div style="margin-left: 0.5rem; display: inline-block; vertical-align: middle; text-align: left;">
+            <h3 style="margin: 0; font-size: 0.95rem; font-weight: 800; text-transform: uppercase; color: #1e3a8a; letter-spacing: 0.05em; line-height: 1.1;">Assemblée Nationale</h3>
+            <p style="margin: 0; font-size: 0.78rem; font-weight: 600; color: #475569;">Lionel TIVOLI • Député</p>
+          </div>
+        </div>
+        <div style="text-align: right; font-size: 0.7rem; color: #64748b; line-height: 1.25;">
+          <p style="margin: 0; font-weight: 700; color: #1e293b;">Alpes-Maritimes (2ème Circonscription)</p>
+          <p style="margin: 0;">contact@lioneltivoli.fr • www.lioneltivoli.fr</p>
+        </div>
+      </div>
+    `
+
+    const signature = `
+      <div style="margin-top: 2rem; text-align: right; float: right; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+        <p style="margin-bottom: 0.25rem; font-weight: 700; font-size: 0.9rem; color: #1e293b;">Lionel TIVOLI</p>
+        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0; margin-bottom: 0.25rem;">Député des Alpes-Maritimes</p>
+        <div style="font-family: 'Caveat', cursive, sans-serif; font-size: 2.2rem; color: #1d4ed8; transform: rotate(-4deg); display: inline-block; margin-top: 0.25rem; font-weight: 700;">
+          Lionel Tivoli
+        </div>
+      </div>
+    `
+
+    const variablesMap: Record<string, string> = {
+      '{en_tete_officielle}': enTete,
+      '{civilite_expediteur}': civilite,
+      '{expediteur_prenom}': primaryContact.firstName || '',
+      '{expediteur_nom}': primaryContact.lastName || '',
+      '{expediteur_adresse}': fullAddress.replace(/\n/g, '<br />'),
+      '{reference}': mail.reference,
+      '{objet}': mail.subject,
+      '{date_courrier}': dateStr,
+      '{corps_reponse}': mail.content || '',
+      '{nom_collaborateur}': mail.assignee?.name || '',
+      '{signature_elu}': signature
+    }
+
+    let mergedHtml = template.htmlContent
+
+    Object.entries(variablesMap).forEach(([key, value]) => {
+      const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+      mergedHtml = mergedHtml.replace(new RegExp(escapedKey, 'g'), value)
+    })
+
+    // Enregistrer une nouvelle version dans l'historique des révisions
+    await prisma.mailVersion.create({
+      data: {
+        mailCaseId: mailId,
+        subject: mail.subject,
+        content: mail.content,
+        editedById: session.userId
+      }
+    })
+
+    // Mettre à jour mail.content
+    await prisma.mailCase.update({
+      where: { id: mailId },
+      data: {
+        content: mergedHtml
+      }
+    })
+
+    await logAudit('apply_template', 'MailCase', mailId, session.userId, { templateId })
+
+    revalidatePath(`/mails/${mailId}`)
+    revalidatePath('/mails')
+
+    return { success: true }
+  } catch (error: any) {
+    console.error('[applyHtmlTemplateToMailAction] Error:', error)
+    return { success: false, error: error.message || 'Erreur lors de la fusion du modèle.' }
+  }
+}
+

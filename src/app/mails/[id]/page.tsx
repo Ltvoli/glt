@@ -78,7 +78,7 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
 
   const linkedTasks = mail.links.filter(l => l.task).map(l => l.task)
 
-  const templates = await prisma.documentTemplate.findMany({ where: { entityType: 'MAIL' }, select: { id: true, name: true } })
+  const templates = await prisma.documentTemplate.findMany({ where: { entityType: 'MAIL' }, select: { id: true, name: true, htmlContent: true } })
 
   const usersData = await prisma.user.findMany({
     where: { isActive: true },

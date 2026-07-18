@@ -1,4 +1,124 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+
+const QuillEditor = ({ defaultValue, onChange }: { defaultValue: string, onChange: (val: string) => void }) => {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const quillRef = useRef<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+
+    const loadQuill = async () => {
+      // 1. Ajouter le CSS si absent
+      if (!document.getElementById('quill-css')) {
+        const link = document.createElement('link')
+        link.id = 'quill-css'
+        link.rel = 'stylesheet'
+        link.href = 'https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css'
+        document.head.appendChild(link)
+      }
+
+      // 2. Charger le script JS si absent
+      if (!(window as any).Quill) {
+        if (!document.getElementById('quill-js')) {
+          const script = document.createElement('script')
+          script.id = 'quill-js'
+          script.src = 'https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js'
+          script.async = true
+          document.head.appendChild(script)
+
+          await new Promise<void>((resolve, reject) => {
+            script.onload = () => resolve()
+            script.onerror = (e) => reject(e)
+          })
+        } else {
+          // Attendre que l'autre script termine de charger
+          while (!(window as any).Quill && active) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+        }
+      }
+
+      if (!active) return
+      setLoading(false)
+    }
+
+    loadQuill()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (loading || !containerRef.current || quillRef.current) return
+
+    const Quill = (window as any).Quill
+    if (!Quill) return
+
+    const editorContainer = document.createElement('div')
+    containerRef.current.appendChild(editorContainer)
+
+    const quillInstance = new Quill(editorContainer, {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ header: [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline', 'strike'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['clean']
+        ]
+      }
+    })
+
+    quillRef.current = quillInstance
+
+    if (defaultValue) {
+      quillInstance.root.innerHTML = defaultValue
+    }
+
+    quillInstance.on('text-change', () => {
+      onChange(quillInstance.root.innerHTML)
+    })
+
+    return () => {
+      if (containerRef.current) {
+        containerRef.current.innerHTML = ''
+      }
+      quillRef.current = null
+    }
+  }, [loading])
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {loading && (
+        <div style={{ padding: '1rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+          Chargement de l'éditeur Quill...
+        </div>
+      )}
+      <div 
+        ref={containerRef} 
+        style={{ 
+          minHeight: '300px', 
+          backgroundColor: '#fff', 
+          borderRadius: '4px', 
+          border: '1px solid var(--border)',
+          display: loading ? 'none' : 'block'
+        }} 
+      />
+    </div>
+  )
+}
+
+const QuillEditorWrapper = ({ defaultValue }: { defaultValue: string }) => {
+  const [value, setValue] = useState(defaultValue)
+  return (
+    <div>
+      <QuillEditor defaultValue={defaultValue} onChange={setValue} />
+      <input type="hidden" name="content" value={value} />
+    </div>
+  )
+}
 
 export function renderMailField(
   fieldKey: string,
@@ -105,7 +225,11 @@ export function renderMailField(
       {fieldKey === 'content' && (
         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
           <label htmlFor="content">{label}</label>
-          <textarea id="content" name="content" className="form-control" rows={8} defaultValue={mail.content || ''} placeholder="Collez le texte du courrier ici..." />
+          {mailType === 'SORTANT' ? (
+            <QuillEditorWrapper defaultValue={mail.content || ''} />
+          ) : (
+            <textarea id="content" name="content" className="form-control" rows={8} defaultValue={mail.content || ''} placeholder="Collez le texte du courrier ici..." />
+          )}
         </div>
       )}
 
