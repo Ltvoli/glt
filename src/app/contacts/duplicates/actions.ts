@@ -261,8 +261,8 @@ export async function triggerDuplicateDetection() {
         );
     `)
 
-    // 2. Détecter par téléphone identique (mobile ou fixe) et nom similaire
-    const phoneDups = await prisma.$executeRawUnsafe(`
+    // 2a. Détecter par téléphone fixe identique et nom similaire
+    const fixedPhoneDups = await prisma.$executeRawUnsafe(`
       INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
       SELECT 
         'dup_' || substring(md5(random()::text) from 1 for 12),
@@ -275,10 +275,7 @@ export async function triggerDuplicateDetection() {
       JOIN "Contact" c2 ON c1.id < c2.id
       WHERE c1."archivedAt" IS NULL 
         AND c2."archivedAt" IS NULL
-        AND (
-          (c1.phone IS NOT NULL AND c1.phone <> '' AND c1.phone = c2.phone)
-          OR (c1."mobilePhone" IS NOT NULL AND c1."mobilePhone" <> '' AND c1."mobilePhone" = c2."mobilePhone")
-        )
+        AND c1.phone IS NOT NULL AND c1.phone <> '' AND c1.phone = c2.phone
         AND similarity(c1."lastName", c2."lastName") > 0.6
         AND NOT EXISTS (
           SELECT 1 FROM "DuplicateCandidate" dc 
@@ -286,6 +283,31 @@ export async function triggerDuplicateDetection() {
              OR (dc."contact1Id" = c2.id AND dc."contact2Id" = c1.id)
         );
     `)
+
+    // 2b. Détecter par téléphone mobile identique et nom similaire
+    const mobilePhoneDups = await prisma.$executeRawUnsafe(`
+      INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
+      SELECT 
+        'dup_' || substring(md5(random()::text) from 1 for 12),
+        c1.id,
+        c2.id,
+        'NOM_PHONE',
+        'PENDING',
+        NOW()
+      FROM "Contact" c1
+      JOIN "Contact" c2 ON c1.id < c2.id
+      WHERE c1."archivedAt" IS NULL 
+        AND c2."archivedAt" IS NULL
+        AND c1."mobilePhone" IS NOT NULL AND c1."mobilePhone" <> '' AND c1."mobilePhone" = c2."mobilePhone"
+        AND similarity(c1."lastName", c2."lastName") > 0.6
+        AND NOT EXISTS (
+          SELECT 1 FROM "DuplicateCandidate" dc 
+          WHERE (dc."contact1Id" = c1.id AND dc."contact2Id" = c2.id)
+             OR (dc."contact1Id" = c2.id AND dc."contact2Id" = c1.id)
+        );
+    `)
+
+    const phoneDups = Number(fixedPhoneDups) + Number(mobilePhoneDups)
 
     // 3. Détecter par nom très similaire (prénom + nom > 0.85) sans autre info de contact identique
     // Pour les bases de données contenant plus de 15 000 contacts actifs, nous remplaçons le trigramme par une jointure exacte rapide pour éviter les timeouts globaux.

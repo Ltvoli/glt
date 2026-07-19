@@ -197,6 +197,8 @@ model Contact {
 
   @@index([lastName])
   @@index([email])
+  @@index([phone])
+  @@index([mobilePhone])
   @@index([firstName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_firstName_trgm_idx")
   @@index([lastName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_lastName_trgm_idx")
   @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_email_trgm_idx")
