@@ -235,6 +235,9 @@ export async function triggerDuplicateDetection() {
   }
 
   try {
+    // Augmenter temporairement le timeout de la requête pour cette session (90 secondes)
+    await prisma.$executeRawUnsafe('SET statement_timeout = 90000;')
+
     // 1. Détecter par email identique et nom similaire
     const emailDups = await prisma.$executeRawUnsafe(`
       INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
