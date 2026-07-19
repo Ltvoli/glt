@@ -138,14 +138,16 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
       const bytes = await attachmentFile.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
-      const uniqueFilename = Date.now() + '-' + Math.round(Math.random() * 1E9) + '-' + attachmentFile.name
+      const { v4: uuidv4 } = await import('uuid')
+      const extension = '.' + attachmentFile.name.split('.').pop()
+      const storageName = `${uuidv4()}${extension}`
 
       // Upload vers Supabase Storage
       const { supabase } = await import('@/lib/supabase')
       const { data: uploadData, error: uploadError } = await supabase
         .storage
         .from('crm-attachments')
-        .upload(uniqueFilename, buffer, {
+        .upload(storageName, buffer, {
           contentType: attachmentFile.type,
           upsert: false
         })
@@ -154,11 +156,10 @@ export async function createMail(prevState: any, formData: FormData): Promise<{ 
         throw new Error(`Erreur Supabase: ${uploadError.message}`)
       }
 
-      const extension = '.' + attachmentFile.name.split('.').pop()
       await prisma.document.create({
         data: {
           originalName: attachmentFile.name,
-          storageName: uniqueFilename,
+          storageName: storageName,
           storagePath: uploadData.path,
           mimeType: attachmentFile.type,
           extension,
