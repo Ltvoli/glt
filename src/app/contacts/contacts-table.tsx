@@ -742,7 +742,7 @@ export default function ContactsTable({ contacts, totalContacts, filterParams }:
           onClick={() => {
             if (selectedIds.size === 2) {
               const [id1, id2] = [...selectedIds]
-              router.push(`/contacts/duplicates/merge?a=${id1}&b=${id2}`)
+              router.push(`/contacts/duplicates/merge/merge?a=${id1}&b=${id2}`)
             }
           }}
           disabled={selectedIds.size !== 2}
