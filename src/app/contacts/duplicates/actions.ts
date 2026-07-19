@@ -288,28 +288,58 @@ export async function triggerDuplicateDetection() {
     `)
 
     // 3. Détecter par nom très similaire (prénom + nom > 0.85) sans autre info de contact identique
-    // OPTIMISATION : on limite la comparaison aux contacts partageant les 2 premières lettres du nom de famille
-    const nameDups = await prisma.$executeRawUnsafe(`
-      INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
-      SELECT 
-        'dup_' || substring(md5(random()::text) from 1 for 12),
-        c1.id,
-        c2.id,
-        'NOM_SIMILAIRE',
-        'PENDING',
-        NOW()
-      FROM "Contact" c1
-      JOIN "Contact" c2 ON c1.id < c2.id
-      WHERE c1."archivedAt" IS NULL 
-        AND c2."archivedAt" IS NULL
-        AND substring(c1."lastName" from 1 for 2) = substring(c2."lastName" from 1 for 2)
-        AND similarity(c1."firstName" || ' ' || c1."lastName", c2."firstName" || ' ' || c2."lastName") > 0.85
-        AND NOT EXISTS (
-          SELECT 1 FROM "DuplicateCandidate" dc 
-          WHERE (dc."contact1Id" = c1.id AND dc."contact2Id" = c2.id)
-             OR (dc."contact1Id" = c2.id AND dc."contact2Id" = c1.id)
-        );
-    `)
+    // Pour les bases de données contenant plus de 15 000 contacts actifs, nous remplaçons le trigramme par une jointure exacte rapide pour éviter les timeouts globaux.
+    const totalContacts = await prisma.contact.count({
+      where: { archivedAt: null }
+    })
+
+    let nameDups = 0
+    if (totalContacts <= 15000) {
+      nameDups = await prisma.$executeRawUnsafe(`
+        INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
+        SELECT 
+          'dup_' || substring(md5(random()::text) from 1 for 12),
+          c1.id,
+          c2.id,
+          'NOM_SIMILAIRE',
+          'PENDING',
+          NOW()
+        FROM "Contact" c1
+        JOIN "Contact" c2 ON c1.id < c2.id
+        WHERE c1."archivedAt" IS NULL 
+          AND c2."archivedAt" IS NULL
+          AND substring(c1."lastName" from 1 for 2) = substring(c2."lastName" from 1 for 2)
+          AND similarity(c1."firstName" || ' ' || c1."lastName", c2."firstName" || ' ' || c2."lastName") > 0.85
+          AND NOT EXISTS (
+            SELECT 1 FROM "DuplicateCandidate" dc 
+            WHERE (dc."contact1Id" = c1.id AND dc."contact2Id" = c2.id)
+               OR (dc."contact1Id" = c2.id AND dc."contact2Id" = c1.id)
+          );
+      `)
+    } else {
+      nameDups = await prisma.$executeRawUnsafe(`
+        INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
+        SELECT 
+          'dup_' || substring(md5(random()::text) from 1 for 12),
+          c1.id,
+          c2.id,
+          'NOM_SIMILAIRE',
+          'PENDING',
+          NOW()
+        FROM "Contact" c1
+        JOIN "Contact" c2 ON c1.id < c2.id
+        WHERE c1."archivedAt" IS NULL 
+          AND c2."archivedAt" IS NULL
+          AND LOWER(c1."firstName") = LOWER(c2."firstName")
+          AND LOWER(c1."lastName") = LOWER(c2."lastName")
+          AND NOT EXISTS (
+            SELECT 1 FROM "DuplicateCandidate" dc 
+            WHERE (dc."contact1Id" = c1.id AND dc."contact2Id" = c2.id)
+               OR (dc."contact1Id" = c2.id AND dc."contact2Id" = c1.id)
+          )
+        LIMIT 2000;
+      `)
+    }
 
     revalidatePath('/contacts/duplicates')
     revalidatePath('/contacts')
@@ -331,6 +361,9 @@ export async function bulkMergeExactDuplicates() {
   }
 
   try {
+    // Augmenter temporairement le timeout de la requête pour cette session (90 secondes)
+    await prisma.$executeRawUnsafe('SET statement_timeout = 90000;')
+
     // 1. Trouver les groupes de doublons de noms/prénoms exacts (actifs)
     const duplicateGroups = await prisma.$queryRawUnsafe<{ fn: string; ln: string; count: number }[]>(`
       SELECT LOWER("firstName") as fn, LOWER("lastName") as ln, COUNT(*)::integer as count
@@ -338,7 +371,7 @@ export async function bulkMergeExactDuplicates() {
       WHERE "archivedAt" IS NULL
       GROUP BY LOWER("firstName"), LOWER("lastName")
       HAVING COUNT(*) > 1
-      LIMIT 1000;
+      LIMIT 500;
     `)
 
     let mergedCount = 0
