@@ -40,7 +40,7 @@ function buildXls(headers: string[], rows: string[][]): string {
 
 function formatContacts(contacts: any[]) {
   const HEADERS = [
-    'ID', 'Date de création', 'Prénom', 'Nom', 'Genre', 'Email',
+    'ID', 'Date de création', 'Prénom', 'Nom', 'Nom d\'usage', 'Genre', 'Email',
     'Portable', 'Téléphone', 'Date de naissance',
     'Numéro', 'Rue / Voie', 'Code Postal', 'Commune',
     'Type', 'Niveau de Soutien', 'WhatsApp',
@@ -54,6 +54,7 @@ function formatContacts(contacts: any[]) {
     c.createdAt.toISOString().split('T')[0],
     c.firstName,
     c.lastName,
+    c.usageName || '',
     c.gender || '',
     c.email || '',
     c.mobilePhone || '',
@@ -113,6 +114,7 @@ async function getGroupedRows(where: any): Promise<string[][]> {
         c.createdAt.toISOString().split('T')[0],
         c.firstName,
         c.lastName,
+        c.usageName || '',
         c.gender || '',
         c.email || '',
         c.mobilePhone || '',

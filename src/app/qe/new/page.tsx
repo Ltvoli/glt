@@ -15,7 +15,7 @@ export default async function NewQEPage() {
   })
   const contacts = await prisma.contact.findMany({ 
     where: { archivedAt: null },
-    select: { id: true, firstName: true, lastName: true }
+    select: { id: true, firstName: true, lastName: true, usageName: true }
   })
   const tasks = await prisma.task.findMany({
     where: { status: { notIn: ['TERMINEE', 'ANNULEE'] } },

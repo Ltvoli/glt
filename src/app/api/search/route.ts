@@ -24,6 +24,7 @@ export async function GET(request: Request) {
         OR: [
           { firstName:   { contains: term, mode: 'insensitive' } },
           { lastName:    { contains: term, mode: 'insensitive' } },
+          { usageName:   { contains: term, mode: 'insensitive' } },
           { email:       { contains: term, mode: 'insensitive' } },
           { mobilePhone: { contains: term, mode: 'insensitive' } },
           { phone:       { contains: term, mode: 'insensitive' } },
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
           { streetName:  { contains: term, mode: 'insensitive' } },
         ]
       },
-      select: { id: true, firstName: true, lastName: true, city: true, email: true, mobilePhone: true },
+      select: { id: true, firstName: true, lastName: true, usageName: true, city: true, email: true, mobilePhone: true },
       take: 8,
     }),
     prisma.task.findMany({

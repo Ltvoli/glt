@@ -16,7 +16,7 @@ export default function MailForm({ users, contacts, tasks, initialParentId, init
 
   const contactOptions = contacts.map(c => ({
     value: c.id,
-    label: `${c.lastName} ${c.firstName}${c.city ? ` (${c.city})` : ''}`
+    label: `${c.lastName} ${c.firstName}${c.usageName ? ` (ép. ${c.usageName})` : ''}${c.city ? ` (${c.city})` : ''}`
   }))
 
   const infoFields = Object.entries(fieldConfig || {})

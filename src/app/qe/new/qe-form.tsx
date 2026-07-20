@@ -31,12 +31,12 @@ const MINISTRIES = [
   "Autre"
 ]
 
-export default function QEForm({ users, contacts, tasks, mails, dictionary = [], fieldConfig = {} }: { users: {id: string; name: string}[], contacts: {id: string; firstName: string; lastName: string}[], tasks: {id: string; title: string}[], mails?: {id: string; subject: string; reference: string}[], dictionary?: any[], fieldConfig?: Record<string, any> }) {
+export default function QEForm({ users, contacts, tasks, mails, dictionary = [], fieldConfig = {} }: { users: {id: string; name: string}[], contacts: {id: string; firstName: string; lastName: string, usageName?: string, city?: string}[], tasks: {id: string; title: string}[], mails?: {id: string; subject: string; reference: string}[], dictionary?: any[], fieldConfig?: Record<string, any> }) {
   const [state, formAction, isPending] = useActionState(createQE, initialState)
   
-  const contactOptions = contacts.map((c: any) => ({
+  const contactOptions = contacts.map(c => ({
     value: c.id,
-    label: `${c.lastName} ${c.firstName}${c.city ? ` (${c.city})` : ''}`
+    label: `${c.lastName} ${c.firstName}${c.usageName ? ` (ép. ${c.usageName})` : ''}${c.city ? ` (${c.city})` : ''}`
   }))
 
   const [anNumber, setAnNumber] = useState('')

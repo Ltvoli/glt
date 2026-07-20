@@ -63,7 +63,7 @@ function SearchResults() {
       items: results.contacts,
       renderItem: (c: any) => ({
         href: `/contacts/${c.id}`,
-        title: `${c.firstName} ${c.lastName}`,
+        title: `${c.firstName} ${c.lastName}${c.usageName ? ` (Nom d'usage : ${c.usageName})` : ''}`,
         sub: [c.city, c.email, c.mobilePhone].filter(Boolean).join(' · '),
       }),
     },

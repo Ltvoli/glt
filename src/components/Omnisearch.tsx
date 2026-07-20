@@ -134,7 +134,10 @@ export default function Omnisearch() {
                     {results.contacts.map((c) => (
                       <div key={c.id} onClick={() => closeAndNavigate(`/contacts/${c.id}`)}
                         style={{ padding: '0.75rem', background: 'white', borderRadius: '6px', cursor: 'pointer', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 500, color: '#0f172a' }}>{c.firstName} {c.lastName}</span>
+                        <span style={{ fontWeight: 500, color: '#0f172a' }}>
+                          {c.firstName} {c.lastName}
+                          {c.usageName && <span style={{ fontSize: '0.85rem', color: '#64748b', fontStyle: 'italic', marginLeft: '0.35rem' }}>(Nom d&apos;usage : {c.usageName})</span>}
+                        </span>
                         <span style={{ fontSize: '0.875rem', color: '#64748b' }}>{c.city}</span>
                       </div>
                     ))}

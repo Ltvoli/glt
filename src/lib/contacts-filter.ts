@@ -12,6 +12,7 @@ export function buildWhereClause(params: Record<string, string | undefined>) {
         OR: [
           { firstName: { contains: term, mode: 'insensitive' } },
           { lastName:  { contains: term, mode: 'insensitive' } },
+          { usageName: { contains: term, mode: 'insensitive' } },
         ]
       })
     }
@@ -51,6 +52,7 @@ export function buildWhereClause(params: Record<string, string | undefined>) {
       OR: [
         { firstName:    { contains: params.q, mode: 'insensitive' } },
         { lastName:     { contains: params.q, mode: 'insensitive' } },
+        { usageName:    { contains: params.q, mode: 'insensitive' } },
         { city:         { contains: params.q, mode: 'insensitive' } },
         { email:        { contains: params.q, mode: 'insensitive' } },
         { mobilePhone:  { contains: params.q, mode: 'insensitive' } },

@@ -64,8 +64,13 @@ function renderCell(contact: any, columnId: string): React.ReactNode {
     case 'firstName':         return contact.firstName || '-'
     case 'lastName':
       return (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
           {contact.lastName || '-'}
+          {contact.usageName && (
+            <span style={{ fontSize: '0.78rem', color: '#64748b', fontStyle: 'italic' }}>
+              ({contact.usageName})
+            </span>
+          )}
           {contact.isNpai && (
             <span style={{
               fontSize: '0.625rem',

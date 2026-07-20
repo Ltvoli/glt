@@ -177,8 +177,8 @@ export default async function ContactDetailPage({
           <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0, lineHeight: 1.1 }}>
             {contact.firstName} {contact.lastName}
             {contact.usageName && (
-              <span style={{ fontSize: '1.2rem', fontWeight: 500, color: '#64748b', marginLeft: '0.5rem' }}>
-                ({contact.usageName})
+              <span style={{ fontSize: '1.1rem', fontWeight: 500, color: '#64748b', marginLeft: '0.5rem' }}>
+                (Nom d&apos;usage : {contact.usageName})
               </span>
             )}
           </h1>
@@ -229,6 +229,16 @@ export default async function ContactDetailPage({
             </h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+
+              {/* Nom d'usage */}
+              {contact.usageName && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <User size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--foreground)', fontSize: '0.88rem' }}>
+                    Nom d&apos;usage : <strong>{contact.usageName}</strong>
+                  </span>
+                </div>
+              )}
 
               {/* Téléphone fixe */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

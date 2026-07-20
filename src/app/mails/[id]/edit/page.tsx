@@ -25,7 +25,7 @@ export default async function EditMailPage({ params }: { params: Promise<{ id: s
   })
   const contacts = await prisma.contact.findMany({ 
     where: { archivedAt: null },
-    select: { id: true, firstName: true, lastName: true }
+    select: { id: true, firstName: true, lastName: true, usageName: true }
   })
   const tasks = await prisma.task.findMany({
     where: { status: { notIn: ['TERMINEE', 'ANNULEE'] } },
