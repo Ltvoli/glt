@@ -8,9 +8,9 @@ import TaskTableClient from './task-table-client'
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string, status?: string, priority?: string, assigneeId?: string, tag?: string, sort?: string, order?: 'asc'|'desc', page?: string, perPage?: string }>
+  searchParams: Promise<{ filter?: string, status?: string, priority?: string, assigneeId?: string, tag?: string, sort?: string, order?: 'asc'|'desc', page?: string, perPage?: string, includeCompleted?: string }>
 }) {
-  const { filter, status, priority, assigneeId, tag, sort, order = 'asc', page, perPage } = await searchParams
+  const { filter, status, priority, assigneeId, tag, sort, order = 'asc', page, perPage, includeCompleted } = await searchParams
   const session = await getSession()
 
   const currentPage = Math.max(1, parseInt(page || '1'))
@@ -24,18 +24,18 @@ export default async function TasksPage({
     whereClause.isTemplate = false
   }
 
-  if (filter === 'mine') {
+  if (filter === 'archived') {
+    whereClause.status = { in: ['TERMINEE', 'ANNULEE'] }
+  } else if (filter === 'mine') {
     whereClause.assigneeId = session?.userId
   } else if (filter === 'overdue') {
     whereClause.dueDate = { lt: new Date() }
-    whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
   } else if (filter === 'today') {
     const start = new Date()
     start.setHours(0, 0, 0, 0)
     const end = new Date()
     end.setHours(23, 59, 59, 999)
     whereClause.dueDate = { gte: start, lte: end }
-    whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
   } else if (filter === 'tomorrow') {
     const start = new Date()
     start.setDate(start.getDate() + 1)
@@ -43,7 +43,6 @@ export default async function TasksPage({
     const end = new Date(start)
     end.setHours(23, 59, 59, 999)
     whereClause.dueDate = { gte: start, lte: end }
-    whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
   } else if (filter === 'urgent') {
     const next2Days = new Date()
     next2Days.setDate(next2Days.getDate() + 2)
@@ -51,12 +50,19 @@ export default async function TasksPage({
       { priority: 'HAUTE' },
       { dueDate: { lte: next2Days } }
     ]
-    whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
-  } else if (filter === 'all') {
-    // "toute l'équipe", don't filter by assignee
   }
 
-  if (status) whereClause.status = status
+  if (status) {
+    whereClause.status = status
+  } else if (filter === 'archived') {
+    // Already set status in: ['TERMINEE', 'ANNULEE']
+  } else if (includeCompleted === 'true') {
+    // User requested to include all completed tasks
+  } else {
+    // DEFAULT RULE: Exclude completed & cancelled tasks from main views
+    whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
+  }
+
   if (priority) whereClause.priority = priority
   if (assigneeId) whereClause.assigneeId = assigneeId
   if (tag) {
@@ -121,23 +127,38 @@ export default async function TasksPage({
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <Link href="/tasks?filter=all" className={`button ${filter === 'all' || (!filter && !status) ? '' : 'outline'}`}>Toute l'équipe</Link>
         <Link href="/tasks?filter=mine" className={`button ${filter === 'mine' ? '' : 'outline'}`}>Mes tâches</Link>
         <Link href="/tasks?status=EN_ATTENTE" className={`button ${status === 'EN_ATTENTE' ? '' : 'outline'}`}>En attente</Link>
         <Link href="/tasks?status=EN_COURS" className={`button ${status === 'EN_COURS' ? '' : 'outline'}`}>En cours</Link>
-        <Link href="/tasks?status=TERMINEE" className={`button ${status === 'TERMINEE' ? '' : 'outline'}`}>Terminées</Link>
         <Link href="/tasks?filter=urgent" className={`button ${filter === 'urgent' ? '' : 'outline'}`} style={{ borderColor: 'var(--danger)', color: filter === 'urgent' ? 'white' : 'var(--danger)', backgroundColor: filter === 'urgent' ? 'var(--danger)' : 'transparent' }}>Urgentes</Link>
         <Link href="/tasks?filter=overdue" className={`button ${filter === 'overdue' ? '' : 'outline'}`}>En retard</Link>
         <Link href="/tasks?filter=today" className={`button ${filter === 'today' ? '' : 'outline'}`}>Aujourd'hui</Link>
         <Link href="/tasks?filter=tomorrow" className={`button ${filter === 'tomorrow' ? '' : 'outline'}`}>Demain</Link>
         <Link href="/tasks?filter=recurring" className={`button ${filter === 'recurring' ? '' : 'outline'}`}>Modèles récurrents</Link>
         
-        <div style={{ marginLeft: 'auto' }}>
-          <Link href="/tasks" className="button outline" style={{ color: 'var(--danger)' }}>
-            Réinitialiser filtres
+        {/* NOUVEL ONGLET ARCHIVES */}
+        <Link href="/tasks?filter=archived" className={`button ${filter === 'archived' ? '' : 'outline'}`} style={{ backgroundColor: filter === 'archived' ? '#475569' : 'transparent', color: filter === 'archived' ? 'white' : '#475569', borderColor: '#475569' }}>
+          📦 Archives (Terminées)
+        </Link>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {/* TOGGLE INCLUDE COMPLETED */}
+          {filter !== 'archived' && (
+            <Link 
+              href={`/tasks?${filter ? `filter=${filter}&` : ''}${status ? `status=${status}&` : ''}${includeCompleted === 'true' ? '' : 'includeCompleted=true'}`}
+              className="button outline"
+              style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem', borderColor: includeCompleted === 'true' ? 'var(--primary)' : 'var(--border)' }}
+            >
+              {includeCompleted === 'true' ? '✓ Terminées incluses' : '+ Inclure terminées'}
+            </Link>
+          )}
+
+          <Link href="/tasks" className="button outline" style={{ color: 'var(--danger)', fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}>
+            Réinitialiser
           </Link>
-          <Link href="/tasks/kanban" className="button outline" style={{ backgroundColor: '#f8fafc', color: 'var(--foreground)', marginLeft: '1rem' }}>
+          <Link href="/tasks/kanban" className="button outline" style={{ backgroundColor: '#f8fafc', color: 'var(--foreground)', fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}>
             Vue Kanban
           </Link>
         </div>

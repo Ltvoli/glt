@@ -7,24 +7,32 @@ import KanbanBoard from './kanban-board'
 export default async function KanbanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>
+  searchParams: Promise<{ filter?: string, includeCompleted?: string }>
 }) {
-  const { filter } = await searchParams
+  const { filter, includeCompleted } = await searchParams
   const session = await getSession()
   if (!session?.userId) redirect('/login')
+
+  const isCompletedIncluded = includeCompleted === 'true'
 
   const sevenDaysAgo = new Date()
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
   const whereClause: any = {
     isTemplate: false,
-    OR: [
+  }
+
+  if (isCompletedIncluded) {
+    whereClause.OR = [
       { status: { notIn: ['TERMINEE', 'ANNULEE'] } },
       { 
         status: { in: ['TERMINEE', 'ANNULEE'] },
         updatedAt: { gte: sevenDaysAgo }
       }
     ]
+  } else {
+    // DEFAULT: Active tasks only
+    whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
   }
 
   if (filter === 'mine') {
@@ -36,11 +44,8 @@ export default async function KanbanPage({
       { priority: 'HAUTE' },
       { dueDate: { lte: next2Days } }
     ]
-    // Conserver la règle de rétention dans le cas du filtre 'urgent' :
-    whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
   } else if (filter === 'overdue') {
     whereClause.dueDate = { lt: new Date() }
-    whereClause.status = { notIn: ['TERMINEE', 'ANNULEE'] }
   }
 
   const tasks = await prisma.task.findMany({
@@ -50,16 +55,19 @@ export default async function KanbanPage({
       subtasks: true,
       tags: { include: { tag: true } }
     },
-    orderBy: { priority: 'asc' } // Tri par défaut (HAUTE, puis NORMALE, puis BASSE)
+    orderBy: { priority: 'asc' }
   })
 
-  // Format initial pour le Kanban (Groupement par statut)
-  const columns = {
+  // Format initial pour le Kanban
+  const columns: Record<string, any[]> = {
     A_FAIRE: tasks.filter(t => t.status === 'A_FAIRE'),
     EN_COURS: tasks.filter(t => t.status === 'EN_COURS'),
     EN_ATTENTE: tasks.filter(t => t.status === 'EN_ATTENTE'),
-    TERMINEE: tasks.filter(t => t.status === 'TERMINEE'),
-    ANNULEE: tasks.filter(t => t.status === 'ANNULEE'),
+  }
+
+  if (isCompletedIncluded) {
+    columns.TERMINEE = tasks.filter(t => t.status === 'TERMINEE')
+    columns.ANNULEE = tasks.filter(t => t.status === 'ANNULEE')
   }
 
   return (
@@ -72,11 +80,21 @@ export default async function KanbanPage({
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <Link href="/tasks/kanban?filter=all" className={`button ${filter === 'all' || !filter ? '' : 'outline'}`}>Toute l'équipe</Link>
         <Link href="/tasks/kanban?filter=mine" className={`button ${filter === 'mine' ? '' : 'outline'}`}>Mes tâches</Link>
         <Link href="/tasks/kanban?filter=urgent" className={`button ${filter === 'urgent' ? '' : 'outline'}`} style={{ borderColor: 'var(--danger)', color: filter === 'urgent' ? 'white' : 'var(--danger)', backgroundColor: filter === 'urgent' ? 'var(--danger)' : 'transparent' }}>Urgentes</Link>
         <Link href="/tasks/kanban?filter=overdue" className={`button ${filter === 'overdue' ? '' : 'outline'}`}>En retard</Link>
+        
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <Link 
+            href={`/tasks/kanban?${filter ? `filter=${filter}&` : ''}${isCompletedIncluded ? '' : 'includeCompleted=true'}`}
+            className="button outline"
+            style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem', borderColor: isCompletedIncluded ? 'var(--primary)' : 'var(--border)' }}
+          >
+            {isCompletedIncluded ? '✓ 5 Colonnes (avec Terminées)' : '⚡ 3 Colonnes Actives (+ Terminées)'}
+          </Link>
+        </div>
       </div>
 
       <div style={{ flex: 1, overflow: 'hidden' }}>
