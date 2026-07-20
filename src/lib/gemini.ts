@@ -373,6 +373,7 @@ const COLUMN_MAPPING_SCHEMA = {
     gender: { type: "STRING", description: "Nom exact de la colonne contenant le genre ou la civilité" },
     firstName: { type: "STRING", description: "Nom exact de la colonne contenant le prénom" },
     lastName: { type: "STRING", description: "Nom exact de la colonne contenant le nom de famille" },
+    usageName: { type: "STRING", description: "Nom exact de la colonne contenant le nom d'usage ou nom marital/d'épouse" },
     email: { type: "STRING", description: "Nom exact de la colonne contenant l'adresse email" },
     phone: { type: "STRING", description: "Nom exact de la colonne contenant le téléphone fixe" },
     mobilePhone: { type: "STRING", description: "Nom exact de la colonne contenant le téléphone portable" },
@@ -402,6 +403,7 @@ CHAMPS CIBLE :
 - gender : Le genre ou la civilité (M, Mme, M., Civilité, etc.)
 - firstName : Le prénom
 - lastName : Le nom de famille
+- usageName : Le nom d'usage ou nom d'épouse/marital (ex: "Nom d'usage", "Nom d'Usage", "Nom marital")
 - email : L'adresse de messagerie électronique
 - phone : Le téléphone fixe/maison
 - mobilePhone : Le téléphone portable/mobile/GSM

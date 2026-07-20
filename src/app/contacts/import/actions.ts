@@ -233,6 +233,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     const civilite   = getValue(row, 'gender', 'CIVILITE', 'Civilité', 'civilite')
     const firstName  = getValue(row, 'firstName', 'PRENOM',   'Prénom',   'prenom',    'first_name')
     const lastName   = getValue(row, 'lastName', 'NOM',      'Nom',      'nom',       'last_name')
+    const usageName  = getValue(row, 'usageName', 'NOM D\'USAGE', 'Nom d\'usage', 'nom_d_usage', 'nom_usage', 'NOM USAGE', 'Nom usage', 'usage_name', 'Nom d\'Usage', 'nom d\'usage')
     const email      = getValue(row, 'email', 'EMAIL',    'Email',    'email')
     const phone      = getValue(row, 'phone', 'TELEPHONE','Téléphone','Telephone', 'telephone', 'TÉLÉPHONE')
     const mobile     = getValue(row, 'mobilePhone', 'PORTABLE', 'Portable', 'portable',  'Mobile',    'MOBILE', 'Téléphone portable', 'telephone portable', 'telephone_portable')
@@ -300,6 +301,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
     const dataToInsert = {
       firstName,
       lastName,
+      usageName:    usageName || null,
       email:        email    || null,
       phone:        phone    || null,
       mobilePhone:  mobile   || null,
@@ -358,6 +360,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
       const updatedFields = {
         id: existingContact.id,
         notes: mergedNotes,
+        usageName: usageName || existingContact.usageName || null,
         supportLevel: supportLevel || existingContact.supportLevel,
         email: email || existingContact.email || null,
         phone: phone || existingContact.phone || null,
@@ -440,6 +443,7 @@ async function importRows(rows: Record<string, string>[], file: File, forceConse
             where: { id: up.id },
             data: {
               notes: up.notes,
+              usageName: up.usageName,
               supportLevel: up.supportLevel,
               email: up.email,
               phone: up.phone,
