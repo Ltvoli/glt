@@ -46,9 +46,9 @@ let quillLoadingPromise: Promise<any> | null = null
 function loadQuill(): Promise<any> {
   if (quillLoadingPromise) return quillLoadingPromise
 
-  quillLoadingPromise = new Promise((resolve, reject) => {
+  quillLoadingPromise = new Promise((resolve) => {
     if (typeof window === 'undefined') {
-      reject(new Error('Window is not defined'))
+      resolve(null)
       return
     }
 
@@ -58,24 +58,49 @@ function loadQuill(): Promise<any> {
     }
 
     try {
-      const link = document.createElement('link')
-      link.href = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css'
-      link.rel = 'stylesheet'
-      document.head.appendChild(link)
+      if (!document.getElementById('quill-css')) {
+        const link = document.createElement('link')
+        link.id = 'quill-css'
+        link.href = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css'
+        link.rel = 'stylesheet'
+        document.head.appendChild(link)
+      }
 
-      const script = document.createElement('script')
-      script.src = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js'
-      script.onload = () => {
-        resolve((window as any).Quill)
+      if (!document.getElementById('quill-js')) {
+        const script = document.createElement('script')
+        script.id = 'quill-js'
+        script.src = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js'
+        
+        const timeout = setTimeout(() => {
+          resolve(null)
+        }, 1500)
+
+        script.onload = () => {
+          clearTimeout(timeout)
+          resolve((window as any).Quill || null)
+        }
+        script.onerror = () => {
+          clearTimeout(timeout)
+          quillLoadingPromise = null
+          resolve(null)
+        }
+        document.head.appendChild(script)
+      } else {
+        let elapsed = 0
+        const interval = setInterval(() => {
+          elapsed += 100
+          if ((window as any).Quill) {
+            clearInterval(interval)
+            resolve((window as any).Quill)
+          } else if (elapsed >= 1500) {
+            clearInterval(interval)
+            resolve(null)
+          }
+        }, 100)
       }
-      script.onerror = (err) => {
-        quillLoadingPromise = null
-        reject(err)
-      }
-      document.body.appendChild(script)
     } catch (err) {
       quillLoadingPromise = null
-      reject(err)
+      resolve(null)
     }
   })
 
@@ -106,6 +131,8 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
   const [isGeneratingAi, setIsGeneratingAi] = useState(false)
   const [aiSuggestionText, setAiSuggestionText] = useState('')
 
+  const [isQuillLoaded, setIsQuillLoaded] = useState(false)
+
   const editorRef = useRef<HTMLDivElement>(null)
   const quillRef = useRef<any>(null)
 
@@ -114,8 +141,11 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
     if (!isEditing) return
 
     const interval = setInterval(async () => {
-      if (hasUnsavedChanges && quillRef.current) {
-        const currentContent = quillRef.current.root.innerHTML
+      if (hasUnsavedChanges) {
+        const currentContent = (isQuillLoaded && quillRef.current) 
+          ? quillRef.current.root.innerHTML 
+          : editorContent
+
         setIsSaving(true)
         try {
           const res = await updateMailContentAction(mail.id, currentContent)
@@ -134,14 +164,15 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
     }, 15000)
 
     return () => clearInterval(interval)
-  }, [isEditing, hasUnsavedChanges, mail.id])
+  }, [isEditing, hasUnsavedChanges, isQuillLoaded, editorContent, mail.id])
 
   const enterEditMode = async () => {
     setIsEditing(true)
-    try {
-      const Quill = await loadQuill()
-      setTimeout(() => {
-        if (editorRef.current && !quillRef.current) {
+    setIsQuillLoaded(false)
+    const Quill = await loadQuill()
+    setTimeout(() => {
+      if (Quill && editorRef.current && !quillRef.current) {
+        try {
           quillRef.current = new Quill(editorRef.current, {
             theme: 'snow',
             modules: {
@@ -158,18 +189,19 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
           quillRef.current.on('text-change', () => {
             setHasUnsavedChanges(true)
           })
+          setIsQuillLoaded(true)
+        } catch (e) {
+          console.warn("Échec de l'initialisation de Quill, mode texte brut activé", e)
         }
-      }, 100)
-    } catch (err) {
-      toast.error("Impossible de charger l'éditeur Quill")
-      setIsEditing(false)
-    }
+      }
+    }, 100)
   }
 
   const handleCancel = () => {
     if (hasUnsavedChanges) {
       if (confirm("Voulez-vous vraiment annuler ? Vos modifications non sauvegardées seront perdues.")) {
         setIsEditing(false)
+        setIsQuillLoaded(false)
         if (quillRef.current) {
           quillRef.current = null
         }
@@ -177,6 +209,7 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
       }
     } else {
       setIsEditing(false)
+      setIsQuillLoaded(false)
       if (quillRef.current) {
         quillRef.current = null
       }
@@ -184,9 +217,11 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
   }
 
   const handleSave = async () => {
-    if (!quillRef.current) return
     setIsSaving(true)
-    const currentContent = quillRef.current.root.innerHTML
+    const currentContent = (isQuillLoaded && quillRef.current)
+      ? quillRef.current.root.innerHTML
+      : editorContent
+
     try {
       const res = await updateMailContentAction(mail.id, currentContent)
       if (res.success) {
@@ -194,15 +229,15 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
         toast.success("Modifications enregistrées !")
         setEditorContent(currentContent)
         setIsEditing(false)
+        setIsQuillLoaded(false)
         if (quillRef.current) {
           quillRef.current = null
         }
-        window.location.reload()
       } else {
         toast.error(res.error || "Erreur lors de l'enregistrement")
       }
     } catch (err) {
-      toast.error("Erreur de communication")
+      toast.error("Erreur de communication lors de l'enregistrement")
     } finally {
       setIsSaving(false)
     }
@@ -228,19 +263,27 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
   }
 
   const handleInsertAiSuggestion = () => {
-    if (!aiSuggestionText || !quillRef.current) return
-    const quill = quillRef.current
-    const range = quill.getSelection()
-    
-    if (range) {
-      quill.clipboard.dangerouslyPasteHTML(range.index, aiSuggestionText)
-    } else {
-      const currentHtml = quill.root.innerHTML
-      if (currentHtml.includes('{corps_reponse}')) {
-        const newHtml = currentHtml.replace('{corps_reponse}', aiSuggestionText)
-        quill.root.innerHTML = newHtml
+    if (!aiSuggestionText) return
+    if (isQuillLoaded && quillRef.current) {
+      const quill = quillRef.current
+      const range = quill.getSelection()
+      
+      if (range) {
+        quill.clipboard.dangerouslyPasteHTML(range.index, aiSuggestionText)
       } else {
-        quill.clipboard.dangerouslyPasteHTML(quill.getLength(), aiSuggestionText)
+        const currentHtml = quill.root.innerHTML
+        if (currentHtml.includes('{corps_reponse}')) {
+          const newHtml = currentHtml.replace('{corps_reponse}', aiSuggestionText)
+          quill.root.innerHTML = newHtml
+        } else {
+          quill.clipboard.dangerouslyPasteHTML(quill.getLength(), aiSuggestionText)
+        }
+      }
+    } else {
+      if (editorContent.includes('{corps_reponse}')) {
+        setEditorContent(prev => prev.replace('{corps_reponse}', aiSuggestionText))
+      } else {
+        setEditorContent(prev => prev + "\n\n" + aiSuggestionText)
       }
     }
     setHasUnsavedChanges(true)
@@ -546,7 +589,39 @@ export default function MailCollaborationTabs({ mail, currentUserId }: MailColla
               {isEditing ? (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flexGrow: 1, gap: '1.5rem' }}>
                   <div style={{ flexGrow: 1 }} className="quill-editor-container">
-                    <div ref={editorRef} style={{ minHeight: '400px', fontFamily: 'Georgia, serif', fontSize: '1rem' }} />
+                    <div 
+                      ref={editorRef} 
+                      style={{ 
+                        display: isQuillLoaded ? 'block' : 'none', 
+                        minHeight: '400px', 
+                        fontFamily: 'Georgia, serif', 
+                        fontSize: '1rem' 
+                      }} 
+                    />
+                    {!isQuillLoaded && (
+                      <textarea
+                        value={editorContent}
+                        onChange={(e) => {
+                          setEditorContent(e.target.value)
+                          setHasUnsavedChanges(true)
+                        }}
+                        placeholder="Rédigez ou collez le contenu du courrier ici..."
+                        style={{
+                          width: '100%',
+                          minHeight: '450px',
+                          padding: '1.25rem',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '8px',
+                          fontFamily: 'Georgia, serif',
+                          fontSize: '1rem',
+                          lineHeight: '1.6',
+                          color: '#1e293b',
+                          outline: 'none',
+                          resize: 'vertical',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    )}
                   </div>
                   
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem', marginTop: 'auto' }}>

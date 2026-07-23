@@ -22,10 +22,8 @@ services:
     restart: always
     ports:
       - "3000:3000"
-    environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-tivoli_user}:${POSTGRES_PASSWORD:-tivoli_pass}@db:5432/${POSTGRES_DB:-tivoli_db}?schema=public
-      - JWT_SECRET=${JWT_SECRET:-super-secret-jwt-key}
-      - NODE_ENV=production
+    env_file:
+      - .env
     depends_on:
       - db
 

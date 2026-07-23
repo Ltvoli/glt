@@ -7,6 +7,7 @@ import { Check, ChevronLeft, ChevronRight } from 'lucide-react'
 const FIELDS = [
   { key: 'firstName',       label: 'Prénom' },
   { key: 'lastName',        label: 'Nom' },
+  { key: 'usageName',       label: "Nom d'usage" },
   { key: 'email',           label: 'Email' },
   { key: 'phone',           label: 'Téléphone fixe' },
   { key: 'mobilePhone',     label: 'Mobile' },

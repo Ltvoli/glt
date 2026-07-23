@@ -19,6 +19,7 @@ export default function TaskTableClient({ tasks }: { tasks: any[] }) {
     A_FAIRE: 'À faire',
     EN_COURS: 'En cours',
     EN_ATTENTE: 'En attente',
+    A_VALIDER: 'À valider',
     TERMINEE: 'Terminée',
     ANNULEE: 'Annulée'
   }
@@ -82,13 +83,14 @@ export default function TaskTableClient({ tasks }: { tasks: any[] }) {
               <th>Statut</th>
               <th>Priorité</th>
               <th>Échéance</th>
-              <th>Assigné à</th>
+              <th>Exécutant</th>
+              <th>Valideur</th>
             </tr>
           </thead>
           <tbody>
             {tasks.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                   Aucune tâche trouvée.
                 </td>
               </tr>
@@ -135,10 +137,11 @@ export default function TaskTableClient({ tasks }: { tasks: any[] }) {
                     <td>
                       <span style={{ 
                         padding: '0.25rem 0.5rem', 
-                        backgroundColor: '#f1f5f9', 
+                        backgroundColor: task.status === 'A_VALIDER' ? '#fef3c7' : '#f1f5f9', 
+                        color: task.status === 'A_VALIDER' ? '#92400e' : 'inherit',
                         borderRadius: '4px', 
                         fontSize: '0.75rem', 
-                        fontWeight: 500 
+                        fontWeight: task.status === 'A_VALIDER' ? 600 : 500 
                       }}>
                         {statusLabels[task.status] || task.status}
                       </span>
@@ -167,7 +170,8 @@ export default function TaskTableClient({ tasks }: { tasks: any[] }) {
                         </span>
                       ) : '-'}
                     </td>
-                    <td>{task.assignee?.name || 'Non assigné'}</td>
+                    <td>{task.assignee ? (task.assignee.name || `${task.assignee.firstName} ${task.assignee.lastName}`) : 'Non assigné'}</td>
+                    <td>{task.validator ? (task.validator.name || `${task.validator.firstName} ${task.validator.lastName}`) : 'Lionel Tivoli'}</td>
                   </tr>
                 )
               })

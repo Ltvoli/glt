@@ -22,6 +22,14 @@ export async function GET(request: Request) {
   const endOfMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0))
 
   const usersData = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      archivedAt: null,
+      NOT: [
+        { firstName: { equals: 'Lionel', mode: 'insensitive' }, lastName: { equals: 'Tivoli', mode: 'insensitive' } },
+        { firstName: { equals: 'Pierre', mode: 'insensitive' }, lastName: { equals: 'Deniau', mode: 'insensitive' } }
+      ]
+    },
     orderBy: [
       { firstName: 'asc' },
       { lastName: 'asc' }

@@ -31,8 +31,9 @@ const DEFAULT_TASKS_FIELDS = [
   { module: 'tasks', section: 'Informations', fieldKey: 'tags', defaultLabel: 'Tags', customLabel: null, isVisible: false, order: 3 },
   { module: 'tasks', section: 'Planification', fieldKey: 'priority', defaultLabel: 'Priorité', customLabel: null, isVisible: true, order: 4 },
   { module: 'tasks', section: 'Planification', fieldKey: 'status', defaultLabel: 'Statut', customLabel: null, isVisible: true, order: 5 },
-  { module: 'tasks', section: 'Planification', fieldKey: 'assigneeId', defaultLabel: 'Assigner à', customLabel: null, isVisible: true, order: 6 },
-  { module: 'tasks', section: 'Planification', fieldKey: 'dueDate', defaultLabel: 'Échéance', customLabel: null, isVisible: true, order: 7 },
+  { module: 'tasks', section: 'Planification', fieldKey: 'assigneeId', defaultLabel: 'Assigner à (Exécutant)', customLabel: null, isVisible: true, order: 6 },
+  { module: 'tasks', section: 'Planification', fieldKey: 'validatorId', defaultLabel: 'Responsable de validation', customLabel: null, isVisible: true, order: 7 },
+  { module: 'tasks', section: 'Planification', fieldKey: 'dueDate', defaultLabel: 'Échéance', customLabel: null, isVisible: true, order: 8 },
 ]
 
 const DEFAULT_MAILS_FIELDS = [
@@ -93,31 +94,36 @@ export async function getModuleFields(moduleKey: string): Promise<FieldConfigMap
   })
 
   // Seeding/Upserting missing fields automatically
-  if (defaults && fields.length < defaults.length) {
-    await prisma.$transaction(
-      defaults.map(field => 
-        prisma.fieldConfig.upsert({
-          where: {
-            module_fieldKey: { module: field.module, fieldKey: field.fieldKey }
-          },
-          update: {}, // preserve existing label & visibility changes
-          create: {
-            module: field.module,
-            section: field.section,
-            fieldKey: field.fieldKey,
-            defaultLabel: field.defaultLabel,
-            customLabel: field.customLabel,
-            isVisible: field.isVisible,
-            order: field.order
-          }
-        })
+  if (defaults) {
+    const existingKeys = new Set(fields.map(f => f.fieldKey))
+    const missingDefaults = defaults.filter(d => !existingKeys.has(d.fieldKey))
+    
+    if (missingDefaults.length > 0) {
+      await prisma.$transaction(
+        missingDefaults.map(field => 
+          prisma.fieldConfig.upsert({
+            where: {
+              module_fieldKey: { module: field.module, fieldKey: field.fieldKey }
+            },
+            update: {}, // preserve existing label & visibility changes
+            create: {
+              module: field.module,
+              section: field.section,
+              fieldKey: field.fieldKey,
+              defaultLabel: field.defaultLabel,
+              customLabel: field.customLabel,
+              isVisible: field.isVisible,
+              order: field.order
+            }
+          })
+        )
       )
-    )
 
-    fields = await prisma.fieldConfig.findMany({
-      where: { module: moduleKey },
-      orderBy: { order: 'asc' }
-    })
+      fields = await prisma.fieldConfig.findMany({
+        where: { module: moduleKey },
+        orderBy: { order: 'asc' }
+      })
+    }
   }
 
   const map: FieldConfigMap = {}

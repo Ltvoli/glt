@@ -2,26 +2,28 @@ import { isWeekend, isHoliday } from './holidays';
 
 export interface DayStatus {
   date: Date;
-  dayType: string; // 'worked', 'off', 'paid_leave'
+  dayType: string; // 'worked', 'half_worked', 'off', 'paid_leave', 'half_paid_leave'
+}
+
+/**
+ * Compare deux dates au format UTC YYYY-MM-DD
+ */
+export function isSameDayUtc(d1: Date | string, d2: Date | string): boolean {
+  const date1 = new Date(d1)
+  const date2 = new Date(d2)
+  return (
+    date1.getUTCFullYear() === date2.getUTCFullYear() &&
+    date1.getUTCMonth() === date2.getUTCMonth() &&
+    date1.getUTCDate() === date2.getUTCDate()
+  )
 }
 
 /**
  * Détermine le type de jour par défaut si non spécifié dans la base.
  */
 export function getDefaultDayType(date: Date): string {
-  if (isWeekend(date) || isHoliday(date)) {
-    return 'off';
-  }
-
-  const now = new Date()
-  const currentMonthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
-  const dateUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-
-  if (dateUtc >= currentMonthStart) {
-    return 'off';
-  }
-
-  return 'worked'; // Semaine dans le passé = travaillé par défaut
+  // Par défaut, sans saisie explicite dans le planning, le jour est 'off' (non travaillé)
+  return 'off';
 }
 
 /**
@@ -33,7 +35,7 @@ export function getMonthlyCalendar(year: number, month: number, statuses: DaySta
 
   for (let d = 1; d <= daysInMonth; d++) {
     const date = new Date(Date.UTC(year, month, d));
-    const dbStatus = statuses.find(s => s.date.getTime() === date.getTime());
+    const dbStatus = statuses.find(s => isSameDayUtc(s.date, date));
     calendar.push({
       date,
       dayType: dbStatus ? dbStatus.dayType : getDefaultDayType(date)
@@ -45,9 +47,7 @@ export function getMonthlyCalendar(year: number, month: number, statuses: DaySta
 
 /**
  * Calcule les compteurs pour un utilisateur donné sur une plage donnée.
- * Note: on s'arrête à aujourd'hui si on calcule le réel accompli, ou on prend tout le mois/l'année.
- * Le CDC demande: "jours travaillés depuis le 1er juin", etc.
- * Cela implique de calculer pour tous les jours de l'année de référence (passés et futurs prévus).
+ * Ne comptabilise que les jours explicitement renseignés en BDD ('worked', 'half_worked', 'paid_leave', 'half_paid_leave').
  */
 export function calculateCounters(
   startDate: Date, 
@@ -58,26 +58,10 @@ export function calculateCounters(
   let paidLeave = 0;
   let off = 0;
 
-  // Obtenir la date du jour à minuit UTC pour comparaison
-  const now = new Date()
-  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-
   const current = new Date(startDate)
   while (current <= endDate) {
-    const time = current.getTime()
-    const dbStatus = statuses.find(s => s.date.getTime() === time)
-    
-    let dayType: string
-    if (dbStatus) {
-      dayType = dbStatus.dayType
-    } else {
-      // Si c'est dans le futur (strictement après aujourd'hui), on ne le considère pas comme travaillé par défaut
-      if (time > todayUtc) {
-        dayType = 'off'
-      } else {
-        dayType = getDefaultDayType(current)
-      }
-    }
+    const dbStatus = statuses.find(s => isSameDayUtc(s.date, current))
+    const dayType = dbStatus ? dbStatus.dayType : 'off'
 
     if (dayType === 'worked') worked++
     else if (dayType === 'half_worked') {
@@ -102,13 +86,12 @@ export function calculateCounters(
  */
 export function getReferencePeriodStart(currentDate: Date, startMonth: number, startDay: number): Date {
   const year = currentDate.getUTCFullYear();
-  // startMonth est 1-indexed (1=Janvier, 6=Juin) -> on le passe en 0-indexed
-  const periodMonth = startMonth - 1;
+  const periodMonth = startMonth - 1; // startMonth est 1-indexed (1=Janvier, 6=Juin)
   
   let refStart = new Date(Date.UTC(year, periodMonth, startDay));
   
   // Si la date actuelle est avant le début de période (ex: Février 2026 pour une période qui commence en Juin)
-  // alors on est sur l'année N-1.
+  // alors le début de période est le 1er Juin de l'année N-1.
   if (currentDate.getTime() < refStart.getTime()) {
     refStart = new Date(Date.UTC(year - 1, periodMonth, startDay));
   }

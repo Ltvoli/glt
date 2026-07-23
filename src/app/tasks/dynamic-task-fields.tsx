@@ -67,19 +67,12 @@ export function renderTaskField(
         <div className="form-group">
           <label htmlFor="status">{label}</label>
           <select id="status" name="status" className="form-control" defaultValue={task.status || "A_FAIRE"}>
-            {dictionary.filter(d => d.type === 'TASK_STATUS').length > 0 ? (
-              dictionary.filter(d => d.type === 'TASK_STATUS').map(d => (
-                <option key={d.code} value={d.code}>{d.label}</option>
-              ))
-            ) : (
-              <>
-                <option value="A_FAIRE">À faire</option>
-                <option value="EN_COURS">En cours</option>
-                <option value="EN_ATTENTE">En attente</option>
-                <option value="TERMINEE">Terminée</option>
-                <option value="ANNULEE">Annulée</option>
-              </>
-            )}
+            <option value="A_FAIRE">À faire</option>
+            <option value="EN_COURS">En cours</option>
+            <option value="EN_ATTENTE">En attente</option>
+            <option value="A_VALIDER">🛡️ À valider (Soumettre à Lionel Tivoli)</option>
+            <option value="TERMINEE">Terminée (Directe, sans validation)</option>
+            <option value="ANNULEE">Annulée</option>
           </select>
         </div>
       )}
@@ -90,9 +83,33 @@ export function renderTaskField(
           <select id="assigneeId" name="assigneeId" className="form-control" defaultValue={task.assigneeId || ''}>
             <option value="">Non assigné</option>
             {users.map(user => (
-              <option key={user.id} value={user.id}>{user.name}</option>
+              <option key={user.id} value={user.id}>{user.name || `${user.firstName} ${user.lastName}`}</option>
             ))}
           </select>
+        </div>
+      )}
+
+      {fieldKey === 'validatorId' && (
+        <div className="form-group" style={{ gridColumn: '1 / -1', backgroundColor: '#f8fafc', padding: '0.875rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+          <label htmlFor="validatorId" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+            🛡️ {label} (Optionnel)
+          </label>
+          <select 
+            id="validatorId" 
+            name="validatorId" 
+            className="form-control" 
+            defaultValue={task.validatorId || ''}
+          >
+            <option value="">-- Sans validation (Validation non requise) --</option>
+            {users.map(user => (
+              <option key={user.id} value={user.id}>
+                Demander la validation par {user.name || `${user.firstName} ${user.lastName}`}
+              </option>
+            ))}
+          </select>
+          <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
+            💡 Optionnel : Si un responsable (ex: Lionel Tivoli) est sélectionné, le collaborateur devra lui soumettre la tâche terminée pour validation avant archivage.
+          </span>
         </div>
       )}
 

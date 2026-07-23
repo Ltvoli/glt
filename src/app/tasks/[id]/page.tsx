@@ -10,6 +10,8 @@ import { getSession } from '@/lib/session'
 
 import PrintButton from '@/components/PrintButton'
 
+import TaskValidationCard from './task-validation-card'
+
 // Helper to translate and format audit logs
 function getAuditText(log: any) {
   const userName = log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Système'
@@ -70,6 +72,8 @@ export default async function TaskDetailPage({
       where: { id },
       include: { 
         assignee: true,
+        validator: true,
+        validatedBy: true,
         subtasks: true,
         documents: true,
         links: true,
@@ -124,16 +128,22 @@ export default async function TaskDetailPage({
         </h1>
         <span style={{ 
           padding: '0.25rem 0.5rem', 
-          backgroundColor: '#eff6ff', 
-          color: 'var(--primary)', 
+          backgroundColor: task.status === 'A_VALIDER' ? '#fef3c7' : '#eff6ff', 
+          color: task.status === 'A_VALIDER' ? '#92400e' : 'var(--primary)', 
           borderRadius: '9999px', 
           fontSize: '0.875rem', 
           fontWeight: 500,
           marginLeft: 'auto'
         }}>
-          {task.status}
+          {task.status === 'A_VALIDER' ? 'À valider par Lionel Tivoli' : task.status}
         </span>
       </div>
+
+      <TaskValidationCard 
+        task={JSON.parse(JSON.stringify(task))} 
+        currentUserId={session?.userId || ''} 
+        userRole={session?.dbRole || ''} 
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

@@ -416,13 +416,29 @@ export async function rejectMail(mailId: string, reason?: string) {
     return { error: 'Non autorisé. Seul un administrateur peut rejeter ce courrier.' }
   }
 
+  const mail = await prisma.mailCase.findUnique({ where: { id: mailId } })
+  if (!mail) return { error: 'Courrier introuvable' }
+
   const updatedMail = await prisma.mailCase.update({
     where: { id: mailId },
     data: { 
       validationStatus: 'REJETE',
+      status: 'REJETE',
       rejectionReason: reason || null
     }
   })
+
+  await prisma.mailStatusHistory.create({
+    data: {
+      mailCaseId: mailId,
+      fromStatus: mail.status,
+      toStatus: 'REJETE',
+      fromValidation: mail.validationStatus,
+      toValidation: 'REJETE',
+      rejectionReason: reason || null,
+      userId: session.userId
+    }
+  }).catch(() => {})
 
   // Notify assignee
   if (updatedMail.assigneeId) {
@@ -442,6 +458,109 @@ export async function rejectMail(mailId: string, reason?: string) {
   revalidatePath('/mails')
   revalidatePath('/mails/' + mailId)
   return { success: true }
+}
+
+export async function updateMailContent(mailId: string, content: string, subject?: string, templateId?: string) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_MAILS')
+
+  const mail = await prisma.mailCase.findUnique({ where: { id: mailId } })
+  if (!mail) throw new Error('Courrier introuvable')
+
+  let templateSnapshot = mail.templateSnapshot
+  let templateVersion = mail.templateVersion
+
+  if (templateId && templateId !== mail.templateId) {
+    const tmpl = await prisma.mailTemplate.findUnique({ where: { id: templateId } })
+    if (tmpl) {
+      templateVersion = tmpl.version
+      templateSnapshot = {
+        id: tmpl.id,
+        code: tmpl.code,
+        name: tmpl.name,
+        category: tmpl.category,
+        version: tmpl.version,
+        bodyStructure: tmpl.bodyStructure
+      } as any
+    }
+  }
+
+  if (content !== mail.content || (subject && subject !== mail.subject)) {
+    await prisma.mailVersion.create({
+      data: {
+        mailCaseId: mailId,
+        subject: subject || mail.subject,
+        content,
+        editedById: session.userId
+      }
+    })
+  }
+
+  const dataToUpdate: any = { content }
+  if (subject) dataToUpdate.subject = subject
+  if (templateId) {
+    dataToUpdate.templateId = templateId
+    dataToUpdate.templateVersion = templateVersion
+    dataToUpdate.templateSnapshot = templateSnapshot
+  }
+
+  const updated = await prisma.mailCase.update({
+    where: { id: mailId },
+    data: dataToUpdate
+  })
+
+  revalidatePath(`/mails/${mailId}`)
+  revalidatePath('/mails')
+  return updated
+}
+
+export async function updateValidationStatus(mailId: string, validationStatus: string, reason?: string) {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_MAILS')
+
+  const mail = await prisma.mailCase.findUnique({ where: { id: mailId } })
+  if (!mail) throw new Error("Courrier introuvable")
+
+  const updatedMail = await prisma.mailCase.update({
+    where: { id: mailId },
+    data: {
+      validationStatus,
+      rejectionReason: validationStatus === 'REJETE' ? (reason || null) : null,
+      status: validationStatus === 'VALIDE' ? 'VALIDE' : validationStatus === 'A_VALIDER' ? 'A_VALIDER' : mail.status
+    }
+  })
+
+  await prisma.mailStatusHistory.create({
+    data: {
+      mailCaseId: mailId,
+      fromStatus: mail.status,
+      toStatus: updatedMail.status,
+      fromValidation: mail.validationStatus,
+      toValidation: validationStatus,
+      rejectionReason: reason || null,
+      userId: session.userId
+    }
+  }).catch(() => {})
+
+  if (updatedMail.assigneeId) {
+    await prisma.notification.create({
+      data: {
+        userId: updatedMail.assigneeId,
+        type: 'STATUS_CHANGE',
+        title: validationStatus === 'VALIDE' ? 'Courrier validé' : validationStatus === 'REJETE' ? 'Courrier rejeté' : 'Courrier en validation',
+        message: validationStatus === 'REJETE'
+          ? `Le courrier "${updatedMail.subject}" a été rejeté. Motif : ${reason}`
+          : `Le courrier "${updatedMail.subject}" est passé au statut : ${validationStatus}`,
+        relatedType: 'MailCase',
+        relatedId: mailId,
+        severity: validationStatus === 'REJETE' ? 'WARNING' : 'INFO'
+      }
+    }).catch(() => {})
+  }
+
+  revalidatePath('/mails')
+  revalidatePath('/mails/' + mailId)
+  return updatedMail
 }
 
 export async function submitMailForValidation(mailId: string, validatorUserId: string) {

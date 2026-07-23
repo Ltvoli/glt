@@ -19,25 +19,32 @@ export default async function MailsPage({
 
   const whereClause: any = {}
   
-  if (filter === 'mine') {
-    whereClause.assigneeId = session?.userId
-  } else if (filter === 'urgent') {
-    whereClause.urgency = 'HAUTE'
-    whereClause.status = { notIn: ['REPONDU', 'CLASSE'] }
-  } else if (filter === 'pending') {
-    whereClause.status = { in: ['RECU', 'LU', 'EN_TRAITEMENT'] }
-  } else if (filter === 'entrant') {
-    whereClause.type = 'ENTRANT'
-  } else if (filter === 'sortant') {
-    whereClause.type = 'SORTANT'
-  } else if (filter === 'to_validate') {
-    whereClause.validationStatus = 'A_VALIDER'
-    if (session?.dbRole !== 'ADMINISTRATEUR' && session?.dbRole !== 'SUPERVISEUR') {
+  if (filter === 'archives' || filter === 'envoyes') {
+    whereClause.status = { in: ['REPONDU', 'CLASSE', 'ENVOYE'] }
+  } else if (filter === 'all') {
+    // Afficher tous les courriers sans restriction de statut
+  } else {
+    // RÈGLE PAR DÉFAUT : Exclure les courriers envoyés, répondus ou classés des vues actives
+    whereClause.status = { notIn: ['REPONDU', 'CLASSE', 'ENVOYE'] }
+
+    if (filter === 'mine') {
       whereClause.assigneeId = session?.userId
+    } else if (filter === 'urgent') {
+      whereClause.urgency = 'HAUTE'
+    } else if (filter === 'pending') {
+      whereClause.status = { in: ['RECU', 'LU', 'EN_TRAITEMENT'] }
+    } else if (filter === 'entrant') {
+      whereClause.type = 'ENTRANT'
+    } else if (filter === 'sortant') {
+      whereClause.type = 'SORTANT'
+    } else if (filter === 'to_validate') {
+      whereClause.validationStatus = 'A_VALIDER'
+      if (session?.dbRole !== 'ADMINISTRATEUR' && session?.dbRole !== 'SUPERVISEUR') {
+        whereClause.assigneeId = session?.userId
+      }
+    } else if (filter === 'late') {
+      whereClause.responseDueDate = { lt: new Date() }
     }
-  } else if (filter === 'late') {
-    whereClause.responseDueDate = { lt: new Date() }
-    whereClause.status = { notIn: ['REPONDU', 'CLASSE'] }
   }
 
   if (q) {
@@ -89,8 +96,7 @@ export default async function MailsPage({
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-        <Link href="/mails" className={`button ${!filter ? 'primary' : 'outline'}`}>Tous</Link>
-        <Link href="/mails?filter=pending" className={`button ${filter === 'pending' ? 'primary' : 'outline'}`}>À traiter</Link>
+        <Link href="/mails" className={`button ${!filter ? 'primary' : 'outline'}`}>À traiter (Actifs)</Link>
         <Link href="/mails?filter=mine" className={`button ${filter === 'mine' ? 'primary' : 'outline'}`}>Mes courriers</Link>
         <Link href="/mails?filter=urgent" className={`button ${filter === 'urgent' ? 'primary' : 'outline'}`}>Urgents</Link>
         <Link href="/mails?filter=entrant" className={`button ${filter === 'entrant' ? 'primary' : 'outline'}`}>Entrants</Link>
@@ -98,6 +104,12 @@ export default async function MailsPage({
         <Link href="/mails?filter=to_validate" className={`button ${filter === 'to_validate' ? 'primary' : 'outline'}`}>À valider</Link>
         <Link href="/mails?filter=late" className={`button ${filter === 'late' ? 'primary' : 'outline'}`} style={{ borderColor: filter === 'late' ? 'var(--danger)' : '', color: filter === 'late' ? 'white' : 'var(--danger)', backgroundColor: filter === 'late' ? 'var(--danger)' : 'transparent' }}>
           En retard
+        </Link>
+        <Link href="/mails?filter=archives" className={`button ${filter === 'archives' || filter === 'envoyes' ? 'primary' : 'outline'}`}>
+          Archives (Envoyés / Traités)
+        </Link>
+        <Link href="/mails?filter=all" className={`button ${filter === 'all' ? 'primary' : 'outline'}`}>
+          Tous
         </Link>
       </div>
 

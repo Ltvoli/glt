@@ -2,7 +2,7 @@ import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import PlanningGrid from './PlanningGrid'
-import { calculateCounters, getReferencePeriodStart, getDefaultDayType } from '@/lib/planning-utils'
+import { calculateCounters, getReferencePeriodStart, getDefaultDayType, isSameDayUtc } from '@/lib/planning-utils'
 import { isWeekend, isHoliday } from '@/lib/holidays'
 import { hasPermission } from '@/lib/permissions'
 
@@ -32,7 +32,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
       employeeSetting: true,
       statuses: {
         where: {
-          date: { gte: new Date(Date.UTC(currentYear - 1, 0, 1)) } // Charger depuis le début de l'année précédente pour les compteurs
+          date: { gte: new Date(Date.UTC(currentYear - 2, 0, 1)) } // Charger depuis N-2 pour couvrir l'année de référence complète
         }
       }
     }
@@ -40,59 +40,66 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
 
   const daysInMonth = endOfMonth.getUTCDate()
 
-  const formattedUsers = usersData.map(user => {
-    const settings = user.employeeSetting || { annualWorkingDays: 218, referencePeriodStartMonth: 6, referencePeriodStartDay: 1 }
-    const refStart = getReferencePeriodStart(startOfMonth, settings.referencePeriodStartMonth, settings.referencePeriodStartDay)
-    
-    // Convertir les statuts en format utils
-    const mappedStatuses = user.statuses.map((s: any) => ({ date: s.date, dayType: s.dayType }))
-
-    // Compteurs annuels
-    // Pour simplifier et être précis, on calcule les jours écoulés entre refStart et le 31 mai suivant.
-    const refEnd = new Date(Date.UTC(refStart.getUTCFullYear() + 1, refStart.getUTCMonth(), refStart.getUTCDate() - 1))
-    
-    // Le calcul se fait sur toute la période de référence
-    const yearCounters = calculateCounters(refStart, refEnd, mappedStatuses)
-    
-    // Compteurs du mois
-    const monthCounters = calculateCounters(startOfMonth, endOfMonth, mappedStatuses)
-
-    // Calendrier du mois courant pour l'affichage
-    const monthCalendar = []
-    for (let d = 1; d <= daysInMonth; d++) {
-      const date = new Date(Date.UTC(currentYear, currentMonth, d))
-      const time = date.getTime()
-      const dbStatus = user.statuses.find((s: any) => s.date.getTime() === time)
-      const isWE = isWeekend(date)
-      const isHol = isHoliday(date)
+  const formattedUsers = usersData
+    .filter(user => user.employeeSetting?.showInPlanning ?? true)
+    .map(user => {
+      const settings = user.employeeSetting || { annualWorkingDays: 218, annualPaidLeaveDays: 25, referencePeriodStartMonth: 6, referencePeriodStartDay: 1 }
+      const refStart = getReferencePeriodStart(startOfMonth, settings.referencePeriodStartMonth, settings.referencePeriodStartDay)
       
-      monthCalendar.push({
-        dateStr: date.toISOString(),
-        dayType: dbStatus ? dbStatus.dayType : getDefaultDayType(date),
-        isHoliday: isHol,
-        isWeekend: isWE,
-        notes: dbStatus?.notes || null
-      })
-    }
+      // Convertir les statuts en format utils
+      const mappedStatuses = user.statuses.map((s: any) => ({ date: s.date, dayType: s.dayType }))
 
-    const remaining = settings.annualWorkingDays - yearCounters.worked
+      // Compteurs annuels
+      const refEnd = new Date(Date.UTC(refStart.getUTCFullYear() + 1, refStart.getUTCMonth(), refStart.getUTCDate() - 1))
+      
+      // Le calcul se fait sur toute la période de référence
+      const yearCounters = calculateCounters(refStart, refEnd, mappedStatuses)
+      
+      // Compteurs du mois
+      const monthCounters = calculateCounters(startOfMonth, endOfMonth, mappedStatuses)
 
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      showInPlanning: user.employeeSetting?.showInPlanning ?? true,
-      counters: {
-        workedMonth: monthCounters.worked,
-        workedYear: yearCounters.worked,
-        paidLeaveYear: yearCounters.paidLeave,
-        annualDays: settings.annualWorkingDays,
-        remaining
-      },
-      monthCalendar
-    }
-  })
+      // Calendrier du mois courant pour l'affichage
+      const monthCalendar = []
+      for (let d = 1; d <= daysInMonth; d++) {
+        const date = new Date(Date.UTC(currentYear, currentMonth, d))
+        const dbStatus = user.statuses.find((s: any) => isSameDayUtc(s.date, date))
+        const isWE = isWeekend(date)
+        const isHol = isHoliday(date)
+        
+        monthCalendar.push({
+          dateStr: date.toISOString(),
+          dayType: dbStatus ? dbStatus.dayType : getDefaultDayType(date),
+          isHoliday: isHol,
+          isWeekend: isWE,
+          notes: dbStatus?.notes || null
+        })
+      }
+
+      const annualPaidLeaveDays = settings.annualPaidLeaveDays || 25
+      const remainingWorked = Math.max(0, settings.annualWorkingDays - yearCounters.worked)
+      const remainingPaidLeave = annualPaidLeaveDays - yearCounters.paidLeave
+
+      const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || user.email
+
+      return {
+        id: user.id,
+        name: userName,
+        email: user.email,
+        role: user.role,
+        showInPlanning: user.employeeSetting?.showInPlanning ?? true,
+        counters: {
+          workedMonth: monthCounters.worked,
+          workedYear: yearCounters.worked,
+          paidLeaveYear: yearCounters.paidLeave,
+          annualDays: settings.annualWorkingDays,
+          annualPaidLeaveDays,
+          remainingWorked,
+          remainingPaidLeave,
+          remaining: remainingPaidLeave // pour compatibilité
+        },
+        monthCalendar
+      }
+    })
 
   // Récupérer les commentaires du planning pour ce mois
   const dbComments = await prisma.planningComment.findMany({

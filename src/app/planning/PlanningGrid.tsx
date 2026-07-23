@@ -14,7 +14,16 @@ type UserData = {
   email: string
   role: string
   showInPlanning: boolean
-  counters: { workedMonth: number; workedYear: number; paidLeaveYear: number; annualDays: number; remaining: number }
+  counters: {
+    workedMonth: number
+    workedYear: number
+    paidLeaveYear: number
+    annualDays: number
+    annualPaidLeaveDays?: number
+    remainingWorked?: number
+    remainingPaidLeave?: number
+    remaining: number
+  }
   monthCalendar: { dateStr: string; dayType: string; isHoliday: boolean; isWeekend: boolean; notes: string | null }[]
 }
 
@@ -159,7 +168,8 @@ export default function PlanningGrid({
             <tbody>
               {visibleUsers.map(user => {
                 const c = user.counters
-                const showAlert = c.remaining <= 5
+                const remainingCp = c.remainingPaidLeave !== undefined ? c.remainingPaidLeave : c.remaining
+                const showCpAlert = remainingCp <= 3
 
                 return (
                   <tr key={user.id}>
@@ -169,20 +179,18 @@ export default function PlanningGrid({
                     <td style={{ borderRight: '2px solid var(--border)', padding: '0.5rem' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.75rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--text-muted)' }}>Mois:</span>
-                          <strong>{c.workedMonth}j</strong>
+                          <span style={{ color: 'var(--text-muted)' }}>Mois :</span>
+                          <strong>{c.workedMonth}j travaillés</strong>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--text-muted)' }}>Année:</span>
+                          <span style={{ color: 'var(--text-muted)' }}>Travail An :</span>
                           <strong>{c.workedYear}j / {c.annualDays}j</strong>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: showAlert ? 'var(--danger)' : 'inherit' }}>
-                          <span style={{ color: showAlert ? 'var(--danger)' : 'var(--text-muted)' }}>Reste:</span>
-                          <strong style={{ color: showAlert ? 'var(--danger)' : 'inherit' }}>{c.remaining}j</strong>
-                        </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--text-muted)' }}>CP An:</span>
-                          <strong>{c.paidLeaveYear}j</strong>
+                          <span style={{ color: 'var(--text-muted)' }}>Solde CP :</span>
+                          <strong style={{ color: showCpAlert ? '#dc2626' : '#16a34a' }}>
+                            {remainingCp}j restants ({c.paidLeaveYear}j pris)
+                          </strong>
                         </div>
                       </div>
                     </td>

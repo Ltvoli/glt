@@ -63,7 +63,7 @@ export async function advancedMergeDuplicate(prevState: any, formData: FormData)
 
   // Construire le payload depuis les champs sélectionnés
   const FIELDS = [
-    'firstName','lastName','email','mobilePhone','phone',
+    'firstName','lastName','usageName','email','mobilePhone','phone',
     'streetNumber','streetName','postalCode','city',
     'gender','birthDate','type','supportLevel',
     'notes','profession','consentEmail','consentPhone',
@@ -131,90 +131,59 @@ async function fusionnerContacts(
   candidateId: string,
   userId: string,
 ) {
-  await prisma.$transaction(async (tx) => {
+  // 1. Transférer / dédupliquer les GlobalLinks en SQL direct (IS NOT DISTINCT FROM gère le NULL)
+  await prisma.$executeRawUnsafe(`
+    UPDATE "GlobalLink" gl
+    SET "contactId" = $1
+    WHERE gl."contactId" = $2
+      AND NOT EXISTS (
+        SELECT 1 FROM "GlobalLink" target
+        WHERE target."contactId" = $1
+          AND target."taskId" IS NOT DISTINCT FROM gl."taskId"
+          AND target."mailCaseId" IS NOT DISTINCT FROM gl."mailCaseId"
+          AND target."questionId" IS NOT DISTINCT FROM gl."questionId"
+      );
+  `, keepId, deleteId)
 
-    // 1. Récupérer tous les GlobalLinks du contact à supprimer
-    const linksToTransfer = await tx.globalLink.findMany({
-      where: { contactId: deleteId }
-    })
+  await prisma.$executeRawUnsafe(`
+    DELETE FROM "GlobalLink" WHERE "contactId" = $1;
+  `, deleteId)
 
-    for (const link of linksToTransfer) {
-      // Vérifier s'il existe déjà un lien identique pour le contact conservé
-      const duplicate = await tx.globalLink.findFirst({
-        where: {
-          contactId: keepId,
-          taskId:    link.taskId    ?? undefined,
-          mailCaseId: link.mailCaseId ?? undefined,
-          questionId: link.questionId ?? undefined,
-        }
-      })
+  // 2. Transférer les ContactTags avec ON CONFLICT DO NOTHING
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO "ContactTag" ("contactId", "tagId")
+    SELECT $1, "tagId"
+    FROM "ContactTag"
+    WHERE "contactId" = $2
+    ON CONFLICT ("contactId", "tagId") DO NOTHING;
+  `, keepId, deleteId)
 
-      if (!duplicate) {
-        // Réaffecter le lien au contact conservé
-        await tx.globalLink.update({
-          where: { id: link.id },
-          data: { contactId: keepId }
-        })
-      } else {
-        // Doublon de lien → supprimer
-        await tx.globalLink.delete({ where: { id: link.id } })
-      }
-    }
+  await prisma.$executeRawUnsafe(`
+    DELETE FROM "ContactTag" WHERE "contactId" = $1;
+  `, deleteId)
 
-    // 2. Transférer les tags (ContactTag a une clé composite [contactId, tagId])
-    const tagsToTransfer = await tx.contactTag.findMany({
-      where: { contactId: deleteId }
-    })
+  // 3. Supprimer tous les candidats doublons impliquant le contact supprimé
+  await prisma.$executeRawUnsafe(`
+    DELETE FROM "DuplicateCandidate"
+    WHERE "contact1Id" = $1 OR "contact2Id" = $1;
+  `, deleteId)
 
-    for (const ct of tagsToTransfer) {
-      // Vérifier si le tag existe déjà sur le contact conservé
-      const existing = await tx.contactTag.findUnique({
-        where: { contactId_tagId: { contactId: keepId, tagId: ct.tagId } }
-      })
-      if (!existing) {
-        // Créer le tag sur le contact conservé
-        await tx.contactTag.create({
-          data: { contactId: keepId, tagId: ct.tagId }
-        })
-      }
-      // Supprimer le tag de l'ancien contact
-      await tx.contactTag.delete({
-        where: { contactId_tagId: { contactId: deleteId, tagId: ct.tagId } }
-      })
-    }
+  // 4. Résoudre le candidat courant s'il existe et n'est pas 'manual'
+  if (candidateId && candidateId !== 'manual') {
+    await prisma.$executeRawUnsafe(`
+      UPDATE "DuplicateCandidate"
+      SET "status" = 'RESOLVED'
+      WHERE "id" = $1;
+    `, candidateId)
+  }
 
-    // 3. Supprimer les autres candidats doublons impliquant le contact supprimé
-    await tx.duplicateCandidate.deleteMany({
-      where: {
-        id: { not: candidateId },
-        OR: [
-          { contact1Id: deleteId },
-          { contact2Id: deleteId },
-        ]
-      }
-    })
-
-    // 4. Résoudre le candidat courant s'il existe
-    if (candidateId && candidateId !== 'manual') {
-      const exists = await tx.duplicateCandidate.findUnique({
-        where: { id: candidateId }
-      })
-      if (exists) {
-        await tx.duplicateCandidate.update({
-          where: { id: candidateId },
-          data: { status: 'RESOLVED' }
-        })
-      }
-    }
-
-    // 5. Archiver le contact doublon
-    await tx.contact.update({
-      where: { id: deleteId },
-      data: { archivedAt: new Date() }
-    })
+  // 5. Archiver le contact doublon
+  await prisma.contact.update({
+    where: { id: deleteId },
+    data: { archivedAt: new Date() }
   })
 
-  // 6. Log d'audit (hors transaction pour éviter les timeouts)
+  // 6. Log d'audit
   await logAudit('DUPLICATE_MERGED', 'Contact', keepId, userId, {
     mergedContactId: deleteId,
     candidateId,
@@ -235,9 +204,6 @@ export async function triggerDuplicateDetection() {
   }
 
   try {
-    // Augmenter temporairement le timeout de la requête pour cette session (90 secondes)
-    await prisma.$executeRawUnsafe('SET statement_timeout = 90000;')
-
     // 1. Détecter par email identique et nom similaire
     const emailDups = await prisma.$executeRawUnsafe(`
       INSERT INTO "DuplicateCandidate" ("id", "contact1Id", "contact2Id", "reason", "status", "createdAt")
@@ -310,7 +276,6 @@ export async function triggerDuplicateDetection() {
     const phoneDups = Number(fixedPhoneDups) + Number(mobilePhoneDups)
 
     // 3. Détecter par nom très similaire (prénom + nom > 0.85) sans autre info de contact identique
-    // Pour les bases de données contenant plus de 15 000 contacts actifs, nous remplaçons le trigramme par une jointure exacte rapide pour éviter les timeouts globaux.
     const totalContacts = await prisma.contact.count({
       where: { archivedAt: null }
     })
@@ -383,15 +348,12 @@ export async function bulkMergeExactDuplicates() {
   }
 
   try {
-    // Augmenter temporairement le timeout de la requête pour cette session (90 secondes)
-    await prisma.$executeRawUnsafe('SET statement_timeout = 90000;')
-
-    // 1. Trouver les groupes de doublons de noms/prénoms exacts (actifs)
+    // 1. Trouver les groupes de doublons de noms/prénoms/noms d'usage exacts (actifs)
     const duplicateGroups = await prisma.$queryRawUnsafe<{ fn: string; ln: string; count: number }[]>(`
-      SELECT LOWER("firstName") as fn, LOWER("lastName") as ln, COUNT(*)::integer as count
+      SELECT LOWER("firstName") as fn, LOWER(COALESCE(NULLIF("usageName", ''), "lastName")) as ln, COUNT(*)::integer as count
       FROM "Contact"
       WHERE "archivedAt" IS NULL
-      GROUP BY LOWER("firstName"), LOWER("lastName")
+      GROUP BY LOWER("firstName"), LOWER(COALESCE(NULLIF("usageName", ''), "lastName"))
       HAVING COUNT(*) > 1
       LIMIT 500;
     `)
@@ -406,7 +368,10 @@ export async function bulkMergeExactDuplicates() {
       const contacts = await prisma.contact.findMany({
         where: {
           firstName: { equals: fn, mode: 'insensitive' },
-          lastName: { equals: ln, mode: 'insensitive' },
+          OR: [
+            { lastName: { equals: ln, mode: 'insensitive' } },
+            { usageName: { equals: ln, mode: 'insensitive' } },
+          ],
           archivedAt: null
         }
       })
@@ -421,16 +386,16 @@ export async function bulkMergeExactDuplicates() {
           .filter(Boolean)
       )
 
-      // S'il y a plus d'un e-mail différent ou plus d'un téléphone différent, on considère qu'il y a conflit
       if (emails.size > 1 || phones.size > 1) {
         continue
       }
 
-      // Déterminer le contact à conserver (le mieux renseigné, ou à défaut le plus ancien)
+      // Déterminer le contact à conserver
       const scoreContact = (c: any) => {
         let score = 0
         if (c.email) score += 10
         if (c.mobilePhone || c.phone) score += 10
+        if (c.usageName) score += 5
         if (c.city || c.postalCode) score += 5
         if (c.birthDate) score += 5
         if (c.notes) score += 2
@@ -440,109 +405,45 @@ export async function bulkMergeExactDuplicates() {
       const sorted = [...contacts].sort((a, b) => {
         const scoreA = scoreContact(a)
         const scoreB = scoreContact(b)
-        if (scoreA !== scoreB) return scoreB - scoreA // plus grand score en premier
-        return a.createdAt.getTime() - b.createdAt.getTime() // plus ancien en premier
+        if (scoreA !== scoreB) return scoreB - scoreA
+        return a.createdAt.getTime() - b.createdAt.getTime()
       })
 
       const primary = sorted[0]
       const duplicates = sorted.slice(1)
 
-      // Fusionner dans une transaction
-      await prisma.$transaction(async (tx) => {
-        for (const dup of duplicates) {
-          // A. Transférer les GlobalLinks
-          const links = await tx.globalLink.findMany({
-            where: { contactId: dup.id }
-          })
-
-          for (const link of links) {
-            const exists = await tx.globalLink.findFirst({
-              where: {
-                contactId: primary.id,
-                taskId: link.taskId ?? undefined,
-                mailCaseId: link.mailCaseId ?? undefined,
-                questionId: link.questionId ?? undefined,
-              }
-            })
-
-            if (!exists) {
-              await tx.globalLink.update({
-                where: { id: link.id },
-                data: { contactId: primary.id }
-              })
-            } else {
-              await tx.globalLink.delete({
-                where: { id: link.id }
-              })
-            }
-          }
-
-          // B. Transférer les ContactTags
-          const tags = await tx.contactTag.findMany({
-            where: { contactId: dup.id }
-          })
-
-          for (const ct of tags) {
-            const exists = await tx.contactTag.findUnique({
-              where: {
-                contactId_tagId: { contactId: primary.id, tagId: ct.tagId }
-              }
-            })
-
-            if (!exists) {
-              await tx.contactTag.create({
-                data: { contactId: primary.id, tagId: ct.tagId }
-              })
-            }
-
-            await tx.contactTag.delete({
-              where: {
-                contactId_tagId: { contactId: dup.id, tagId: ct.tagId }
-              }
-            })
-          }
-
-          // C. Compléter les champs manquants du contact primaire depuis le doublon
+      for (const dup of duplicates) {
+        try {
+          // Compléter les champs manquants du contact primaire depuis le doublon
           const updateData: Record<string, any> = {}
           const fieldsToFill = [
-            'email', 'mobilePhone', 'phone', 'streetNumber', 'streetName',
+            'email', 'usageName', 'mobilePhone', 'phone', 'streetNumber', 'streetName',
             'postalCode', 'city', 'gender', 'birthDate', 'type', 'supportLevel',
             'notes', 'profession', 'consentEmail', 'consentPhone', 'consentSms',
             'consentPostal', 'consentCustom'
           ] as const
 
           for (const field of fieldsToFill) {
-            if (!primary[field] && dup[field]) {
-              updateData[field] = dup[field]
+            if (!(primary as any)[field] && (dup as any)[field]) {
+              updateData[field] = (dup as any)[field]
+              ;(primary as any)[field] = (dup as any)[field]
             }
           }
 
           if (Object.keys(updateData).length > 0) {
-            await tx.contact.update({
+            await prisma.contact.update({
               where: { id: primary.id },
               data: updateData
             })
           }
 
-          // D. Supprimer les candidats doublons impliquant le contact fusionné
-          await tx.duplicateCandidate.deleteMany({
-            where: {
-              OR: [
-                { contact1Id: dup.id },
-                { contact2Id: dup.id }
-              ]
-            }
-          })
-
-          // E. Archiver le contact en doublon
-          await tx.contact.update({
-            where: { id: dup.id },
-            data: { archivedAt: new Date() }
-          })
-
+          // Fusionner via fusionnerContacts (transaction rapide et dédiée par doublon)
+          await fusionnerContacts(primary.id, dup.id, 'manual', session.userId)
           mergedCount++
+        } catch (dupError: any) {
+          console.error(`[bulkMergeExactDuplicates] Erreur lors de la fusion du contact ${dup.id} vers ${primary.id}:`, dupError)
         }
-      })
+      }
     }
 
     revalidatePath('/contacts/duplicates')

@@ -11,6 +11,7 @@ const COLUMNS_CONFIG = [
   { id: 'A_FAIRE', label: 'À faire', color: '#3b82f6', bg: '#eff6ff' },
   { id: 'EN_COURS', label: 'En cours', color: '#f59e0b', bg: '#fef3c7' },
   { id: 'EN_ATTENTE', label: 'En attente', color: '#8b5cf6', bg: '#f3e8ff' },
+  { id: 'A_VALIDER', label: 'À valider', color: '#d97706', bg: '#fef3c7' },
   { id: 'TERMINEE', label: 'Terminée', color: '#10b981', bg: '#d1fae5' },
   { id: 'ANNULEE', label: 'Annulée', color: '#64748b', bg: '#f1f5f9' },
 ]

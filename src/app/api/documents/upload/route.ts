@@ -18,9 +18,11 @@ const ALLOWED_MIME_TYPES = [
   'text/csv',
   'text/plain',
   'image/jpeg',
-  'image/png'
+  'image/png',
+  'application/octet-stream'
 ]
-const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt', '.jpg', '.jpeg', '.png']
+const MAX_SIZE = 25 * 1024 * 1024 // 25 MB
 
 export async function POST(req: NextRequest) {
 
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     const title = formData.get('title') as string || (file ? file.name : '')
-    const documentType = formData.get('documentType') as string || 'AUTRE'
+    let documentType = formData.get('documentType') as string || 'AUTRE'
     const confidentiality = formData.get('confidentiality') as string || 'INTERNE'
     const status = formData.get('status') as string || 'VALIDATED'
     
@@ -49,16 +51,30 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: 'Aucun fichier fourni' }, { status: 400 })
     if (!title) return NextResponse.json({ error: 'Titre manquant' }, { status: 400 })
 
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json({ error: 'Type de fichier non autorisé' }, { status: 400 })
+    const extension = path.extname(file.name).toLowerCase() || ('.' + file.name.split('.').pop()?.toLowerCase())
+    const isAllowedMime = ALLOWED_MIME_TYPES.includes(file.type)
+    const isAllowedExt = ALLOWED_EXTENSIONS.includes(extension)
+
+    if (!isAllowedMime && !isAllowedExt) {
+      return NextResponse.json({ error: 'Type de fichier non autorisé (.xlsx, .xls, .pdf, .docx, .csv etc.)' }, { status: 400 })
     }
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: 'Fichier trop volumineux (max 10MB)' }, { status: 400 })
+      return NextResponse.json({ error: 'Fichier trop volumineux (max 25MB)' }, { status: 400 })
+    }
+
+    // Auto-détection du documentType si AUTRE
+    if (!documentType || documentType === 'AUTRE') {
+      if (extension === '.xlsx' || extension === '.xls' || extension === '.csv' || file.type.includes('excel') || file.type.includes('spreadsheet')) {
+        documentType = 'EXCEL'
+      } else if (extension === '.docx' || extension === '.doc' || file.type.includes('word')) {
+        documentType = 'WORD'
+      } else if (extension === '.pdf' || file.type.includes('pdf')) {
+        documentType = 'PDF'
+      }
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const storageName = uuidv4()
-    const extension = path.extname(file.name) || ('.' + file.name.split('.').pop())
     const fileName = `${storageName}${extension}`
     
     let isLocal = true
@@ -160,6 +176,26 @@ export async function POST(req: NextRequest) {
     const doc = await prisma.document.create({
       data: dataPayload
     })
+
+    if (doc.status === 'PENDING') {
+      const validators = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'SUPERADMIN', 'ADMINISTRATEUR', 'SUPERVISEUR', 'COORDINATEUR'] }, isActive: true, archivedAt: null },
+        select: { id: true }
+      })
+      for (const v of validators) {
+        await prisma.notification.create({
+          data: {
+            userId: v.id,
+            type: 'DOCUMENT_PENDING_VALIDATION',
+            title: 'Document à valider',
+            message: `Le document "${doc.title}" a été téléversé et nécessite votre validation.`,
+            relatedType: 'Document',
+            relatedId: doc.id,
+            severity: 'WARNING'
+          }
+        }).catch(() => {})
+      }
+    }
 
     return NextResponse.json({ success: true, document: doc })
   } catch (error: any) {

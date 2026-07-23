@@ -10,6 +10,7 @@ import GenerateLetterButton from '@/components/GenerateLetterButton'
 import MailValidationActions from './mail-validation-actions'
 import MailSubmitButton from './mail-submit-button'
 import MailCollaborationTabs from './mail-collaboration-tabs'
+import InstitutionalMailEditor from './InstitutionalMailEditor'
 import AiAssistant from './ai-assistant'
 import { parseFullName } from '@/lib/mail-utils'
 import DeleteMailButton from './delete-mail-button'
@@ -79,6 +80,13 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
   const linkedTasks = mail.links.filter(l => l.task).map(l => l.task)
 
   const templates = await prisma.documentTemplate.findMany({ where: { entityType: 'MAIL' }, select: { id: true, name: true, htmlContent: true } })
+  const mailTemplates = await prisma.mailTemplate.findMany({
+    where: { status: 'PUBLIE' },
+    orderBy: [
+      { category: 'asc' },
+      { name: 'asc' }
+    ]
+  })
 
   const usersData = await prisma.user.findMany({
     where: { isActive: true },
@@ -245,7 +253,14 @@ export default async function MailDetailPage({ params }: { params: Promise<{ id:
               </div>
             </div>
 
-            <MailCollaborationTabs mail={mail as any} currentUserId={session.userId} />
+            <div style={{ marginTop: '2rem' }}>
+              <InstitutionalMailEditor
+                mail={mail}
+                templates={mailTemplates}
+                linkedContact={linkedContacts[0] || null}
+                isAdmin={isAdmin}
+              />
+            </div>
 
             {mail.notes && (
               <div style={{ marginTop: '2rem' }}>

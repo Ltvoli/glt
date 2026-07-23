@@ -13,20 +13,26 @@ export async function GET(request: Request) {
   
   const whereClause: any = {}
   
-  if (filter === 'mine') {
-    whereClause.assigneeId = session?.userId
-  } else if (filter === 'urgent') {
-    whereClause.urgency = 'HAUTE'
-    whereClause.status = { notIn: ['REPONDU', 'CLASSE'] }
-  } else if (filter === 'pending') {
-    whereClause.status = { in: ['RECU', 'LU', 'EN_TRAITEMENT'] }
-  } else if (filter === 'entrant') {
-    whereClause.type = 'ENTRANT'
-  } else if (filter === 'sortant') {
-    whereClause.type = 'SORTANT'
-  } else if (filter === 'late') {
-    whereClause.responseDueDate = { lt: new Date() }
-    whereClause.status = { notIn: ['REPONDU', 'CLASSE'] }
+  if (filter === 'archives' || filter === 'envoyes') {
+    whereClause.status = { in: ['REPONDU', 'CLASSE', 'ENVOYE'] }
+  } else if (filter === 'all') {
+    // Tous
+  } else {
+    whereClause.status = { notIn: ['REPONDU', 'CLASSE', 'ENVOYE'] }
+
+    if (filter === 'mine') {
+      whereClause.assigneeId = session?.userId
+    } else if (filter === 'urgent') {
+      whereClause.urgency = 'HAUTE'
+    } else if (filter === 'pending') {
+      whereClause.status = { in: ['RECU', 'LU', 'EN_TRAITEMENT'] }
+    } else if (filter === 'entrant') {
+      whereClause.type = 'ENTRANT'
+    } else if (filter === 'sortant') {
+      whereClause.type = 'SORTANT'
+    } else if (filter === 'late') {
+      whereClause.responseDueDate = { lt: new Date() }
+    }
   }
 
   const mails = await prisma.mailCase.findMany({

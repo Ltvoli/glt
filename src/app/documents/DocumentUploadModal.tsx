@@ -82,7 +82,13 @@ export default function DocumentUploadModal({ folders = [], defaultFolderId }: {
             <form onSubmit={handleUpload} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Fichier *</label>
-                <input type="file" name="file" required style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px' }} />
+                <input 
+                  type="file" 
+                  name="file" 
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" 
+                  required 
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px' }} 
+                />
               </div>
               
               <div>
@@ -99,6 +105,7 @@ export default function DocumentUploadModal({ folders = [], defaultFolderId }: {
                     <option value="QE">Question Écrite</option>
                     <option value="PDF">PDF</option>
                     <option value="WORD">Word</option>
+                    <option value="EXCEL">Excel / Tableur (.xlsx)</option>
                     <option value="AUTRE">Autre</option>
                   </select>
                 </div>

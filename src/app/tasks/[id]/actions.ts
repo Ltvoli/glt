@@ -16,6 +16,7 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
   const priority = formData.get('priority') as string
   const status = formData.get('status') as string
   const assigneeId = formData.get('assigneeId') as string
+  const validatorId = formData.get('validatorId') as string
   const dueDateStr = formData.get('dueDate') as string
   const expectedDeliverable = formData.get('expectedDeliverable') as string
   const tagsStr = formData.get('tags') as string
@@ -50,14 +51,24 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
       }
     }
 
+    const newStatus = isRecurring ? 'A_FAIRE' : (status || 'A_FAIRE')
+    let validationStatus = task.validationStatus
+    if (newStatus === 'A_VALIDER' && task.status !== 'A_VALIDER') {
+      validationStatus = 'A_VALIDER'
+    } else if (newStatus === 'TERMINEE' && task.validationStatus === 'A_VALIDER') {
+      validationStatus = 'VALIDE'
+    }
+
     const updatedTask = await prisma.task.update({
       where: { id },
       data: {
         title,
         description: description || null,
         priority: priority || 'NORMALE',
-        status: isRecurring ? 'A_FAIRE' : (status || 'A_FAIRE'),
+        status: newStatus,
         assigneeId: assigneeId || null,
+        validatorId: validatorId || null,
+        validationStatus,
         dueDate,
         expectedDeliverable: expectedDeliverable || null,
         isRecurring,
@@ -84,7 +95,7 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
       }
     }
 
-    // Notification si nouveau responsable (seulement pour tâche non-modèle)
+    // Notification si nouveau responsable d'exécution
     if (!isRecurring && assigneeId && assigneeId !== task.assigneeId && assigneeId !== session.userId) {
       await prisma.notification.create({
         data: {
@@ -92,6 +103,21 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
           type: 'ASSIGNED',
           title: 'Nouvelle tâche assignée',
           message: `Vous avez été assigné à la tâche "${title}" par un autre membre de l'équipe.`,
+          relatedType: 'Task',
+          relatedId: task.id,
+          severity: 'INFO'
+        }
+      })
+    }
+
+    // Notification si nouveau responsable de validation
+    if (!isRecurring && validatorId && validatorId !== task.validatorId && validatorId !== session.userId) {
+      await prisma.notification.create({
+        data: {
+          userId: validatorId,
+          type: 'ASSIGNED',
+          title: 'Tâche à valider assignée',
+          message: `Vous avez été désigné comme responsable de validation pour la tâche "${title}".`,
           relatedType: 'Task',
           relatedId: task.id,
           severity: 'INFO'
@@ -133,6 +159,7 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
       priority,
       status: updatedTask.status,
       assigneeId,
+      validatorId,
       isRecurring,
       isTemplate: updatedTask.isTemplate
     })
@@ -147,6 +174,156 @@ export async function updateTask(prevState: any, formData: FormData): Promise<{ 
   }
 
   revalidatePath(`/tasks/${id}`)
+  revalidatePath(`/tasks`)
+  return { success: true }
+}
+
+export async function submitTaskForValidation(taskId: string): Promise<{ error?: string; success?: boolean }> {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_TASKS')
+
+  const task = await prisma.task.findUnique({ where: { id: taskId } })
+  if (!task) return { error: 'Tâche introuvable.' }
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      status: 'A_VALIDER',
+      validationStatus: 'A_VALIDER',
+      rejectionReason: null
+    }
+  })
+
+  const targetValidatorId = task.validatorId || (
+    await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: 'admin@cdc.app' },
+          { role: 'ADMINISTRATEUR' }
+        ],
+        isActive: true
+      }
+    })
+  )?.id
+
+  if (targetValidatorId && targetValidatorId !== session.userId) {
+    await prisma.notification.create({
+      data: {
+        userId: targetValidatorId,
+        type: 'STATUS_CHANGE',
+        title: 'Tâche soumise à validation',
+        message: `La tâche "${task.title}" requiert votre validation.`,
+        relatedType: 'Task',
+        relatedId: task.id,
+        severity: 'WARNING'
+      }
+    })
+  }
+
+  await logAudit('SUBMIT_FOR_VALIDATION', 'Task', taskId, session.userId, { oldStatus: task.status })
+
+  revalidatePath(`/tasks/${taskId}`)
+  revalidatePath(`/tasks`)
+  return { success: true }
+}
+
+export async function validateTask(taskId: string): Promise<{ error?: string; success?: boolean }> {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_TASKS')
+
+  const task = await prisma.task.findUnique({ where: { id: taskId } })
+  if (!task) return { error: 'Tâche introuvable.' }
+
+  // Restreindre la validation à Lionel Tivoli / Administrateur ou au valideur désigné
+  const currentUser = await prisma.user.findUnique({ where: { id: session.userId } })
+  const isLionelTivoliOrAdmin = session.dbRole === 'ADMINISTRATEUR' ||
+    (currentUser && `${currentUser.firstName} ${currentUser.lastName}`.toLowerCase().includes('lionel tivoli'))
+  const isAssignedValidator = task.validatorId === session.userId
+
+  if (!isLionelTivoliOrAdmin && !isAssignedValidator) {
+    return { error: 'Seul Lionel Tivoli (ou le responsable de validation désigné) peut valider cette tâche.' }
+  }
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      status: 'TERMINEE',
+      validationStatus: 'VALIDE',
+      completedAt: new Date(),
+      validatedAt: new Date(),
+      validatedById: session.userId,
+      rejectionReason: null
+    }
+  })
+
+  if (task.assigneeId && task.assigneeId !== session.userId) {
+    await prisma.notification.create({
+      data: {
+        userId: task.assigneeId,
+        type: 'STATUS_CHANGE',
+        title: 'Tâche validée',
+        message: `Félicitations ! La tâche "${task.title}" a été validée par Lionel Tivoli / Responsable.`,
+        relatedType: 'Task',
+        relatedId: task.id,
+        severity: 'INFO'
+      }
+    })
+  }
+
+  await logAudit('VALIDATE', 'Task', taskId, session.userId, { action: 'TASK_VALIDATED' })
+
+  revalidatePath(`/tasks/${taskId}`)
+  revalidatePath(`/tasks`)
+  return { success: true }
+}
+
+export async function rejectTask(taskId: string, rejectionReason: string): Promise<{ error?: string; success?: boolean }> {
+  const session = await requireWriteAccess()
+  requirePermission(session.role, 'MANAGE_TASKS')
+
+  if (!rejectionReason || !rejectionReason.trim()) {
+    return { error: 'Veuillez fournir un motif de rejet ou des instructions de révision.' }
+  }
+
+  const task = await prisma.task.findUnique({ where: { id: taskId } })
+  if (!task) return { error: 'Tâche introuvable.' }
+
+  const currentUser = await prisma.user.findUnique({ where: { id: session.userId } })
+  const isLionelTivoliOrAdmin = session.dbRole === 'ADMINISTRATEUR' ||
+    (currentUser && `${currentUser.firstName} ${currentUser.lastName}`.toLowerCase().includes('lionel tivoli'))
+  const isAssignedValidator = task.validatorId === session.userId
+
+  if (!isLionelTivoliOrAdmin && !isAssignedValidator) {
+    return { error: 'Seul Lionel Tivoli (ou le responsable de validation désigné) peut refuser cette tâche.' }
+  }
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      status: 'EN_COURS',
+      validationStatus: 'REJETE',
+      rejectionReason: rejectionReason.trim(),
+      completedAt: null
+    }
+  })
+
+  if (task.assigneeId && task.assigneeId !== session.userId) {
+    await prisma.notification.create({
+      data: {
+        userId: task.assigneeId,
+        type: 'STATUS_CHANGE',
+        title: 'Tâche à réviser',
+        message: `La tâche "${task.title}" nécessite des corrections : ${rejectionReason.trim()}`,
+        relatedType: 'Task',
+        relatedId: task.id,
+        severity: 'WARNING'
+      }
+    })
+  }
+
+  await logAudit('REJECT_VALIDATION', 'Task', taskId, session.userId, { rejectionReason: rejectionReason.trim() })
+
+  revalidatePath(`/tasks/${taskId}`)
   revalidatePath(`/tasks`)
   return { success: true }
 }

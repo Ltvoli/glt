@@ -9,8 +9,10 @@ import FolderGrid from './FolderGrid'
 import DocumentActions from './DocumentActions'
 import DocumentFilters from './DocumentFilters'
 import DocumentRow from './DocumentRow'
+import DocumentListClient from './DocumentListClient'
 import Link from 'next/link'
 import prisma from '@/lib/prisma'
+import DocumentTemplateGenerateModal from './DocumentTemplateGenerateModal'
 
 export default async function DocumentsPage({
   searchParams: searchParamsPromise
@@ -118,10 +120,10 @@ export default async function DocumentsPage({
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
           <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>Bibliothèque de Documents</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Gérez tous les documents liés aux contacts, tâches, QE, etc.</p>
         </div>
         
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <DocumentTemplateGenerateModal folders={folders} defaultFolderId={searchParams.folder || null} />
           <FolderCreateModal parentId={searchParams.folder || null} />
           <DocumentCreateModal folders={folders} defaultFolderId={searchParams.folder || null} />
           <DocumentUploadModal folders={folders} defaultFolderId={searchParams.folder || null} />
@@ -198,16 +200,11 @@ export default async function DocumentsPage({
         </h2>
       </div>
 
-      <div style={{ display: 'grid', gap: '1rem' }}>
-        {docs.length === 0 && (
-          <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
-            Aucun document trouvé.
-          </div>
-        )}
-        {docs.map(doc => (
-          <DocumentRow key={doc.id} doc={doc} folders={folders} />
-        ))}
-      </div>
+      <DocumentListClient 
+        docs={JSON.parse(JSON.stringify(docs))} 
+        folders={folders} 
+        activeFolderId={searchParams.folder || null} 
+      />
     </div>
   )
 }

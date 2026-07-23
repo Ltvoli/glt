@@ -8,9 +8,9 @@ import TaskTableClient from './task-table-client'
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string, status?: string, priority?: string, assigneeId?: string, tag?: string, sort?: string, order?: 'asc'|'desc', page?: string, perPage?: string, includeCompleted?: string }>
+  searchParams: Promise<{ filter?: string, status?: string, priority?: string, assigneeId?: string, validatorId?: string, tag?: string, sort?: string, order?: 'asc'|'desc', page?: string, perPage?: string, includeCompleted?: string }>
 }) {
-  const { filter, status, priority, assigneeId, tag, sort, order = 'asc', page, perPage, includeCompleted } = await searchParams
+  const { filter, status, priority, assigneeId, validatorId, tag, sort, order = 'asc', page, perPage, includeCompleted } = await searchParams
   const session = await getSession()
 
   const currentPage = Math.max(1, parseInt(page || '1'))
@@ -28,6 +28,8 @@ export default async function TasksPage({
     whereClause.status = { in: ['TERMINEE', 'ANNULEE'] }
   } else if (filter === 'mine') {
     whereClause.assigneeId = session?.userId
+  } else if (filter === 'to_validate') {
+    whereClause.status = 'A_VALIDER'
   } else if (filter === 'overdue') {
     whereClause.dueDate = { lt: new Date() }
   } else if (filter === 'today') {
@@ -65,6 +67,7 @@ export default async function TasksPage({
 
   if (priority) whereClause.priority = priority
   if (assigneeId) whereClause.assigneeId = assigneeId
+  if (validatorId) whereClause.validatorId = validatorId
   if (tag) {
     whereClause.tags = {
       some: { tag: { name: { contains: tag, mode: 'insensitive' } } }
@@ -84,6 +87,7 @@ export default async function TasksPage({
       where: whereClause,
       include: {
         assignee: true,
+        validator: true,
         subtasks: true,
         tags: { include: { tag: true } }
       },
@@ -130,6 +134,9 @@ export default async function TasksPage({
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <Link href="/tasks?filter=all" className={`button ${filter === 'all' || (!filter && !status) ? '' : 'outline'}`}>Toute l'équipe</Link>
         <Link href="/tasks?filter=mine" className={`button ${filter === 'mine' ? '' : 'outline'}`}>Mes tâches</Link>
+        <Link href="/tasks?status=A_VALIDER" className={`button ${status === 'A_VALIDER' || filter === 'to_validate' ? '' : 'outline'}`} style={{ backgroundColor: (status === 'A_VALIDER' || filter === 'to_validate') ? '#f59e0b' : 'transparent', color: (status === 'A_VALIDER' || filter === 'to_validate') ? 'white' : '#b45309', borderColor: '#f59e0b' }}>
+          🛡️ À valider
+        </Link>
         <Link href="/tasks?status=EN_ATTENTE" className={`button ${status === 'EN_ATTENTE' ? '' : 'outline'}`}>En attente</Link>
         <Link href="/tasks?status=EN_COURS" className={`button ${status === 'EN_COURS' ? '' : 'outline'}`}>En cours</Link>
         <Link href="/tasks?filter=urgent" className={`button ${filter === 'urgent' ? '' : 'outline'}`} style={{ borderColor: 'var(--danger)', color: filter === 'urgent' ? 'white' : 'var(--danger)', backgroundColor: filter === 'urgent' ? 'var(--danger)' : 'transparent' }}>Urgentes</Link>
@@ -166,10 +173,17 @@ export default async function TasksPage({
 
       <form method="GET" style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap', backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Responsable</label>
+          <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Exécutant</label>
           <select name="assigneeId" defaultValue={assigneeId || ''} className="form-control" style={{ padding: '0.25rem' }}>
             <option value="">Tous</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            {users.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Valideur</label>
+          <select name="validatorId" defaultValue={validatorId || ''} className="form-control" style={{ padding: '0.25rem' }}>
+            <option value="">Tous</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
           </select>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>

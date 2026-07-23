@@ -84,6 +84,8 @@ export const taskSchema = z.object({
   status: z.string().optional(),
   expectedDeliverable: emptyAsUndefined,
   assigneeId: emptyAsUndefined,
+  validatorId: emptyAsUndefined,
+  validationStatus: emptyAsUndefined,
   dueDate: z.preprocess(
     (val) => {
       if (val === null || val === undefined || (typeof val === 'string' && val.trim() === '')) return undefined;

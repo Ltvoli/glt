@@ -31,6 +31,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
+    // Enregistrement du log d'audit
+    await prisma.documentAccessLog.create({
+      data: {
+        documentId: doc.id,
+        userId: session.userId,
+        action: 'DOWNLOAD',
+        details: `Téléchargement du fichier ${doc.originalName}`
+      }
+    }).catch(() => {})
+
     let fileBuffer: Buffer | null = null
     let fileSize = 0
     let filePath = doc.storagePath

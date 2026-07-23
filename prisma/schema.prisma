@@ -67,20 +67,27 @@ model User {
   // Business relations to preserve
   contactsCreated   Contact[]         @relation("ContactCreator")
   contactsUpdated   Contact[]         @relation("ContactUpdater")
-  tasksAssigned     Task[]
+  tasksAssigned     Task[]            @relation("TaskAssignee")
+  tasksToValidate   Task[]            @relation("TaskValidator")
+  tasksValidated    Task[]            @relation("TaskValidatedBy")
   mailCases         MailCase[]
   versionsCreated   MailVersion[]     @relation("VersionEditor")
   mailComments      MailComment[]     @relation("CommentAuthor")
   writtenQuestions  WrittenQuestion[]
   questionsCreated  WrittenQuestion[] @relation("QuestionCreator")
   importLogs        ImportLog[]
-  documentsUploaded Document[]        @relation("UserDocuments")
-  statuses          EmployeeStatus[]  @relation("UserStatuses")
+  documentsUploaded  Document[]        @relation("UserDocuments")
+  documentsSigned    Document[]        @relation("DocumentSigner")
+  documentVersions   DocumentVersion[] @relation("VersionUploader")
+  documentAccessLogs DocumentAccessLog[]
+  statuses           EmployeeStatus[]  @relation("UserStatuses")
   notifications     Notification[]
   employeeSetting   EmployeeSetting?
 
   supportLevelChanges ContactSupportLevelHistory[] @relation("UserSupportLevelChanges")
   messageTemplates    MessageTemplate[]            @relation("TemplateAuthor")
+  mailTemplatesCreated MailTemplate[]            @relation("MailTemplateAuthor")
+  mailStatusHistories MailStatusHistory[]          @relation("MailStatusUser")
   exportBackupLogs    ExportBackupLog[]            @relation("ExportBackupUser")
 
   // Permanence relations
@@ -261,7 +268,16 @@ model Task {
   expectedDeliverable String?
 
   assigneeId String?
-  assignee   User?   @relation(fields: [assigneeId], references: [id])
+  assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  validatorId String?
+  validator   User?   @relation("TaskValidator", fields: [validatorId], references: [id])
+
+  validationStatus String? // A_VALIDER, VALIDE, REJETE (null si non applicable)
+  rejectionReason  String?
+  validatedAt      DateTime?
+  validatedById    String?
+  validatedBy      User?     @relation("TaskValidatedBy", fields: [validatedById], references: [id])
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -285,6 +301,8 @@ model Task {
 
   @@index([status])
   @@index([assigneeId])
+  @@index([validatorId])
+  @@index([validationStatus])
   @@index([title])
 }
 
@@ -329,8 +347,15 @@ model MailCase {
   aiSuggestions    Json?
   hideAiAssistant  Boolean   @default(false)
 
-  versions      MailVersion[] @relation("MailVersions")
-  comments      MailComment[] @relation("MailComments")
+  templateId       String?
+  template         MailTemplate? @relation("MailCaseTemplate", fields: [templateId], references: [id], onDelete: SetNull)
+  templateVersion  Int?
+  templateSnapshot Json?
+  qcReport         Json?
+
+  versions        MailVersion[] @relation("MailVersions")
+  comments        MailComment[] @relation("MailComments")
+  statusHistories MailStatusHistory[] @relation("MailStatusHistories")
 
   responseDueDate  DateTime?
   responseSentDate DateTime?
@@ -354,6 +379,50 @@ model MailCase {
   @@index([subject])
   @@index([senderName])
   @@index([recipientName])
+}
+
+model MailTemplate {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  name              String
+  category          String   // CITOYENNETE, FELICITATION, MINISTERIEL, INVITATION, SUBVENTION, DIVERS
+  description       String?
+  version           Int      @default(1)
+  status            String   @default("PUBLIE") // BROUILLON, VALIDE, PUBLIE, ARCHIVE
+  
+  headerHtml        String?
+  bodyStructure     String?  // HTML / Text template with {{...}}
+  footerHtml        String?
+  
+  requiredVariables Json?    // Array of variable names e.g. ["CONTACT_NOM", "CONTACT_ADRESSE"]
+  lockedSections    Json?    // Definition of locked vs editable slots
+
+  createdById       String
+  createdBy         User     @relation("MailTemplateAuthor", fields: [createdById], references: [id])
+
+  mailCases         MailCase[] @relation("MailCaseTemplate")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
+}
+
+model MailStatusHistory {
+  id              String   @id @default(cuid())
+  mailCaseId      String
+  mailCase        MailCase @relation("MailStatusHistories", fields: [mailCaseId], references: [id], onDelete: Cascade)
+  fromStatus      String?
+  toStatus        String
+  fromValidation  String?
+  toValidation    String?
+  rejectionReason String?
+  userId          String
+  user            User     @relation("MailStatusUser", fields: [userId], references: [id])
+  createdAt       DateTime @default(now())
+
+  @@index([mailCaseId])
 }
 
 model MailVersion {
@@ -445,6 +514,7 @@ model EmployeeSetting {
   userId                    String @unique
   user                      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   annualWorkingDays         Int    @default(218)
+  annualPaidLeaveDays       Int    @default(25)
   referencePeriodStartMonth Int    @default(6) // Juin par défaut
   referencePeriodStartDay   Int    @default(1)
   showInPlanning            Boolean @default(true)
@@ -670,12 +740,57 @@ model Document {
   uploadedById String
   uploadedBy   User   @relation("UserDocuments", fields: [uploadedById], references: [id])
 
+  isSigned      Boolean   @default(false)
+  signedAt      DateTime?
+  signedById    String?
+  signedBy      User?     @relation("DocumentSigner", fields: [signedById], references: [id])
+  signatureData String?
+
   folderId     String?
   folder       DocumentFolder?  @relation("FolderDocuments", fields: [folderId], references: [id], onDelete: SetNull)
+
+  versions   DocumentVersion[]   @relation("DocumentVersions")
+  accessLogs DocumentAccessLog[] @relation("DocumentAccessLogs")
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   archivedAt DateTime?
+}
+
+model DocumentVersion {
+  id            String   @id @default(cuid())
+  documentId    String
+  document      Document @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  versionNumber Int      @default(1)
+  originalName  String
+  storageName   String
+  extension     String
+  mimeType      String
+  size          Int
+  storagePath   String
+  extractedText String?
+  notes         String?
+  uploadedById  String
+  uploadedBy    User     @relation("VersionUploader", fields: [uploadedById], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([documentId])
+}
+
+model DocumentAccessLog {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation("DocumentAccessLogs", fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String   // VIEW, DOWNLOAD, EDIT, SIGN, RESTORE_VERSION
+  ipAddress  String?
+  userAgent  String?
+  details    String?
+  createdAt  DateTime @default(now())
+
+  @@index([documentId])
+  @@index([userId])
 }
 
 model DocumentFolder {

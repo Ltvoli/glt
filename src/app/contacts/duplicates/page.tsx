@@ -21,13 +21,13 @@ export default async function DuplicatesPage() {
     where: { archivedAt: null }
   })
 
-  // Compter les contacts avec nom/prénom exact identique (requête optimisée sans sous-requête corrélée)
+  // Compter les contacts avec nom/prénom/nom d'usage exact identique
   const duplicateContactsCountResult = await prisma.$queryRawUnsafe<{ count: number }[]>(`
     SELECT COALESCE(SUM(count)::integer, 0) as count FROM (
       SELECT COUNT(*) as count
       FROM "Contact"
       WHERE "archivedAt" IS NULL
-      GROUP BY LOWER("firstName"), LOWER("lastName")
+      GROUP BY LOWER("firstName"), LOWER(COALESCE(NULLIF("usageName", ''), "lastName"))
       HAVING COUNT(*) > 1
     ) dup;
   `)
@@ -57,7 +57,7 @@ export default async function DuplicatesPage() {
             {duplicateContactsCount.toLocaleString()}
           </p>
           <span style={{ fontSize: '0.75rem', color: '#b45309' }}>
-            Partageant les mêmes nom et prénom
+            Partageant les mêmes prénom et nom / nom d'usage
           </span>
         </div>
       </div>
@@ -85,8 +85,12 @@ export default async function DuplicatesPage() {
               
               {/* Contact 1 */}
               <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '1.125rem' }}>{candidate.contact1.firstName} {candidate.contact1.lastName}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '1.125rem' }}>
+                  {candidate.contact1.firstName} {candidate.contact1.lastName}
+                  {candidate.contact1.usageName ? <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 400, marginLeft: '0.4rem' }}>({candidate.contact1.usageName})</span> : null}
+                </div>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                  {candidate.contact1.usageName && <div>Nom d'usage : {candidate.contact1.usageName}</div>}
                   <div>Email: {candidate.contact1.email || '-'}</div>
                   <div>Tél: {candidate.contact1.phone || candidate.contact1.mobilePhone || '-'}</div>
                   <div>Créé le: {formatDate(candidate.contact1.createdAt)}</div>
@@ -108,8 +112,12 @@ export default async function DuplicatesPage() {
 
               {/* Contact 2 */}
               <div style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '1.125rem' }}>{candidate.contact2.firstName} {candidate.contact2.lastName}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '1.125rem' }}>
+                  {candidate.contact2.firstName} {candidate.contact2.lastName}
+                  {candidate.contact2.usageName ? <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 400, marginLeft: '0.4rem' }}>({candidate.contact2.usageName})</span> : null}
+                </div>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                  {candidate.contact2.usageName && <div>Nom d'usage : {candidate.contact2.usageName}</div>}
                   <div>Email: {candidate.contact2.email || '-'}</div>
                   <div>Tél: {candidate.contact2.phone || candidate.contact2.mobilePhone || '-'}</div>
                   <div>Créé le: {formatDate(candidate.contact2.createdAt)}</div>

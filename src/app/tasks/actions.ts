@@ -22,6 +22,7 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
   const priority = formData.get('priority') as string
   const status = formData.get('status') as string
   const assigneeId = formData.get('assigneeId') as string
+  const validatorId = formData.get('validatorId') as string
   const dueDateStr = formData.get('dueDate') as string
   const expectedDeliverable = formData.get('expectedDeliverable') as string
   const tagsStr = formData.get('tags') as string
@@ -33,7 +34,7 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
   const startDateStr = formData.get('startDate') as string
 
   const validatedFields = taskSchema.safeParse({
-    title, description, priority, status, assigneeId, expectedDeliverable
+    title, description, priority, status, assigneeId, validatorId, expectedDeliverable
   })
 
   if (!validatedFields.success) {
@@ -52,14 +53,19 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
     nextOccurrence = new Date(startDateStr)
   }
 
+  const taskStatus = isRecurring ? 'A_FAIRE' : (validData.status || 'A_FAIRE')
+  const validationStatus = taskStatus === 'A_VALIDER' ? 'A_VALIDER' : null
+
   try {
     const task = await prisma.task.create({
       data: {
         title: validData.title,
         description: validData.description || null,
         priority: validData.priority || 'NORMALE',
-        status: isRecurring ? 'A_FAIRE' : (validData.status || 'A_FAIRE'),
+        status: taskStatus,
         assigneeId: validData.assigneeId || null,
+        validatorId: validData.validatorId || null,
+        validationStatus,
         dueDate,
         expectedDeliverable: validData.expectedDeliverable || null,
         isRecurring,
@@ -248,6 +254,20 @@ export async function createTask(prevState: any, formData: FormData): Promise<{ 
           type: 'ASSIGNED',
           title: 'Nouvelle tâche assignée',
           message: `La tâche "${title}" vous a été assignée.`,
+          relatedType: 'Task',
+          relatedId: task.id,
+          severity: 'INFO'
+        }
+      })
+    }
+
+    if (!isRecurring && validData.validatorId && validData.validatorId !== session.userId) {
+      await prisma.notification.create({
+        data: {
+          userId: validData.validatorId,
+          type: 'ASSIGNED',
+          title: 'Nouvelle tâche à valider assignée',
+          message: `Vous êtes désigné comme responsable de validation pour la tâche "${title}".`,
           relatedType: 'Task',
           relatedId: task.id,
           severity: 'INFO'

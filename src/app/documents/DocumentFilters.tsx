@@ -84,6 +84,7 @@ export default function DocumentFilters({ users }: { users: { id: string, name: 
         <option value="">Tous les types</option>
         <option value="PDF">PDF</option>
         <option value="WORD">Word</option>
+        <option value="EXCEL">Excel / Tableur (.xlsx)</option>
         <option value="COURRIER">Courrier</option>
         <option value="QE">Question Écrite</option>
         <option value="NOTE">Note interne</option>

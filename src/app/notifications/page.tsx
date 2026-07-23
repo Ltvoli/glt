@@ -177,10 +177,12 @@ export default async function NotificationsPage() {
                         {notif.relatedType && notif.relatedId && (
                           <Link
                             href={
-                              notif.relatedType === 'Task'           ? `/tasks/${notif.relatedId}` :
-                              notif.relatedType === 'MailCase'       ? `/mails/${notif.relatedId}` :
-                              notif.relatedType === 'WrittenQuestion'? `/qe/${notif.relatedId}` :
-                              notif.relatedType === 'Contact'        ? `/contacts/${notif.relatedId}` :
+                              notif.relatedType === 'Task'            ? `/tasks/${notif.relatedId}` :
+                              notif.relatedType === 'MailCase'        ? `/mails/${notif.relatedId}` :
+                              notif.relatedType === 'WrittenQuestion' ? `/qe/${notif.relatedId}` :
+                              notif.relatedType === 'Contact'         ? `/contacts/${notif.relatedId}` :
+                              notif.relatedType === 'Document'        ? `/documents?status=PENDING` :
+                              notif.relatedType === 'Planning'        ? `/planning` :
                               '#'
                             }
                             style={{
@@ -194,7 +196,10 @@ export default async function NotificationsPage() {
                           >
                             Voir {notif.relatedType === 'Task' ? 'la tâche' :
                                   notif.relatedType === 'MailCase' ? 'le courrier' :
-                                  notif.relatedType === 'Contact' ? 'le contact' : 'la question'} →
+                                  notif.relatedType === 'Contact' ? 'le contact' :
+                                  notif.relatedType === 'Document' ? 'le document à valider' :
+                                  notif.relatedType === 'Planning' ? 'le planning' :
+                                  'la fiche / discours'} →
                           </Link>
                         )}
                       </div>

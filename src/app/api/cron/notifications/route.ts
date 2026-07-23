@@ -12,6 +12,13 @@ export async function GET() {
     const in48h = new Date(today)
     in48h.setDate(in48h.getDate() + 2)
 
+    // Récupérer la liste des administrateurs et valides
+    const validators = await prisma.user.findMany({
+      where: { role: { in: ['ADMIN', 'SUPERADMIN', 'ADMINISTRATEUR', 'SUPERVISEUR', 'COORDINATEUR'] }, isActive: true, archivedAt: null },
+      select: { id: true }
+    })
+    const validatorIds = validators.map(v => v.id)
+
     // 1. Tâches en retard (dueDate < today et statut non terminé/annulé)
     const overdueTasks = await prisma.task.findMany({
       where: {
@@ -23,7 +30,6 @@ export async function GET() {
 
     for (const task of overdueTasks) {
       if (!task.assigneeId) continue
-      // Vérifier si la notification existe déjà pour ne pas spammer
       const existing = await prisma.notification.findFirst({
         where: {
           userId: task.assigneeId,
@@ -75,14 +81,13 @@ export async function GET() {
             userId: task.assigneeId,
             type: 'DUE_TOMORROW',
             title: 'Échéance demain',
-            message: `La tâche "${task.title}" arrive à échéance demain.`,
+            message: `La tâche "${task.title}" arrives à échéance demain.`,
             relatedType: 'Task',
             relatedId: task.id,
             severity: 'WARNING'
           }
         })
 
-        // Envoyez un e-mail automatique de rappel au responsable via Brevo
         if (task.assignee?.email) {
           const { sendBrevoEmail } = await import('@/lib/brevo')
           const emailSubject = `⚠️ Échéance demain : ${task.title}`
@@ -108,7 +113,6 @@ export async function GET() {
           }
         }
 
-        // Envoyez un SMS automatique de rappel au responsable via Brevo s'il a configuré son mobile
         if (task.assignee?.mobilePhone) {
           const { sendBrevoSms } = await import('@/lib/brevo')
           const smsText = `Cabinet : Votre tache "${task.title.substring(0, 50)}" arrive a echeance demain.`
@@ -121,7 +125,7 @@ export async function GET() {
       }
     }
 
-    // 3. Courriers en retard (responseDueDate < today et statut non répondu/classé)
+    // 3. Courriers en retard
     const overdueMails = await prisma.mailCase.findMany({
       where: {
         responseDueDate: { lt: today },
@@ -150,36 +154,133 @@ export async function GET() {
       }
     }
 
-    // 4. Courriers à échéance demain
-    const dueTomorrowMails = await prisma.mailCase.findMany({
+    // 4. Courriers à valider (validationStatus === 'A_VALIDER')
+    const pendingValidationMails = await prisma.mailCase.findMany({
       where: {
-        responseDueDate: { gte: tomorrow, lt: in48h },
-        status: { notIn: ['REPONDU', 'CLASSE'] },
-        assigneeId: { not: null }
+        validationStatus: 'A_VALIDER'
       }
     })
 
-    for (const mail of dueTomorrowMails) {
-      if (!mail.assigneeId) continue
-      const existing = await prisma.notification.findFirst({
-        where: { userId: mail.assigneeId, relatedId: mail.id, type: 'MAIL_DUE_TOMORROW', readAt: null }
-      })
-      if (!existing) {
-        await prisma.notification.create({
-          data: {
-            userId: mail.assigneeId,
-            type: 'MAIL_DUE_TOMORROW',
-            title: 'Échéance courrier demain',
-            message: `Le délai de traitement du courrier "${mail.subject}" expire demain.`,
-            relatedType: 'MailCase',
-            relatedId: mail.id,
-            severity: 'WARNING'
-          }
+    for (const mail of pendingValidationMails) {
+      const targets = mail.assigneeId ? [mail.assigneeId, ...validatorIds] : validatorIds
+      const uniqueTargets = Array.from(new Set(targets))
+      
+      for (const uid of uniqueTargets) {
+        const existing = await prisma.notification.findFirst({
+          where: { userId: uid, relatedId: mail.id, type: 'MAIL_PENDING_VALIDATION', readAt: null }
         })
+        if (!existing) {
+          await prisma.notification.create({
+            data: {
+              userId: uid,
+              type: 'MAIL_PENDING_VALIDATION',
+              title: 'Courrier à valider',
+              message: `Le courrier "${mail.subject}" est en attente de validation.`,
+              relatedType: 'MailCase',
+              relatedId: mail.id,
+              severity: 'WARNING'
+            }
+          })
+        }
       }
     }
 
-    // 5. QE en retard (> 60 jours sans réponse)
+    // 5. Documents à valider (status === 'PENDING')
+    const pendingDocuments = await prisma.document.findMany({
+      where: {
+        status: 'PENDING',
+        archivedAt: null
+      }
+    })
+
+    for (const doc of pendingDocuments) {
+      for (const uid of validatorIds) {
+        const existing = await prisma.notification.findFirst({
+          where: { userId: uid, relatedId: doc.id, type: 'DOCUMENT_PENDING_VALIDATION', readAt: null }
+        })
+        if (!existing) {
+          await prisma.notification.create({
+            data: {
+              userId: uid,
+              type: 'DOCUMENT_PENDING_VALIDATION',
+              title: 'Document à valider',
+              message: `Le document "${doc.title}" est en attente de validation.`,
+              relatedType: 'Document',
+              relatedId: doc.id,
+              severity: 'WARNING'
+            }
+          })
+        }
+      }
+    }
+
+    // 6. Fiches & Discours / QE à valider ou rédiger (status in ['A_REDIGER', 'A_VALIDER'])
+    const pendingQEs = await prisma.writtenQuestion.findMany({
+      where: {
+        status: { in: ['A_REDIGER', 'A_VALIDER'] },
+        archivedAt: null
+      }
+    })
+
+    for (const qe of pendingQEs) {
+      const targets = qe.assigneeId ? [qe.assigneeId, ...validatorIds] : validatorIds
+      const uniqueTargets = Array.from(new Set(targets))
+      
+      for (const uid of uniqueTargets) {
+        const existing = await prisma.notification.findFirst({
+          where: { userId: uid, relatedId: qe.id, type: 'QE_PENDING_VALIDATION', readAt: null }
+        })
+        if (!existing) {
+          await prisma.notification.create({
+            data: {
+              userId: uid,
+              type: 'QE_PENDING_VALIDATION',
+              title: 'Fiche / Discours / QE à valider',
+              message: `La fiche / question "${qe.title}" (${qe.status === 'A_REDIGER' ? 'à rédiger' : 'à valider'}) nécessite votre attention.`,
+              relatedType: 'WrittenQuestion',
+              relatedId: qe.id,
+              severity: 'WARNING'
+            }
+          })
+        }
+      }
+    }
+
+    // 7. Planning & Demandes de congés à venir
+    const upcomingLeaves = await prisma.employeeStatus.findMany({
+      where: {
+        dayType: { in: ['paid_leave', 'half_paid_leave'] },
+        date: { gte: today }
+      },
+      include: {
+        employee: true
+      }
+    })
+
+    for (const leave of upcomingLeaves) {
+      for (const uid of validatorIds) {
+        if (uid === leave.employeeId) continue // Ne pas notifier soi-même de son propre congé
+        const leaveKey = `${leave.employeeId}-${leave.date.toISOString().split('T')[0]}`
+        const existing = await prisma.notification.findFirst({
+          where: { userId: uid, relatedId: leaveKey, type: 'PLANNING_CONGE', readAt: null }
+        })
+        if (!existing) {
+          await prisma.notification.create({
+            data: {
+              userId: uid,
+              type: 'PLANNING_CONGE',
+              title: 'Planning : Demande de congé',
+              message: `${leave.employee.name} a posé un congé pour le ${new Date(leave.date).toLocaleDateString('fr-FR')}.`,
+              relatedType: 'Planning',
+              relatedId: leaveKey,
+              severity: 'INFO'
+            }
+          })
+        }
+      }
+    }
+
+    // 8. QE en retard (> 60 jours sans réponse)
     const sixtyDaysAgo = new Date(today)
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
 
@@ -212,44 +313,15 @@ export async function GET() {
       }
     }
 
-    // 6. QE - Retours à faire (Réponse reçue)
-    const followUpQEs = await prisma.writtenQuestion.findMany({
-      where: {
-        status: 'TERMINE',
-        followUpDescription: { not: null },
-        assigneeId: { not: null },
-        archivedAt: null
-      }
-    })
-
-    for (const qe of followUpQEs) {
-      if (!qe.assigneeId) continue
-      const existing = await prisma.notification.findFirst({
-        where: { userId: qe.assigneeId, relatedId: qe.id, type: 'QE_FOLLOWUP' } // on cherche même les lues pour ne pas spammer tous les jours
-      })
-      if (!existing) {
-        await prisma.notification.create({
-          data: {
-            userId: qe.assigneeId,
-            type: 'QE_FOLLOWUP',
-            title: 'Retour à faire (QE)',
-            message: `Une réponse a été reçue pour "${qe.title}". N'oubliez pas : ${qe.followUpDescription}`,
-            relatedType: 'WrittenQuestion',
-            relatedId: qe.id,
-            severity: 'WARNING'
-          }
-        })
-      }
-    }
-
     return NextResponse.json({ 
       success: true, 
       overdueCount: overdueTasks.length, 
       dueTomorrowCount: dueTomorrowTasks.length,
       overdueMailsCount: overdueMails.length,
-      dueTomorrowMailsCount: dueTomorrowMails.length,
-      overdueQECount: overdueQEs.length,
-      followUpQECount: followUpQEs.length
+      pendingValidationMailsCount: pendingValidationMails.length,
+      pendingDocumentsCount: pendingDocuments.length,
+      pendingQEsCount: pendingQEs.length,
+      upcomingLeavesCount: upcomingLeaves.length
     })
   } catch (error) {
     console.error(error)
