@@ -22,8 +22,10 @@ export function isSameDayUtc(d1: Date | string, d2: Date | string): boolean {
  * Détermine le type de jour par défaut si non spécifié dans la base.
  */
 export function getDefaultDayType(date: Date): string {
-  // Par défaut, sans saisie explicite dans le planning, le jour est 'off' (non travaillé)
-  return 'off';
+  if (isWeekend(date) || isHoliday(date)) {
+    return 'off';
+  }
+  return 'worked';
 }
 
 /**
@@ -47,7 +49,7 @@ export function getMonthlyCalendar(year: number, month: number, statuses: DaySta
 
 /**
  * Calcule les compteurs pour un utilisateur donné sur une plage donnée.
- * Ne comptabilise que les jours explicitement renseignés en BDD ('worked', 'half_worked', 'paid_leave', 'half_paid_leave').
+ * Prrend en compte les saisies BDD, et attribue 'worked' par défaut aux jours ouvrés passés non spécifiés.
  */
 export function calculateCounters(
   startDate: Date, 
@@ -58,10 +60,27 @@ export function calculateCounters(
   let paidLeave = 0;
   let off = 0;
 
+  const today = new Date();
+  today.setUTCHours(23, 59, 59, 999);
+
   const current = new Date(startDate)
   while (current <= endDate) {
     const dbStatus = statuses.find(s => isSameDayUtc(s.date, current))
-    const dayType = dbStatus ? dbStatus.dayType : 'off'
+    let dayType: string
+
+    if (dbStatus) {
+      dayType = dbStatus.dayType
+    } else {
+      const isWE = isWeekend(current)
+      const isHol = isHoliday(current)
+      if (isWE || isHol) {
+        dayType = 'off'
+      } else if (current <= today) {
+        dayType = 'worked'
+      } else {
+        dayType = 'off'
+      }
+    }
 
     if (dayType === 'worked') worked++
     else if (dayType === 'half_worked') {

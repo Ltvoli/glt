@@ -178,15 +178,19 @@ export default function PlanningGrid({
                     </td>
                     <td style={{ borderRight: '2px solid var(--border)', padding: '0.5rem' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.75rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
                           <span style={{ color: 'var(--text-muted)' }}>Mois :</span>
                           <strong>{c.workedMonth}j travaillés</strong>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--text-muted)' }}>Travail An :</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Effectué An :</span>
                           <strong>{c.workedYear}j / {c.annualDays}j</strong>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Reste à faire :</span>
+                          <strong style={{ color: '#2563eb' }}>{c.remainingWorked !== undefined ? c.remainingWorked : Math.max(0, c.annualDays - c.workedYear)}j à faire</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
                           <span style={{ color: 'var(--text-muted)' }}>Solde CP :</span>
                           <strong style={{ color: showCpAlert ? '#dc2626' : '#16a34a' }}>
                             {remainingCp}j restants ({c.paidLeaveYear}j pris)
