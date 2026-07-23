@@ -49,13 +49,17 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
       // Convertir les statuts en format utils
       const mappedStatuses = user.statuses.map((s: any) => ({ date: s.date, dayType: s.dayType }))
 
-      // Compteurs annuels
+      // Compteurs annuels jusqu'à la fin du mois consulté (progression réelle)
       const refEnd = new Date(Date.UTC(refStart.getUTCFullYear() + 1, refStart.getUTCMonth(), refStart.getUTCDate() - 1))
+      const maxCalculationDate = endOfMonth < refEnd ? endOfMonth : refEnd
+
+      // Cumul des jours travaillés du 1er Juin jusqu'à la fin du mois affiché
+      const yearCounters = calculateCounters(refStart, maxCalculationDate, mappedStatuses)
       
-      // Le calcul se fait sur toute la période de référence
-      const yearCounters = calculateCounters(refStart, refEnd, mappedStatuses)
+      // Congés pris sur l'ensemble de l'année de référence
+      const fullYearCounters = calculateCounters(refStart, refEnd, mappedStatuses)
       
-      // Compteurs du mois
+      // Compteurs du mois courant
       const monthCounters = calculateCounters(startOfMonth, endOfMonth, mappedStatuses)
 
       // Calendrier du mois courant pour l'affichage
@@ -77,7 +81,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
 
       const annualPaidLeaveDays = settings.annualPaidLeaveDays || 25
       const remainingWorked = Math.max(0, settings.annualWorkingDays - yearCounters.worked)
-      const remainingPaidLeave = annualPaidLeaveDays - yearCounters.paidLeave
+      const remainingPaidLeave = annualPaidLeaveDays - fullYearCounters.paidLeave
 
       const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || user.email
 
