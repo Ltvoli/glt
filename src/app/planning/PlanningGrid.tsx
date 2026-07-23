@@ -136,7 +136,12 @@ export default function PlanningGrid({
             <button className="button outline" onClick={navigateToday}>Ce mois-ci</button>
             <button className="button outline" onClick={() => navigateMonth(1)}><ArrowRight size={16} /></button>
           </div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', textTransform: 'capitalize' }}>{monthName}</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', textTransform: 'capitalize', margin: 0 }}>{monthName}</h2>
+            <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.125rem' }}>
+              📅 Période de référence : 1er Juin au 31 Mai
+            </span>
+          </div>
           <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, backgroundColor: '#dcfce3', border: '1px solid #ccc' }}></div> Travaillé</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><div style={{ width: 12, height: 12, background: 'linear-gradient(135deg, #dcfce3 50%, #ffffff 50%)', border: '1px solid #ccc' }}></div> 1/2 Travaillé</span>
@@ -152,7 +157,7 @@ export default function PlanningGrid({
             <thead>
               <tr>
                 <th style={{ minWidth: '200px', position: 'sticky', left: 0, backgroundColor: 'white', zIndex: 10 }}>Collaborateur</th>
-                <th style={{ textAlign: 'center', borderRight: '2px solid var(--border)' }}>Compteurs</th>
+                <th style={{ textAlign: 'center', borderRight: '2px solid var(--border)' }}>Compteurs (01/06 - 31/05)</th>
                 {daysArray.map(day => {
                   const d = new Date(Date.UTC(currentYear, currentMonth, day))
                   const isWE = d.getUTCDay() === 0 || d.getUTCDay() === 6
@@ -188,7 +193,7 @@ export default function PlanningGrid({
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
                           <span style={{ color: 'var(--text-muted)' }}>Reste à faire :</span>
-                          <strong style={{ color: '#2563eb' }}>{c.remainingWorked !== undefined ? c.remainingWorked : Math.max(0, c.annualDays - c.workedYear)}j à faire</strong>
+                          <strong style={{ color: '#2563eb' }}>{c.remainingWorked !== undefined ? c.remainingWorked : Math.max(0, c.annualDays - c.workedYear)}j (d'ici le 31/05)</strong>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
                           <span style={{ color: 'var(--text-muted)' }}>Solde CP :</span>
