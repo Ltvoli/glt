@@ -7,91 +7,15 @@ import { AlertCircle, CalendarDays, CheckCircle2, Clock, Mail, HelpCircle, PlusC
 import { DashboardMailsChart } from './dashboard-charts'
 import { unstable_cache } from 'next/cache'
 
-// Cached query for dashboard counts
-const getDashboardCounts = unstable_cache(
-  async (
-    userId: string,
-    dbRole: string | null | undefined,
-    isTeam: boolean,
-    todayStartMs: number,
-    todayEndMs: number,
-    tomorrowStartMs: number,
-    tomorrowEndMs: number,
-    startOfWeekMs: number,
-    sixtyDaysAgoMs: number
-  ) => {
-    const baseWhere = isTeam ? {} : { assigneeId: userId }
-    const todayStart = new Date(todayStartMs)
-    const todayEnd = new Date(todayEndMs)
-    const tomorrowStart = new Date(tomorrowStartMs)
-    const tomorrowEnd = new Date(tomorrowEndMs)
-    const startOfWeek = new Date(startOfWeekMs)
-    const sixtyDaysAgo = new Date(sixtyDaysAgoMs)
-    const activeTasksWhere = { ...baseWhere, status: { notIn: ['TERMINEE', 'ANNULEE'] } }
-
-    const [
-      totalActive, overdueCount, dueTodayCount, dueTomorrowCount,
-      inProgressCount, pendingCount, completedThisWeekCount,
-      pendingMailsCount, lateMailsCount, urgentMailsCount, receivedThisWeekCount, answeredThisWeekCount,
-      qeDepositedCount, qePendingCount, qeLateCount, qeAnsweredCount, qeFollowUpCount,
-      newContactsThisWeek, pendingDuplicates,
-      mailsToValidateCount
-    ] = await Promise.all([
-      // Tâches
-      prisma.task.count({ where: activeTasksWhere }),
-      prisma.task.count({ where: { ...activeTasksWhere, dueDate: { lt: todayStart } } }),
-      prisma.task.count({ where: { ...activeTasksWhere, dueDate: { gte: todayStart, lte: todayEnd } } }),
-      prisma.task.count({ where: { ...activeTasksWhere, dueDate: { gte: tomorrowStart, lte: tomorrowEnd } } }),
-      prisma.task.count({ where: { ...baseWhere, status: 'EN_COURS' } }),
-      prisma.task.count({ where: { ...baseWhere, status: 'EN_ATTENTE' } }),
-      prisma.task.count({ where: { ...baseWhere, status: 'TERMINEE', completedAt: { gte: startOfWeek } } }),
-      
-      // Courriers
-      prisma.mailCase.count({ where: { ...baseWhere, status: { notIn: ['REPONDU', 'CLASSE'] } } }),
-      prisma.mailCase.count({ where: { ...baseWhere, status: { notIn: ['REPONDU', 'CLASSE'] }, responseDueDate: { lt: new Date() } } }),
-      prisma.mailCase.count({ where: { ...baseWhere, status: { notIn: ['REPONDU', 'CLASSE'] }, urgency: 'HAUTE' } }),
-      prisma.mailCase.count({ where: { ...baseWhere, receiveDate: { gte: startOfWeek } } }),
-      prisma.mailCase.count({ where: { ...baseWhere, status: 'REPONDU', updatedAt: { gte: startOfWeek } } }),
-      
-      // QE
-      prisma.writtenQuestion.count({ where: { ...baseWhere, status: { in: ['DEPOSEE', 'EN_ATTENTE'] }, archivedAt: null } }),
-      prisma.writtenQuestion.count({ where: { ...baseWhere, status: 'EN_ATTENTE', archivedAt: null } }),
-      prisma.writtenQuestion.count({ where: { ...baseWhere, status: 'EN_ATTENTE', depositDate: { lt: sixtyDaysAgo }, archivedAt: null } }),
-      prisma.writtenQuestion.count({ where: { ...baseWhere, status: { in: ['REPONSE_RECUE', 'RETOUR_EFFECTUE'] }, archivedAt: null } }),
-      prisma.writtenQuestion.count({ where: { ...baseWhere, status: 'REPONSE_RECUE', followUpDescription: { not: null }, archivedAt: null } }),
-      
-      // Contacts
-      prisma.contact.count({ where: { createdAt: { gte: startOfWeek }, archivedAt: null } }),
-      prisma.duplicateCandidate.count({ where: { status: 'PENDING' } }),
-      
-      // Validation courriers
-      prisma.mailCase.count({ 
-        where: (dbRole === 'SUPERVISEUR' || dbRole === 'ADMINISTRATEUR')
-          ? { validationStatus: 'A_VALIDER' }
-          : { ...baseWhere, validationStatus: 'A_VALIDER' }
-      })
-    ])
-
-    return {
-      totalActive, overdueCount, dueTodayCount, dueTomorrowCount,
-      inProgressCount, pendingCount, completedThisWeekCount,
-      pendingMailsCount, lateMailsCount, urgentMailsCount, receivedThisWeekCount, answeredThisWeekCount,
-      qeDepositedCount, qePendingCount, qeLateCount, qeAnsweredCount, qeFollowUpCount,
-      newContactsThisWeek, pendingDuplicates,
-      mailsToValidateCount
-    }
-  },
-  ['dashboard-counts-v1'],
-  { revalidate: 300 }
-)
-
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   const session = await getSession()
   if (!session?.userId) redirect('/login')
 
   const { filter } = await searchParams
-  const isTeam = filter === 'team'
+  // Default to team view if filter is not explicitly set to 'me'
+  const isTeam = filter !== 'me'
   const baseWhere = isTeam ? {} : { assigneeId: session.userId }
+  const baseWhereQE = isTeam ? {} : { OR: [{ assigneeId: session.userId }, { createdById: session.userId }] }
 
   const user = await prisma.user.findUnique({ where: { id: session.userId } })
 
@@ -117,33 +41,50 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const activeTasksWhere = { ...baseWhere, status: { notIn: ['TERMINEE', 'ANNULEE'] } }
 
-  // 1. Fetch cached counts
-  const counts = await getDashboardCounts(
-    session.userId,
-    session.dbRole,
-    isTeam,
-    todayStart.getTime(),
-    todayEnd.getTime(),
-    tomorrowStart.getTime(),
-    tomorrowEnd.getTime(),
-    startOfWeek.getTime(),
-    sixtyDaysAgo.getTime()
-  )
-
-  const {
+  const [
     totalActive, overdueCount, dueTodayCount, dueTomorrowCount,
     inProgressCount, pendingCount, completedThisWeekCount,
     pendingMailsCount, lateMailsCount, urgentMailsCount, receivedThisWeekCount, answeredThisWeekCount,
     qeDepositedCount, qePendingCount, qeLateCount, qeAnsweredCount, qeFollowUpCount,
     newContactsThisWeek, pendingDuplicates,
-    mailsToValidateCount
-  } = counts
-
-  // 2. Fetch real-time alerts, agenda and status
-  const [
+    mailsToValidateCount,
     alertTasks, agendaTasks, agendaMails, agendaQEs,
     myStatusToday
   ] = await Promise.all([
+    // Tâches
+    prisma.task.count({ where: activeTasksWhere }),
+    prisma.task.count({ where: { ...activeTasksWhere, dueDate: { lt: todayStart } } }),
+    prisma.task.count({ where: { ...activeTasksWhere, dueDate: { gte: todayStart, lte: todayEnd } } }),
+    prisma.task.count({ where: { ...activeTasksWhere, dueDate: { gte: tomorrowStart, lte: tomorrowEnd } } }),
+    prisma.task.count({ where: { ...baseWhere, status: { in: ['EN_COURS', 'A_FAIRE', 'A_VALIDER', 'EN_ATTENTE'] } } }),
+    prisma.task.count({ where: { ...baseWhere, status: 'EN_ATTENTE' } }),
+    prisma.task.count({ where: { ...baseWhere, status: 'TERMINEE', completedAt: { gte: startOfWeek } } }),
+    
+    // Courriers
+    prisma.mailCase.count({ where: { ...baseWhere, status: { notIn: ['REPONDU', 'CLASSE', 'ENVOYE'] } } }),
+    prisma.mailCase.count({ where: { ...baseWhere, status: { notIn: ['REPONDU', 'CLASSE', 'ENVOYE'] }, responseDueDate: { lt: todayStart } } }),
+    prisma.mailCase.count({ where: { ...baseWhere, status: { notIn: ['REPONDU', 'CLASSE', 'ENVOYE'] }, urgency: { in: ['HAUTE', 'URGENT', 'TRES_HAUTE'] } } }),
+    prisma.mailCase.count({ where: { ...baseWhere, OR: [{ receiveDate: { gte: startOfWeek } }, { createdAt: { gte: startOfWeek } }] } }),
+    prisma.mailCase.count({ where: { ...baseWhere, status: { in: ['REPONDU', 'CLASSE', 'ENVOYE'] }, updatedAt: { gte: startOfWeek } } }),
+    
+    // QE (Questions Écrites - matching VALIDER, EN_ATTENTE, DEPOSEE, A_REDIGER and TERMINE)
+    prisma.writtenQuestion.count({ where: { ...baseWhereQE, status: { in: ['VALIDER', 'EN_ATTENTE', 'DEPOSEE', 'A_REDIGER'] }, archivedAt: null } }),
+    prisma.writtenQuestion.count({ where: { ...baseWhereQE, status: { in: ['VALIDER', 'EN_ATTENTE', 'DEPOSEE'] }, archivedAt: null } }),
+    prisma.writtenQuestion.count({ where: { ...baseWhereQE, status: { in: ['VALIDER', 'EN_ATTENTE', 'DEPOSEE'] }, depositDate: { lt: sixtyDaysAgo }, responseDate: null, archivedAt: null } }),
+    prisma.writtenQuestion.count({ where: { ...baseWhereQE, status: { in: ['TERMINE', 'REPONSE_RECUE', 'RETOUR_EFFECTUE'] }, archivedAt: null } }),
+    prisma.writtenQuestion.count({ where: { ...baseWhereQE, status: { in: ['VALIDER', 'EN_ATTENTE', 'REPONSE_RECUE'] }, followUpDescription: { not: null }, archivedAt: null } }),
+    
+    // Contacts
+    prisma.contact.count({ where: { createdAt: { gte: startOfWeek }, archivedAt: null } }),
+    prisma.duplicateCandidate.count({ where: { status: 'PENDING' } }),
+    
+    // Validation courriers
+    prisma.mailCase.count({ 
+      where: (session.dbRole === 'SUPERVISEUR' || session.dbRole === 'ADMINISTRATEUR' || session.dbRole === 'SUPERADMIN')
+        ? { validationStatus: 'A_VALIDER' }
+        : { ...baseWhere, validationStatus: 'A_VALIDER' }
+    }),
+
     // Alertes
     prisma.task.findMany({
       where: { ...activeTasksWhere, OR: [{ dueDate: { lt: tomorrowEnd } }, { priority: 'HAUTE' }] },
@@ -158,11 +99,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       include: { assignee: true }
     }),
     prisma.mailCase.findMany({
-      where: { ...baseWhere, status: { notIn: ['REPONDU', 'CLASSE'] }, responseDueDate: { gte: todayStart, lte: next7DaysEnd } },
+      where: { ...baseWhere, status: { notIn: ['REPONDU', 'CLASSE', 'ENVOYE'] }, responseDueDate: { gte: todayStart, lte: next7DaysEnd } },
       include: { assignee: true }
     }),
     prisma.writtenQuestion.findMany({
-      where: { ...baseWhere, status: 'REPONSE_RECUE', followUpDescription: { not: null }, followUpDueDate: { gte: todayStart, lte: next7DaysEnd }, archivedAt: null },
+      where: { ...baseWhereQE, archivedAt: null, OR: [{ followUpDueDate: { gte: todayStart, lte: next7DaysEnd } }, { responseDeadlineDate: { gte: todayStart, lte: next7DaysEnd } }] },
       include: { assignee: true }
     }),
 
@@ -186,7 +127,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const allAgendaItems: AgendaItem[] = [
     ...agendaTasks.map(t => ({ id: t.id, date: t.dueDate!, title: t.title, assigneeName: t.assignee?.name || 'Non assigné', type: 'TASK' as const, status: t.status, url: `/tasks/${t.id}` })),
     ...agendaMails.map(m => ({ id: m.id, date: m.responseDueDate!, title: `Courrier: ${m.subject}`, assigneeName: m.assignee?.name || 'Non assigné', type: 'MAIL' as const, status: 'À traiter', url: `/mails/${m.id}` })),
-    ...agendaQEs.map(q => ({ id: q.id, date: q.followUpDueDate!, title: `QE Retour: ${q.title}`, assigneeName: q.assignee?.name || 'Non assigné', type: 'QE' as const, status: 'Retour à faire', url: `/qe/${q.id}` }))
+    ...agendaQEs.map(q => ({ id: q.id, date: (q.followUpDueDate || q.responseDeadlineDate)!, title: `QE: ${q.title}`, assigneeName: q.assignee?.name || 'Non assigné', type: 'QE' as const, status: q.status, url: `/qe/${q.id}` }))
   ]
 
   // Tri global par date
